@@ -13,6 +13,8 @@
  *                              wrapped in try/catch fallbacks by preload)
  *       contextBridge.exposeInMainWorld(k, v) = `window[k] = v`
  *   - `window.module` / `window.exports` for the bundle's CJS prologue.
+ *   - a `window.process` shim (platform/arch from the HOST, injected by
+ *     webui.ts as __mdHostProcess; no-op event methods for vendored libs).
  *
  * cleanup.js deletes the shim globals right after the preload runs, so the
  * renderer bundle never sees a fake `require` (AMD/UMD sniffers, Monaco).
@@ -141,6 +143,36 @@
       // pathForFile returns '' here and attachment-by-path degrades gracefully.
       getPathForFile: function () { return ''; }
     }
+  };
+
+  // ── `process` shim ────────────────────────────────────────────────────────
+  // Electron renderers get a `process` global; plain browsers don't. The
+  // preload reads platform/arch (line one of the blank-page bug: preload
+  // crashed before it could define window.cth), and vendored renderer libs
+  // (xterm, CodeMirror) poke process.on/listeners even behind typeof guards.
+  // Platform/arch are the SERVER's — injected by webui.ts as __mdHostProcess,
+  // because that is the machine the agents run on — not the viewing device.
+  // The method stubs are deliberate no-ops: library listeners never fire here.
+  var host = window.__mdHostProcess || {};
+  var ua = navigator.userAgent;
+  window.process = {
+    platform: host.platform || (/Win/i.test(ua) ? 'win32' : /Mac/i.test(ua) ? 'darwin' : 'linux'),
+    arch: host.arch || (/arm|aarch/i.test(ua) ? 'arm64' : 'x64'),
+    version: host.version || 'v0.0.0-webui',
+    env: {},
+    browser: true,
+    nextTick: function (f) { Promise.resolve().then(f); },
+    on: function () {}, once: function () {}, off: function () {},
+    addListener: function () {}, removeListener: function () {}, removeAllListeners: function () {},
+    listeners: function () { return []; },
+    listenerCount: function () { return 0; },
+    exit: function () {}, kill: function () {},
+    cwd: function () { return '/'; }, chdir: function () {},
+    umask: function () { return 22; },
+    hrtime: Object.assign(function () {
+      var t = Date.now(); return [Math.floor(t / 1000), (t % 1000) * 1e6];
+    }, { bigint: function () { return BigInt(Date.now()) * 1000000n; } }),
+    binding: function () { throw new Error('[webui] process.binding is not available'); }
   };
 
   // CJS environment for the preload bundle (removed again by cleanup.js).

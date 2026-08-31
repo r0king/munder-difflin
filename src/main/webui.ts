@@ -522,6 +522,16 @@ export class WebUiServer {
       return;
     }
     let html = readFileSync(indexPath, 'utf8');
+    // Browsers have no `process` global; the preload reads process.platform/arch
+    // and vendored renderer libs (xterm, CodeMirror) poke process.on/listeners.
+    // Main injects the AUTHORITATIVE host values here — this is the machine the
+    // agents run on, not the viewing device — and boot.js builds the full shim
+    // around them. Classic script, first, so it lands before boot.js runs.
+    const hostProcess = JSON.stringify({ platform: process.platform, arch: process.arch, version: process.version });
+    html = html.replace(
+      '<head>',
+      `<head>\n    <script>window.__mdHostProcess=${hostProcess};</script>`
+    );
     // Classic scripts injected at the top of <head> run, in order, before the
     // deferred module bundle — so window.cth exists before React boots.
     html = html.replace(

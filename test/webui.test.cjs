@@ -216,6 +216,10 @@ test('static serving refuses path traversal out of the renderer root', () => {
   server.route(mockReq({ url: '/', headers: { cookie: 'md_webui=sekrit' } }), idx);
   assert.equal(idx.statusCode, 200);
   assert.match(idx.body, /__webui\/boot\.js.*__webui\/preload\.js.*__webui\/cleanup\.js/s);
+  // Browsers have no `process`; the injected head scripts must carry the HOST's
+  // platform/arch (the machine the agents run on) for boot.js to build the shim.
+  assert.match(idx.body, /window\.__mdHostProcess=/, 'host process data missing');
+  assert.match(idx.body, /"platform":"[a-z]+"/);
 });
 
 test('SSE: connected clients receive mirrored webContents sends', () => {
@@ -235,4 +239,51 @@ test('SSE: connected clients receive mirrored webContents sends', () => {
   // A closed client is dropped from the fan-out set.
   req.emit('close');
   assert.equal(server.clientCount, 0);
+});
+
+// ── boot.js actually runs: execute it in a browser-ish sandbox ──────────────
+
+test('boot.js builds the process shim and a working electron stand-in', () => {
+  const vm = require('node:vm');
+  const code = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'webui-client', 'boot.js'), 'utf8');
+  const sandbox = {
+    window: {},
+    navigator: { userAgent: 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36' },
+    EventSource: class { onmessage = null; close() {} },
+    fetch: async () => ({ json: async () => ({ ok: true, value: null }) }),
+    XMLHttpRequest: class { open() {} setRequestHeader() {} send() { this.status = 200; this.responseText = '{"ok":true,"value":null}'; } },
+    atob: (s) => Buffer.from(s, 'base64').toString('binary'),
+    btoa: (s) => Buffer.from(s, 'binary').toString('base64'),
+    setTimeout, clearTimeout, console,
+    Promise, JSON, Math, Date, Object, Array, String, Number, BigInt, Error, Uint8Array, ArrayBuffer
+  };
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(code, sandbox);
+  const w = sandbox.window;
+
+  // The shim exists, is built from the injected host data (server is linux/x64
+  // in production), and covers the members the preload + vendored libs touch.
+  assert.equal(w.process.platform, 'darwin'); // UA fallback — no host data injected here
+  assert.equal(typeof w.process.arch, 'string');
+  // Realm-safe: objects created inside the vm have a different Array/Object
+  // prototype, so compare structurally by length/keys, never deepStrictEqual.
+  assert.equal(w.process.listeners('x').length, 0);
+  assert.equal(w.process.listenerCount('x'), 0);
+  assert.equal(typeof w.process.nextTick, 'function');
+  assert.equal(Object.keys(w.process.env).length, 0);
+  // With host data injected (what webui.ts serves), the HOST's platform wins
+  // over the viewing device's UA.
+  const sandbox2 = { ...sandbox, window: {}, __mdHostProcess: undefined };
+  vm.createContext(sandbox2);
+  sandbox2.window.__mdHostProcess = { platform: 'linux', arch: 'x64', version: 'v22.6.0' };
+  vm.runInContext(code, sandbox2);
+  assert.equal(sandbox2.window.process.platform, 'linux');
+  assert.equal(sandbox2.window.process.arch, 'x64');
+  assert.equal(sandbox2.window.process.version, 'v22.6.0');
+
+  // The electron stand-in still works end to end: exposeInMainWorld → window.cth.
+  const exposed = {};
+  w.require('electron').contextBridge.exposeInMainWorld('cth', exposed);
+  assert.equal(w.cth, exposed);
 });
