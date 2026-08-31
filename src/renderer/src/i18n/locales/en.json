@@ -339,7 +339,12 @@
       "orgKeyDesc": "How a teammate's install addresses yours.",
       "apiKey": "API key",
       "orgKeyPlaceholder": "paste your organisation key",
-      "orgConfigOnly": "Configuration only for now. The organisation messaging service does not exist yet, so a key here starts no transport — it is saved, shown in the Triggers tab, and waits."
+      "orgConfigOnly": "Configuration only for now. The organisation messaging service does not exist yet, so a key here starts no transport — it is saved, shown in the Triggers tab, and waits.",
+      "webUiTitle": "Web UI (browser access)",
+      "webUiDesc": "Serve this same interface over HTTP on this machine, and drive the office from any browser. Loopback-only unless Tailscale Serve is on.",
+      "webUiTailscale": "Serve over Tailscale",
+      "webUiTailscaleDesc": "Publishes the web UI to your tailnet at an https://…ts.net address — HTTPS, no ports opened, no third-party tunnel. Needs the Tailscale CLI on this machine.",
+      "webUiTsMissing": "The Tailscale CLI was not found on this machine — install it, then reopen Settings."
     },
     "voice": {
       "freeFlow": "Free Flow",

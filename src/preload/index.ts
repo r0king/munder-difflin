@@ -1223,6 +1223,24 @@ const api = {
   }): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('slack:setConfig', patch),
 
+  // ─── Web UI + Tailscale Serve (src/main/webui.ts, tailscaleServe.ts) ─────────
+  /** Full Tailscale/web-UI status for the Settings panel. */
+  tailscaleStatus: (): Promise<{
+    installed: boolean; serving: boolean; url: string | null; dnsName: string | null;
+    appRunning: boolean; loopbackPort: number;
+  }> => ipcRenderer.invoke('tailscale:status'),
+  /** Start the (loopback) web UI if needed, then publish it via `tailscale serve`. */
+  tailscaleServeOn: (): Promise<{ ok: boolean; url?: string; error?: string }> =>
+    ipcRenderer.invoke('tailscale:serveOn'),
+  /** Unpublish the tailnet serve entry (the local web UI keeps running). */
+  tailscaleServeOff: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('tailscale:serveOff'),
+  /** Turn the web UI off entirely: persist webUi.enabled:false and stop the server. */
+  webUiStop: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('webui:stop'),
+  /** Turn the web UI on immediately (loopback): persist + start, no restart. */
+  webUiStart: (): Promise<{ ok: boolean; url?: string; error?: string }> =>
+    ipcRenderer.invoke('webui:start'),
+
   // ─── Generic webhook + status API (POST → work, GET → status) ────────────────
   /** Start the generic webhook server; returns the public endpoint URL callers
    *  POST to (secret-gated) and GET a token's status from. */

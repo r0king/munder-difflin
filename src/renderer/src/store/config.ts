@@ -112,6 +112,8 @@ export interface HarnessConfig {
   slackBotToken?: string;
   slackChannelId?: string;
   slackPort?: number;
+  /** Web UI + Tailscale (mirrors src/main/config.ts WebUiConfig). */
+  webUi?: { enabled?: boolean; port?: number; host?: string; token?: string };
   /** Opt-in app/voice-initiated proactive Slack posting (default OFF). Mirrors
    *  src/main/config.ts; the Slack-origin done-reply round-trip is never gated. */
   slackProactivePosting?: boolean;

@@ -119,6 +119,7 @@ import {
   withCodexRemoteArgs
 } from '../shared/codexRemote';
 import { installIpcCapture, resolveWebUiRuntimeConfig, wrapWebContentsSend, WebUiServer } from './webui';
+import { enableServe, disableServe, makeNodeRunner, readTailscaleStatus } from './tailscaleServe';
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
 
@@ -6028,9 +6029,20 @@ function onSystemResume(reason: string): void {
 // ─── Web UI auto-start (src/main/webui.ts) ──────────────────────────────────
 /** The running web UI server, or null when disabled/failed. */
 let webUiServer: WebUiServer | null = null;
-async function maybeStartWebUi(): Promise<void> {
-  const rc = resolveWebUiRuntimeConfig(readConfig().webUi, process.env);
-  if (!rc.enabled) return;
+/** The port the running server bound (needed by the Tailscale serve wiring). */
+let webUiPort = 0;
+
+/** Start the web UI server now, persisting `webUi.enabled` if needed. Called
+ *  from the boot path (maybeStartWebUi) and from the Tailscale toggle — which
+ *  must work without a restart. Starting an already-running server is a no-op. */
+async function startWebUiServer(): Promise<{ ok: boolean; url?: string; error?: string }> {
+  if (webUiServer) return { ok: true, url: `http://127.0.0.1:${webUiPort}` };
+  let rc = resolveWebUiRuntimeConfig(readConfig().webUi, process.env);
+  if (!rc.enabled) {
+    // The toggle turned us on: persist it so the server re-arms next boot.
+    writeConfig({ webUi: { ...(readConfig().webUi ?? {}), enabled: true } });
+    rc = resolveWebUiRuntimeConfig(readConfig().webUi, process.env);
+  }
   let token = rc.token;
   if (!token && !rc.loopback) {
     // Non-loopback bind with no secret: generate one and persist it, so the
@@ -6039,6 +6051,7 @@ async function maybeStartWebUi(): Promise<void> {
     token = randomBytes(16).toString('hex');
     writeConfig({ webUi: { ...(readConfig().webUi ?? {}), token } });
   }
+  webUiPort = rc.port;
   webUiServer = new WebUiServer({
     host: rc.host,
     port: rc.port,
@@ -6053,11 +6066,63 @@ async function maybeStartWebUi(): Promise<void> {
   if (!res.ok) {
     console.error('[webui] failed to start:', res.error);
     webUiServer = null;
-    return;
+    return res;
   }
   webUiServer.activate();
   console.log(`[webui] serving the office at ${res.url}`);
+  return res;
 }
+
+function stopWebUiServer(): void {
+  webUiServer?.stop();
+  webUiServer = null;
+}
+
+async function maybeStartWebUi(): Promise<void> {
+  const rc = resolveWebUiRuntimeConfig(readConfig().webUi, process.env);
+  if (!rc.enabled) return;
+  await startWebUiServer();
+}
+
+// ─── Tailscale Serve (src/main/tailscaleServe.ts) ───────────────────────────
+// Publishes the (loopback-only) web UI to the user's tailnet over HTTPS via
+// the `tailscale` CLI. The app NEVER writes a wider bind host for this — the
+// whole point is that serve proxies loopback, so the token never crosses a
+// plain-HTTP LAN segment. The CLI runner is injectable for tests.
+const tailscaleRunner = makeNodeRunner('tailscale');
+
+ipcMain.handle('tailscale:status', async () => {
+  const status = await readTailscaleStatus(tailscaleRunner);
+  return {
+    ...status,
+    appRunning: !!webUiServer,
+    loopbackPort: webUiPort || resolveWebUiRuntimeConfig(readConfig().webUi, process.env).port
+  };
+});
+
+ipcMain.handle('tailscale:serveOn', async () => {
+  // The web UI server must be up (serve proxies it); start it loopback-first.
+  const started = await startWebUiServer();
+  if (!started.ok) return { ok: false, error: `web ui: ${started.error ?? 'failed to start'}` };
+  const res = await enableServe(webUiPort, tailscaleRunner);
+  if (res.ok) console.log(`[tailscale] serving the office at ${res.url ?? '(url unknown)'}`);
+  return res;
+});
+
+ipcMain.handle('tailscale:serveOff', async () => disableServe(tailscaleRunner));
+
+// Turning the web UI ON from Settings: start it immediately (no restart).
+ipcMain.handle('webui:start', async () => startWebUiServer());
+
+// Turning the web UI itself OFF from Settings: persist, then stop the server
+// (and unpublish any Tailscale serve entry, which would otherwise proxy a
+// dead port). Serve-off is best-effort — the local stop is the load-bearing part.
+ipcMain.handle('webui:stop', async () => {
+  writeConfig({ webUi: { ...(readConfig().webUi ?? {}), enabled: false } });
+  stopWebUiServer();
+  void disableServe(tailscaleRunner);
+  return { ok: true };
+});
 
 app.whenReady().then(() => {
   // Realtime Michael mic-gate hygiene (rt-8 / Pam rt-10 nit): the voice session

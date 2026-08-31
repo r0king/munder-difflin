@@ -415,6 +415,48 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
   // Whether the connect-steps help panel is expanded.
   const [showSlackHelp, setShowSlackHelp] = useState(false);
 
+  // --- Web UI + Tailscale Serve (src/main/tailscaleServe.ts) -----------------
+  const [webUiEnabled, setWebUiEnabled] = useState(config.webUi?.enabled ?? false);
+  const [webUiBusy, setWebUiBusy] = useState(false);
+  const [webUiNote, setWebUiNote] = useState('');
+  // Tailscale facts hydrate from main on open (null = status not read yet, so
+  // the CLI-missing hint doesn't flash while the check is in flight).
+  const [tsInstalled, setTsInstalled] = useState<boolean | null>(null);
+  const [tsServing, setTsServing] = useState(false);
+  const [tsUrl, setTsUrl] = useState<string | null>(null);
+
+  // The toggle handler: ON persists + starts the loopback server immediately;
+  // OFF stops it (and unpublishes any Tailscale entry, best-effort, in main).
+  const toggleWebUi = async () => {
+    const next = !webUiEnabled;
+    setWebUiBusy(true); setWebUiNote('');
+    try {
+      if (next) await window.cth.webUiStart();
+      else await window.cth.webUiStop();
+      setWebUiEnabled(next);
+    } catch {
+      setWebUiNote('could not save');
+    } finally { setWebUiBusy(false); }
+  };
+
+  // Tailscale Serve: publish (implies web UI on — main starts it) / unpublish.
+  const toggleTailscaleServe = async () => {
+    setWebUiBusy(true); setWebUiNote('');
+    try {
+      if (!tsServing) {
+        const res = await window.cth.tailscaleServeOn();
+        if (res.ok) { setTsServing(true); setWebUiEnabled(true); setTsUrl(res.url ?? null); }
+        else setWebUiNote(res.error ?? 'failed');
+      } else {
+        const res = await window.cth.tailscaleServeOff();
+        if (res.ok) { setTsServing(false); setTsUrl(null); }
+        else setWebUiNote(res.error ?? 'failed');
+      }
+    } catch (e) {
+      setWebUiNote(e instanceof Error ? e.message : String(e));
+    } finally { setWebUiBusy(false); }
+  };
+
   // --- Webhook triggers (a LIST; src/shared/triggers.ts owns the type) ---------
   // The list itself lives in the store, not in local state: the Triggers tab
   // edits the same webhooks, and one of the two surfaces holding a private copy
@@ -576,6 +618,16 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
       setRunning(s.running);
       if (s.url) setTunnelUrl(s.url);
     }).catch(() => { /* status unavailable - assume not running */ });
+    // Tailscale/web-UI facts live in main (the CLI runs there; the server's
+    // running state is main's truth). tsInstalled null until this lands, so the
+    // CLI-missing hint doesn't flash while the check is in flight.
+    window.cth.tailscaleStatus().then((s) => {
+      if (!alive) return;
+      setTsInstalled(s.installed);
+      setTsServing(s.serving);
+      if (s.url) setTsUrl(s.url);
+      if (s.appRunning) setWebUiEnabled(true);
+    }).catch(() => { /* status unavailable */ });
     // Triggers: re-read main and push the result into the shared mirror. App
     // already seeded it at launch; this catches anything the Triggers tab (or
     // another window) changed since, and is the ONLY place Settings reads them —
@@ -1838,6 +1890,80 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
                         {webhookNote && (
                           <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>{webhookNote}</span>
+                        )}
+                      </div>
+
+                      <div style={sectionRule} />
+
+                      {/* Web UI + Tailscale — the office in a browser. The server
+                          itself stays LOOPBACK-only; Tailscale Serve is what makes
+                          it reachable from other devices, over HTTPS, with no
+                          ports opened and no third-party tunnel. */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={sectionHeadTight}>
+                          {t('settings.connections.webUiTitle')}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                              {t('settings.connections.webUiTitle')}
+                            </span>
+                            <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                              {t('settings.connections.webUiDesc')}
+                            </span>
+                          </div>
+                          <PixelButton
+                            variant={webUiEnabled ? 'primary' : 'secondary'}
+                            size="sm"
+                            disabled={webUiBusy}
+                            onClick={() => { void toggleWebUi(); }}
+                          >
+                            {webUiEnabled ? t('common.on') : t('common.off')}
+                          </PixelButton>
+                        </div>
+
+                        {/* Tailscale Serve — the remote-access half. Disabled until
+                            the CLI check resolves; hint shown when absent. */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                              {t('settings.connections.webUiTailscale')}
+                            </span>
+                            <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                              {tsInstalled === false
+                                ? t('settings.connections.webUiTsMissing')
+                                : t('settings.connections.webUiTailscaleDesc')}
+                            </span>
+                          </div>
+                          <PixelButton
+                            variant={tsServing ? 'primary' : 'secondary'}
+                            size="sm"
+                            disabled={webUiBusy || tsInstalled === false}
+                            onClick={() => { void toggleTailscaleServe(); }}
+                          >
+                            {tsServing ? t('common.on') : t('common.off')}
+                          </PixelButton>
+                        </div>
+
+                        {(tsUrl || webUiNote) && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {tsUrl && (
+                              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                <input
+                                  readOnly
+                                  value={tsUrl}
+                                  onFocus={(e) => e.currentTarget.select()}
+                                  style={{ ...slackInputStyle, fontFamily: 'var(--cth-font-mono)', fontSize: 12 }}
+                                />
+                                <PixelButton variant="secondary" size="sm" onClick={() => { void navigator.clipboard.writeText(tsUrl); }}>
+                                  {t('common.copy')}
+                                </PixelButton>
+                              </div>
+                            )}
+                            {webUiNote && (
+                              <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>{webUiNote}</span>
+                            )}
+                          </div>
                         )}
                       </div>
 

@@ -339,7 +339,12 @@
       "orgKeyDesc": "队友的安装如何找到你的实例。",
       "apiKey": "API 密钥",
       "orgKeyPlaceholder": "粘贴你的组织密钥",
-      "orgConfigOnly": "目前仅限配置。组织消息服务尚不存在，所以这里的密钥不会启动任何传输——它会被保存、显示在触发器标签页中，然后等待。"
+      "orgConfigOnly": "目前仅限配置。组织消息服务尚不存在，所以这里的密钥不会启动任何传输——它会被保存、显示在触发器标签页中，然后等待。",
+      "webUiTitle": "Web 界面（浏览器访问）",
+      "webUiDesc": "在本机上通过 HTTP 提供相同的界面，用任意浏览器操控办公室。未开启 Tailscale Serve 时仅限本机回环访问。",
+      "webUiTailscale": "通过 Tailscale 发布",
+      "webUiTailscaleDesc": "把 Web 界面发布到你的 Tailnet 的 https://…ts.net 地址——HTTPS 加密、不开端口、无需第三方隧道。需要本机安装 Tailscale 命令行。",
+      "webUiTsMissing": "本机未找到 Tailscale 命令行——请先安装，然后重新打开设置。"
     },
     "voice": {
       "freeFlow": "自由输入",
