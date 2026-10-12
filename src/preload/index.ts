@@ -19,6 +19,8 @@ export type { LocalSkill, CatalogSkill } from '../main/skills';
 import type {
   ContextRule, ContextTriggerConfig, OrgTriggerConfig, TriggerHistoryEntry, WebhookTrigger
 } from '../shared/triggers';
+import { featuresApi } from './features';
+export type { FeaturesApi, BridgeBacklog } from './features';
 export type {
   ContextRule, ContextTriggerConfig, OrgTriggerConfig, TriggerHistoryEntry, WebhookTrigger
 } from '../shared/triggers';
@@ -325,6 +327,8 @@ export interface HarnessConfig {
   tvShowOffices?: boolean;
   /** Active office map/cast theme (honored only when tvShowOffices is on). */
   officeTheme?: 'office' | 'friends' | 'brooklyn99' | 'siliconvalley' | 'got' | 'hogwarts';
+  /** Classic (pixel office) or Workspace interface. Mirrors src/main/config.ts. */
+  uiMode?: 'classic' | 'workspace';
   /** Per-CLI-provider local/self-hosted base URL (Ollama/LM Studio/vLLM, …) for the
    *  OpenCode/Crush/pi/qwen engines; applied at spawn. API KEYS are NOT stored here —
    *  they live write-only in the secret broker. */
@@ -566,6 +570,11 @@ export interface PreservedWorktreeSnapshot {
 
 const api = {
   version: __APP_VERSION__,
+
+  // ─── Workspace / Stapler features ───────────────────────────────────────
+  /** One API object per feature unit (src/preload/features/<unit>.ts) plus the
+   *  renderer↔main feature bridge. See docs/WORKSPACE_UNITS.md. */
+  features: featuresApi,
 
   // ─── Analytics ───────────────────────────────────────────────────────────
   /** Count ONE human-sent message (TELEMETRY.md → `message_sent`). Carries a

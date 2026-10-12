@@ -71,6 +71,10 @@ import { fetchHireManifest, readHireManifestFiles } from './hire';
 import { parseHireDeepLink, type HireManifest } from '../shared/hire';
 import { ClosingTimeController } from './closingTime';
 import {
+  applyEarlyFeatureSwitches, createFeatureContext, registerFeatures, featureMicLive,
+  notifyAppWindowsClosed, disposeFeatures
+} from './features';
+import {
   argsWithAutoModeFlag,
   inferAgentProvider,
   isClaudeProvider,
@@ -94,6 +98,12 @@ import {
 } from '../shared/codexRemote';
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
+
+// Workspace/Stapler feature modules may need Chromium features enabled (e.g.
+// system-audio capture for meetings). Chromium reads `--enable-features` once,
+// at startup, so this has to run here at module top level — before app 'ready'
+// — and every module's flags are merged into ONE switch (src/main/features).
+applyEarlyFeatureSwitches();
 
 // Keep the main process alive on an unexpected throw/rejection. The harness is a
 // multi-agent supervisor — a single stray throw (e.g. node-pty's ConPTY console
@@ -2361,9 +2371,12 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
   // engines, so a CLI-only user must not have the mic gate opened. Every other
   // permission keeps the app's prior permissive behavior (e.g. clipboard for
   // xterm/editor copy must keep working).
+  // Feature modules (Stapler recording, dictation) report their own capture
+  // through featureMicLive(); a module only answers true while it is actually
+  // recording, so this widens the gate for exactly as long as a capture runs.
   const micFeatureLive = (): boolean => {
     const cfg = readConfig();
-    return cfg.freeflowEnabled === true || cfg.realtimeVoiceEnabled === true;
+    return cfg.freeflowEnabled === true || cfg.realtimeVoiceEnabled === true || featureMicLive();
   };
   const ses = win.webContents.session;
   ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
@@ -2467,6 +2480,11 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
       for (const w of allWindows) { if (!w.isDestroyed()) { mainWindow = w; break; } }
     }
     syncKeepAwake();
+    // The last APP window is gone. Feature windows (the Stapler's puck) are not
+    // in allWindows, and while one is open Electron never emits
+    // 'window-all-closed' — so on Windows/Linux the app would idle on with no
+    // office. Modules close their own windows here.
+    if (allWindows.size === 0) notifyAppWindowsClosed();
   });
 
   return win;
@@ -3791,6 +3809,10 @@ function teardownAndQuit(): void {
   try { reflector.stop(); } catch (e) { console.error('[quit] reflector.stop:', e); }
   try { persist.close(); } catch (e) { console.error('[quit] persist.close:', e); }
   try { hive.stopAllProxyBridges(); } catch (e) { console.error('[quit] stopAllProxyBridges:', e); }
+  // Feature modules may own child processes (a transcriber, a dictation
+  // helper); on Windows a child is NOT killed with its parent, so they stop
+  // here rather than waiting for will-quit. Idempotent.
+  try { disposeFeatures(); } catch (e) { console.error('[quit] disposeFeatures:', e); }
   try { ptyManager.killAll(); } catch (e) { console.error('[quit] killAll:', e); }
   app.quit();
 }
@@ -3850,6 +3872,7 @@ ipcMain.handle('app:resetAll', () => {
   try { memory.stop(); } catch (e) { console.error('[reset] memory.stop:', e); }
   try { reflector.stop(); } catch (e) { console.error('[reset] reflector.stop:', e); }
   try { persist.close(); } catch (e) { console.error('[reset] persist.close:', e); }
+  try { disposeFeatures(); } catch (e) { console.error('[reset] disposeFeatures:', e); }
   try { ptyManager.killAll(); } catch (e) { console.error('[reset] killAll:', e); }
   try { hive.removeExposedCodexData(); } catch (e) { console.error('[reset] removeExposedCodexData:', e); }
   // Erase the hive (Michael's + every agent's memory, inboxes, tasks, board,
@@ -5429,6 +5452,21 @@ app.whenReady().then(() => {
   // off, the app keeps Electron's default menu — zero behavior change.
   if (readConfig().multiWindow) installAppMenu();
   createWindow();
+  // Workspace/Stapler feature modules (src/main/features). After the hive
+  // services and the primary window exist, and in the same tick as
+  // createWindow(), so every feat:* handler is registered before the renderer
+  // can invoke one. A module that throws is logged and skipped.
+  registerFeatures(createFeatureContext({
+    isDev,
+    preloadPath: join(__dirname, '../preload/index.js'),
+    rendererDir: join(__dirname, '../renderer'),
+    rendererUrl: process.env.ELECTRON_RENDERER_URL,
+    getMainWindow: () => mainWindow,
+    appWindows: () => [...allWindows],
+    readConfig,
+    writeConfig,
+    harnessHome: () => readConfig().harnessHome ?? null
+  }));
   // Auto-start the Slack webhook server when configured. Best-effort: a tunnel
   // failure (offline) is logged, not fatal. The tunnel URL is ephemeral and
   // changes per restart, so the user re-pastes it via Settings → Start.
@@ -5448,8 +5486,11 @@ app.whenReady().then(() => {
       else console.log('[webhook] listening', r.url ? `(tunnel: ${r.url})` : '(no tunnel)');
     });
   }
+  // allWindows, not BrowserWindow.getAllWindows(): a feature window (the
+  // Stapler's puck floats over every app) must not stop a Dock click from
+  // reopening the office on macOS.
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (allWindows.size === 0) createWindow();
   });
 });
 
@@ -5500,6 +5541,9 @@ app.on('window-all-closed', () => {
 // exactly what's left to do.
 let analyticsFlushed = false;
 app.on('will-quit', (e) => {
+  // Every quit path ends here (teardownAndQuit already disposed; a plain
+  // app.quit on macOS did not). Idempotent.
+  try { disposeFeatures(); } catch (err) { console.error('[quit] disposeFeatures:', err); }
   if (analyticsFlushed) return;
   analyticsFlushed = true;
   e.preventDefault();
