@@ -1,0 +1,92 @@
+{
+  "title": "工作区",
+  "mode": {
+    "label": "界面",
+    "classic": "经典",
+    "workspace": "工作区",
+    "tip": "在像素办公室和工作区之间切换"
+  },
+  "nav": {
+    "orchestrator": "调度者",
+    "agents": "智能体",
+    "tasks": "任务",
+    "inbox": "收件箱",
+    "automations": "自动化",
+    "memory": "记忆",
+    "capabilities": "能力",
+    "stapler": "订书机"
+  },
+  "status": {
+    "working": "工作中",
+    "thinking": "思考中",
+    "needsYou": "需要你",
+    "waiting": "等待中",
+    "compacting": "压缩中",
+    "looping": "循环中",
+    "idle": "空闲",
+    "offline": "离线"
+  },
+  "live": {
+    "offline": "离线",
+    "starting": "正在启动",
+    "idle": "空闲",
+    "thinking": "思考中",
+    "working": "工作中",
+    "workingDetail": "工作中：{{detail}}",
+    "inbox": "正在读收件箱",
+    "compacting": "正在打包上下文",
+    "looping": "已被熔断器停止",
+    "loopingDetail": "已被熔断器停止：{{detail}}",
+    "needsYou": "在等你",
+    "askedYou": "向你提了一个问题",
+    "waiting": "在等另一个智能体",
+    "running": "正在运行命令",
+    "runningDetail": "正在运行 {{detail}}",
+    "reading": "正在读文件",
+    "readingDetail": "正在读 {{detail}}",
+    "editing": "正在编辑文件",
+    "editingDetail": "正在编辑 {{detail}}",
+    "searching": "正在搜索代码",
+    "searchingDetail": "正在搜索 {{detail}}",
+    "browsing": "正在网上查资料",
+    "browsingDetail": "正在查 {{detail}}",
+    "planning": "正在更新计划",
+    "delegating": "正在把工作交给子智能体",
+    "tool": "正在使用工具",
+    "toolDetail": "正在使用 {{detail}}"
+  },
+  "stapler": {
+    "on": "订书机已开启",
+    "off": "订书机已关闭",
+    "toggleAria": "显示或隐藏订书机"
+  },
+  "shell": {
+    "booting": "正在唤醒办公室",
+    "bootingBody": "{{godName}} 正在打卡上班。终端一启动，这里就会显示内容。",
+    "failed": "{{godName}} 无法启动",
+    "failedBody": "调度者的终端没有启动。请在设置里检查引擎，然后重启应用。",
+    "empty": "办公室里还没有智能体",
+    "emptyBody": "添加一个智能体，它的卡片、状态和终端就会出现在这里。",
+    "addAgent": "添加智能体",
+    "agentGone": "这个智能体已经离开办公室",
+    "agentGoneBody": "它的终端已关闭。请选择另一个智能体，或从智能体列表中恢复它。",
+    "backToAgents": "返回智能体",
+    "resizeSidebar": "拖动以调整侧边栏宽度，双击恢复默认。",
+    "collapseSidebar": "隐藏侧边栏",
+    "expandSidebar": "显示侧边栏",
+    "screenCrashed": "这个页面出了点问题",
+    "screenCrashedBody": "页面上的某些内容没能绘制出来。应用的其他部分一切正常。",
+    "retry": "重试",
+    "stubBody": "这个页面即将上线。"
+  },
+  "keys": {
+    "sidebar": "侧边栏",
+    "settings": "设置",
+    "details": "智能体详情",
+    "ide": "在 IDE 中打开"
+  },
+  "ui": {
+    "search": "搜索",
+    "clear": "清除"
+  }
+}

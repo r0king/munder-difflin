@@ -96,7 +96,8 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     let route = cleanRoute(next);
     const hive = useStore.getState();
     if (route.kind === 'agent') {
-      const target = hive.agents.find((a) => a.id === route.agentId);
+      const agentId = route.agentId;
+      const target = hive.agents.find((a) => a.id === agentId);
       if (target?.isGod) route = { kind: 'orchestrator' };
       else if (target && hive.selectedId !== target.id) hive.select(target.id);
     }

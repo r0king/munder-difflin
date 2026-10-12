@@ -31,6 +31,11 @@ import { FullscreenTerminal } from '@/components/FullscreenTerminal';
 import { TaskDetailOverlay } from '@/components/TaskDetailOverlay';
 import { IdePanel } from '@/ide/IdePanel';
 import { useHoldOptionToTalk } from '@/freeflow/holdOption';
+import { normalizeUiMode, type UiMode } from '@shared/features/route';
+import { Workspace } from '@/workspace/Workspace';
+import { UiModeSwitch, StaplerTitlebarToggle } from '@/workspace/TitlebarControls';
+import { useFeatureBridge } from '@/workspace/useFeatureBridge';
+import { useWorkspaceShortcuts } from '@/workspace/useWorkspaceShortcuts';
 import brandLogo from '@brand/logo.png?url';
 
 // Injected at build time from package.json (see electron.vite.config.ts).
@@ -139,6 +144,21 @@ export function App() {
   // Config subscription — the copy loaded above would otherwise go stale the
   // moment anything saves a setting.
   useEffect(() => window.cth.onConfigChanged(setConfig), []);
+
+  // Classic (the pixel office) or Workspace. A presentation choice only:
+  // everything above and below runs identically in both. The local config is
+  // updated optimistically so the switch answers on the click; main persists
+  // it and broadcasts config:changed to every window.
+  const uiMode: UiMode = normalizeUiMode(config?.uiMode);
+  const setUiMode = (mode: UiMode): void => {
+    setConfig((c) => (c ? { ...c, uiMode: mode } : c));
+    void window.cth.updateConfig({ uiMode: mode });
+  };
+
+  // The feature bridge (Stapler sends, navigation, the roster main caches)
+  // runs in both modes; the Workspace's desk keys only in the Workspace.
+  useFeatureBridge();
+  useWorkspaceShortcuts(uiMode === 'workspace' && hiveOpened && !!config?.onboardingComplete);
 
   // Quit warning subscription
   useEffect(() => window.cth.onCloseRequested((info) => setQuitWarn(info)), []);
@@ -313,6 +333,10 @@ export function App() {
         {/* v0.3.4: theme + fullscreen live HERE (top right), not buried in the
             terminal header — and the theme darkens the whole app, terminals
             included (design/theme.ts + tokens.css dark block). */}
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+          <UiModeSwitch mode={uiMode} onChange={setUiMode} />
+          <StaplerTitlebarToggle />
+        </span>
         <button
           className="cth-titlebar-nodrag cth-tip"
           onClick={() => {
@@ -333,7 +357,6 @@ export function App() {
           data-tip={appThemeNow === 'dark' ? 'Light theme' : 'Dark theme'}
           aria-label="Toggle dark mode"
           style={{
-            marginLeft: 'auto',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             width: 28, height: 28, padding: 0,
             background: 'var(--cth-paper-100)',
@@ -392,6 +415,9 @@ export function App() {
 
       </div>
 
+      {uiMode === 'workspace' ? (
+        <Workspace config={config} />
+      ) : (<>
       <div style={{
         flex: 1, minHeight: 0,
         display: 'flex',
@@ -478,6 +504,7 @@ export function App() {
       </div>
 
       <AgentStrip config={config} />
+      </>)}
 
       {addAgentOpen && (
         <AddAgentModal

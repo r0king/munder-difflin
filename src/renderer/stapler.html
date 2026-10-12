@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en" class="cth-stapler">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Stapler</title>
+    <!-- The Stapler's own windows (the puck, the screenshot overlay). Same CSP as
+         index.html, plus the transcription hosts: Groq (only when the user adds a
+         key) and Hugging Face (the optional larger Whisper model download). Fonts
+         are bundled (design/fonts.css) exactly as in the main window. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.openai.com https://*.openai.com wss://api.openai.com wss://*.openai.com https://api.groq.com https://huggingface.co https://*.hf.co https://cdn-lfs.huggingface.co; media-src 'self' blob: mediastream:;" />
+    <style>
+      /* These windows are TRANSPARENT: the puck is a floating shape and the
+         overlay dims the screen itself. global.css paints html/body/#root cream
+         for the main window; the class on <html> outranks those selectors, so
+         this wins whatever order the stylesheets load in. */
+      html.cth-stapler,
+      html.cth-stapler body,
+      html.cth-stapler #root {
+        background: transparent;
+        background-image: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./src/stapler/main.tsx"></script>
+  </body>
+</html>

@@ -12,15 +12,52 @@
  * Adding a language: drop a `locales/<code>.json` with the exact same key
  * tree as `en.json`, register it in `resources` and `supportedLngs`, and add
  * an entry to `LANGUAGES` (Settings → General exposes the picker from that
- * list). Give it `dir: 'rtl'` if it is a right-to-left script. No other code
- * needs to change.
+ * list). Give it `dir: 'rtl'` if it is a right-to-left script. Add a
+ * `features/<ns>.<code>.json` for every feature namespace too (see below). No
+ * other code needs to change.
  */
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { DEFAULT_GOD_NAME } from '@shared/godIdentity';
-import en from './locales/en.json';
-import zhCN from './locales/zh-CN.json';
-import ar from './locales/ar.json';
+import enBase from './locales/en.json';
+import zhCNBase from './locales/zh-CN.json';
+import arBase from './locales/ar.json';
+
+/**
+ * Feature fragments: `features/<ns>.<lng>.json`, one namespace per Workspace /
+ * Stapler unit (ws, wsTasks, stapler, …), merged in as top-level keys of the
+ * same `translation` resource — so a unit's string is `t('wsTasks.title')`.
+ *
+ * Fragments exist so eleven units can add strings in parallel without all
+ * editing the three 70KB locale files at once. Same rules as the locales: the
+ * three languages carry identical key trees (test/i18n-feature-fragments
+ * enforces it), and a namespace may not shadow an existing top-level key — a
+ * collision keeps the locale's own value and warns, rather than silently
+ * replacing a block of the classic UI's strings.
+ */
+const FRAGMENTS = import.meta.glob('./features/*.json', { eager: true, import: 'default' }) as
+  Record<string, Record<string, unknown>>;
+
+const FRAGMENT_FILE = /\/([A-Za-z][A-Za-z0-9]*)\.([A-Za-z-]+)\.json$/;
+
+function withFeatureFragments<T extends Record<string, unknown>>(lng: string, base: T): T {
+  const merged: Record<string, unknown> = { ...base };
+  for (const [file, data] of Object.entries(FRAGMENTS)) {
+    const m = FRAGMENT_FILE.exec(file);
+    if (!m || m[2] !== lng || !data || typeof data !== 'object') continue;
+    const ns = m[1];
+    if (ns in base) {
+      console.warn(`[i18n] feature namespace "${ns}" collides with a top-level locale key; ignored`);
+      continue;
+    }
+    merged[ns] = data;
+  }
+  return merged as T;
+}
+
+const en = withFeatureFragments('en', enBase);
+const zhCN = withFeatureFragments('zh-CN', zhCNBase);
+const ar = withFeatureFragments('ar', arBase);
 
 /**
  * The languages the Settings picker offers, in display order.

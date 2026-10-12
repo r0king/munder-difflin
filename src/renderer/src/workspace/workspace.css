@@ -459,6 +459,10 @@ button.cth-ws-chip { cursor: pointer; }
   min-height: 28px;
   padding: 0 var(--cth-space-3);
   border: none;
+  /* The current-page marker is a BORDER, not an inset shadow, so it is logical
+     and lands on the leading edge in Arabic too. Always 2px (transparent when
+     not current) so selecting a row never shifts its text. */
+  border-inline-start: 2px solid transparent;
   background: transparent;
   color: var(--cth-ink-700);
   font-family: inherit;
@@ -467,8 +471,7 @@ button.cth-ws-chip { cursor: pointer; }
   cursor: pointer;
 }
 .cth-ws-navrow:hover { background: var(--cth-cream-200); color: var(--cth-ink-900); }
-.cth-ws-navrow[aria-current='page'] { background: var(--cth-cream-200); color: var(--cth-ink-900); box-shadow: inset 2px 0 0 var(--cth-ink-900); }
-[dir='rtl'] .cth-ws-navrow[aria-current='page'] { box-shadow: inset -2px 0 0 var(--cth-ink-900); }
+.cth-ws-navrow[aria-current='page'] { background: var(--cth-cream-200); color: var(--cth-ink-900); border-inline-start-color: var(--cth-ink-900); }
 .cth-ws-navrow-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cth-ws-navrow-meta { flex-shrink: 0; font-size: 12px; color: var(--cth-ink-500); }
 

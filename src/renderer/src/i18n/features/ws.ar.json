@@ -1,0 +1,92 @@
+{
+  "title": "مساحة العمل",
+  "mode": {
+    "label": "الواجهة",
+    "classic": "الكلاسيكية",
+    "workspace": "مساحة العمل",
+    "tip": "بدّل بين مكتب البكسل ومساحة العمل"
+  },
+  "nav": {
+    "orchestrator": "المنسّق",
+    "agents": "الوكلاء",
+    "tasks": "المهام",
+    "inbox": "صندوق الوارد",
+    "automations": "الأتمتة",
+    "memory": "الذاكرة",
+    "capabilities": "القدرات",
+    "stapler": "الدبّاسة"
+  },
+  "status": {
+    "working": "يعمل",
+    "thinking": "يفكّر",
+    "needsYou": "بحاجة إليك",
+    "waiting": "ينتظر",
+    "compacting": "يضغط السياق",
+    "looping": "يدور في حلقة",
+    "idle": "خامل",
+    "offline": "غير متصل"
+  },
+  "live": {
+    "offline": "غير متصل",
+    "starting": "قيد التشغيل",
+    "idle": "خامل",
+    "thinking": "يفكّر",
+    "working": "يعمل",
+    "workingDetail": "يعمل: {{detail}}",
+    "inbox": "يقرأ صندوق الوارد",
+    "compacting": "يحزم سياقه",
+    "looping": "أوقفه قاطع الدائرة",
+    "loopingDetail": "أوقفه قاطع الدائرة: {{detail}}",
+    "needsYou": "ينتظرك",
+    "askedYou": "طرح عليك سؤالًا",
+    "waiting": "ينتظر وكيلًا آخر",
+    "running": "يشغّل أمرًا",
+    "runningDetail": "يشغّل {{detail}}",
+    "reading": "يقرأ الملفات",
+    "readingDetail": "يقرأ {{detail}}",
+    "editing": "يحرّر الملفات",
+    "editingDetail": "يحرّر {{detail}}",
+    "searching": "يبحث في الشيفرة",
+    "searchingDetail": "يبحث عن {{detail}}",
+    "browsing": "يبحث عن شيء على الويب",
+    "browsingDetail": "يبحث عن {{detail}} على الويب",
+    "planning": "يحدّث خطته",
+    "delegating": "يسلّم العمل إلى وكيل فرعي",
+    "tool": "يستخدم أداة",
+    "toolDetail": "يستخدم {{detail}}"
+  },
+  "stapler": {
+    "on": "الدبّاسة مفعّلة",
+    "off": "الدبّاسة متوقفة",
+    "toggleAria": "أظهر الدبّاسة أو أخفها"
+  },
+  "shell": {
+    "booting": "إيقاظ المكتب",
+    "bootingBody": "{{godName}} يسجّل حضوره. تمتلئ هذه الشاشة فور تشغيل الطرفية.",
+    "failed": "تعذّر تشغيل {{godName}}",
+    "failedBody": "لم تعمل طرفية المنسّق. تحقّق من المحرّك في الإعدادات، ثم أعد تشغيل التطبيق.",
+    "empty": "لا وكلاء في المكتب بعد",
+    "emptyBody": "أضف وكيلًا، وستظهر هنا بطاقته وحالته وطرفيته.",
+    "addAgent": "أضف وكيلًا",
+    "agentGone": "غادر هذا الوكيل المكتب",
+    "agentGoneBody": "أُغلقت طرفيته. اختر وكيلًا آخر، أو استعده من قائمة الوكلاء.",
+    "backToAgents": "العودة إلى الوكلاء",
+    "resizeSidebar": "اسحب لتغيير عرض الشريط الجانبي. انقر مرتين للعودة إلى الافتراضي.",
+    "collapseSidebar": "أخفِ الشريط الجانبي",
+    "expandSidebar": "أظهر الشريط الجانبي",
+    "screenCrashed": "واجهت هذه الشاشة مشكلة",
+    "screenCrashedBody": "تعذّر رسم جزء منها. بقية التطبيق تعمل كما ينبغي.",
+    "retry": "حاول مجددًا",
+    "stubBody": "هذه الشاشة في الطريق."
+  },
+  "keys": {
+    "sidebar": "الشريط الجانبي",
+    "settings": "الإعدادات",
+    "details": "تفاصيل الوكيل",
+    "ide": "افتح في بيئة التطوير"
+  },
+  "ui": {
+    "search": "بحث",
+    "clear": "مسح"
+  }
+}
