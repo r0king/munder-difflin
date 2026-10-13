@@ -19,6 +19,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync, statSync } from 'nod
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
+import { createServer as createNetServer } from 'node:net';
 import sourceMapJs from 'source-map-js';
 import { createHarnessConfig, HARNESS_PORT } from './vite.config.mjs';
 import { buildFixtures } from './fixtures.mjs';
@@ -116,8 +117,27 @@ export const CHROMIUM_ARGS = [
 // ─── Harness lifecycle ──────────────────────────────────────────────────────
 
 /** Start the Vite dev server + Chromium once; shoot() as many times as needed. */
-export async function startHarness({ csp = DEFAULTS.csp, port = HARNESS_PORT, logLevel = 'error', quiet = false, chromiumArgs = CHROMIUM_ARGS, executablePath = findChromium() } = {}) {
+/** Resolve with whether 127.0.0.1:<port> can be bound right now. */
+function portFree(port) {
+  return new Promise((resolvePort) => {
+    const probe = createNetServer();
+    probe.once('error', () => resolvePort(false));
+    probe.listen(port, '127.0.0.1', () => probe.close(() => resolvePort(true)));
+  });
+}
+
+/** 5190 unless taken — several engineers run the harness at once — then the
+ *  next free port up to 5209. An explicit port (option, --port or
+ *  $CTH_HARNESS_PORT) is used as is, strictly. */
+async function pickPort(explicit) {
+  if (explicit) return Number(explicit);
+  for (let p = HARNESS_PORT; p < HARNESS_PORT + 20; p++) if (await portFree(p)) return p;
+  return HARNESS_PORT; // let Vite report the clash
+}
+
+export async function startHarness({ csp = DEFAULTS.csp, port = process.env.CTH_HARNESS_PORT, logLevel = 'error', quiet = false, chromiumArgs = CHROMIUM_ARGS, executablePath = findChromium() } = {}) {
   const t0 = Date.now();
+  port = await pickPort(port);
   const server = await createServer(createHarnessConfig({ csp, port, logLevel }));
   await server.listen();
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -461,7 +481,7 @@ async function main() {
       entry: { type: 'string' }, hash: { type: 'string' }, out: { type: 'string' },
       platform: { type: 'string' }, lang: { type: 'string' }, viewport: { type: 'string' },
       settle: { type: 'string' }, advance: { type: 'string' }, timeout: { type: 'string' }, csp: { type: 'string' },
-      seed: { type: 'string' }, events: { type: 'string' },
+      seed: { type: 'string' }, events: { type: 'string' }, port: { type: 'string' },
       'stapler-enabled': { type: 'boolean' }, 'keep-picker': { type: 'boolean' }, onboarding: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' }
     }
@@ -480,7 +500,8 @@ async function main() {
   --advance <ms>               fast-forward the Pixi office floor by <ms> of simulated time
                                before the shot (default 15000 for --entry index, 0 = off)
   --csp relax|strip|keep       how the served HTML's CSP meta is treated (default relax)
-  --seed <n>|off  --events on|off  --stapler-enabled  --keep-picker  --onboarding`);
+  --seed <n>|off  --events on|off  --stapler-enabled  --keep-picker  --onboarding
+  --port <n>                   dev-server port (default 5190, or the next free one up to 5209)`);
     return 0;
   }
   const options = {
@@ -492,7 +513,7 @@ async function main() {
   normalise(options); // validate before starting anything
   let harness;
   try {
-    harness = await startHarness({ csp: values.csp ?? DEFAULTS.csp });
+    harness = await startHarness({ csp: values.csp ?? DEFAULTS.csp, port: values.port });
   } catch (err) {
     console.error(`[harness] failed to start: ${err?.stack ?? err}`);
     return 2;

@@ -59,8 +59,11 @@ export function StaplerScreen({ config }: WorkspaceScreenProps) {
   useEffect(() => stapler().onMeetings(() => { void reload(); }), [reload]);
 
   // "Open in library" from the puck.
+  // A meeting the puck asked for stays selected even before the list has
+  // caught up with it (it may have been written a moment ago).
+  const pinned = useRef<string | null>(null);
   useEffect(() => {
-    const focus = (id: string) => { setTab('meetings'); setQuery(''); setSelected(id); };
+    const focus = (id: string) => { pinned.current = id; setTab('meetings'); setQuery(''); setSelected(id); void reload(); };
     void stapler().takeMeetingFocus().then((id) => { if (id) focus(id); }, () => {});
     return stapler().onFocusMeeting((id) => {
       focus(id);
@@ -71,7 +74,7 @@ export function StaplerScreen({ config }: WorkspaceScreenProps) {
   // Keep a selection while there is anything to select.
   useEffect(() => {
     if (!items) return;
-    if (selected && (items.some((m) => m.id === selected) || query)) return;
+    if (selected && (items.some((m) => m.id === selected) || query || pinned.current === selected)) return;
     setSelected(items[0]?.id ?? null);
   }, [items, selected, query]);
 
@@ -150,7 +153,7 @@ export function StaplerScreen({ config }: WorkspaceScreenProps) {
                     type="button"
                     className="cth-stapler-lib-item"
                     aria-current={m.id === selected ? 'true' : undefined}
-                    onClick={() => setSelected(m.id)}
+                    onClick={() => { pinned.current = null; setSelected(m.id); }}
                   >
                     <span className="cth-stapler-lib-item-title cth-ws-ellipsis">{m.title}</span>
                     <span className="cth-stapler-row">
@@ -166,7 +169,7 @@ export function StaplerScreen({ config }: WorkspaceScreenProps) {
             </div>
           </aside>
           {selected ? (
-            <MeetingDetail key={selected} id={selected} onDeleted={() => { setSelected(null); void reload(); }} />
+            <MeetingDetail key={selected} id={selected} onDeleted={() => { pinned.current = null; setSelected(null); void reload(); }} />
           ) : (
             <div className="cth-stapler-lib-detail">
               <EmptyState fill title={t('stapler.library.pick')} />

@@ -51,6 +51,7 @@ async function main() {
       platform: { type: 'string' },
       settle: { type: 'string' },
       csp: { type: 'string' },
+      port: { type: 'string' },
       verbose: { type: 'boolean', short: 'v' }
     }
   });
@@ -74,7 +75,7 @@ async function main() {
   const t0 = Date.now();
   let harness;
   try {
-    harness = await startHarness({ csp: values.csp });
+    harness = await startHarness({ csp: values.csp, port: values.port });
   } catch (err) {
     console.error(`[harness] failed to start: ${err?.stack ?? err}`);
     return 2;
