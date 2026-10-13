@@ -18,7 +18,7 @@
  * MAIN performs (it follows the real cursor), so the drag follows the pointer
  * exactly; a press that never moved is a click.
  */
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ORCHESTRATOR_TARGET,
@@ -225,7 +225,7 @@ export function Puck() {
       const p = press.current;
       if (p?.dragging) { press.current = null; void stapler().dragEnd(); }
     },
-    onKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    onKeyDown: (e: ReactKeyboardEvent<HTMLButtonElement>) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFaceClick(); }
     }
   };

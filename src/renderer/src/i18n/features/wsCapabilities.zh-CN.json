@@ -35,7 +35,7 @@
     "showFewer": "收起",
     "counts": {
       "skills": "技能 · {{count}}",
-      "mcp": "MCP · {{count}}",
+      "mcp": "MCP 服务器 · {{count}}",
       "connections": "连接 · {{count}}"
     },
     "software-engineer": {
