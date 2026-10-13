@@ -344,8 +344,9 @@ export function Puck() {
         disabled: !dictateApi?.toggle || messageCapturing || meetingCapturing,
         onClick: () => {
           if (dictate && !dictate.enabled) { void go('panel', 'settings'); return; }
-          void dictateApi?.toggle?.();
-          void go('puck');
+          // Fold (which hands focus back) BEFORE dictation starts: the words
+          // are pasted into whatever app is in front when it does.
+          void go('puck').then(() => dictateApi?.toggle?.());
         }
       },
       {

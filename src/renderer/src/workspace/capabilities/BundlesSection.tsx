@@ -15,7 +15,7 @@ import { FEATURED_BUNDLE_IDS, ROLE_BUNDLES } from '@shared/workspace/capabilitie
 import type { BundleDiff, DiffRow, RoleBundle } from '@shared/workspace/capabilities';
 import type { CapabilitiesState } from '@shared/workspace/capabilitiesIpc';
 import type { IntegrationRecordView } from '../../../../preload';
-import { AgentSelect, RestartToApply } from './parts';
+import { AgentSelect, RestartToApply, engineLabel } from './parts';
 import type { FloorAgent } from './useCapabilities';
 
 const DIFF_MARK: Record<DiffRow['state'], string> = { has: '✓', add: '+', addNeeds: '+', missing: '–' };
@@ -115,6 +115,7 @@ function ReviewPanel({ bundle, target, diff, connections, applying, onConfirm, o
           </ul>
         </div>
       )}
+      {target.provider !== 'claude' && <div className="cth-ws-muted">{t('wsCapabilities.who.engineNote', { engine: engineLabel(target.provider) })}</div>}
       <div className="cth-ws-muted">{target.live ? t('wsCapabilities.review.restartNote') : t('wsCapabilities.review.nextStartNote')}</div>
       <div className="cth-ws-capabilities-actions">
         <Button variant="primary" disabled={applying || diff.noop} onClick={onConfirm}>

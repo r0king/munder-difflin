@@ -9,21 +9,28 @@
  * derived from it (geometry.ts) and the window returns to it on collapse.
  *
  * Platform notes, decided here once:
+ *   Focus   — the puck NEVER takes focus at rest. Dictation (and the ring's
+ *             Dictate item) pastes into the app that was in front when it
+ *             started, so a click on the puck must leave that app in front.
+ *             The window is not focusable in puck and ring mode, becomes
+ *             focusable only while a panel with text fields is open, and
+ *             gives focus back (blur) as it folds away.
  *   macOS   — `type: 'panel'` (a non-activating panel: floats above full-screen
- *             apps and on every Space, and can take keys for the note field
- *             without pulling the whole app forward), level 'screen-saver'.
+ *             apps and on every Space, and even while it has the keyboard the
+ *             app the user was in stays the active one), level 'screen-saver',
+ *             acceptFirstMouse so the first click on an inactive puck lands.
  *             NOT setVisibleOnAllWorkspaces' default process transform: that
  *             hides the app's Dock icon for good (Electron calls DockHide).
- *   Windows — not focusable at rest, so clicking the puck never steals focus
- *             from the app the user is in; focusable while a panel is open.
- *             Click-through transparent areas via setIgnoreMouseEvents with
+ *   Windows — click-through transparent areas via setIgnoreMouseEvents with
  *             forwarding, toggled by the renderer on hover.
  *   Linux   — Chromium cannot forward mouse moves to an ignoring window, so a
  *             click-through puck would never see the pointer come back and
  *             could never be clicked again. The window is kept tight to its
  *             content instead and never ignores the mouse. Resizable, because
  *             X11 window managers pin a non-resizable window's size hints and
- *             then refuse our own setBounds.
+ *             then refuse our own setBounds. setFocusable does not exist
+ *             there, so the window stays focusable (panels need typing) and
+ *             folding away blurs it, which hands focus back to the app.
  */
 import { BrowserWindow, screen, type WebContents } from 'electron';
 import type { FeatureContext } from '../types';
@@ -49,6 +56,8 @@ import {
 const IS_MAC = process.platform === 'darwin';
 const IS_WIN = process.platform === 'win32';
 const IS_LINUX = process.platform === 'linux';
+/** setFocusable exists on macOS and Windows only. */
+const CAN_TOGGLE_FOCUS = IS_MAC || IS_WIN;
 
 /** See the Linux note above. */
 export const CAN_CLICK_THROUGH = !IS_LINUX;
@@ -128,9 +137,9 @@ export class PuckWindow {
       fullscreenable: false,
       skipTaskbar: true,
       alwaysOnTop: true,
-      focusable: !IS_WIN,
+      focusable: !CAN_TOGGLE_FOCUS,
       title: 'Stapler',
-      ...(IS_MAC ? { type: 'panel' } : {}),
+      ...(IS_MAC ? { type: 'panel', acceptFirstMouse: true } : {}),
       webPreferences: {
         preload: ctx.preloadPath,
         sandbox: true,
@@ -213,10 +222,13 @@ export class PuckWindow {
     w.setBounds(rect, false);
     if (mode === 'panel') {
       if (CAN_CLICK_THROUGH) w.setIgnoreMouseEvents(false);
-      if (IS_WIN) w.setFocusable(true);
+      if (CAN_TOGGLE_FOCUS) w.setFocusable(true);
       w.focus();
     } else {
-      if (IS_WIN) w.setFocusable(false);
+      // Hand the keyboard back to the app the user was in before anything
+      // else: a dictation started from here pastes into whatever has it.
+      if (w.isFocused()) w.blur();
+      if (CAN_TOGGLE_FOCUS) w.setFocusable(false);
       // The pointer is usually still over the puck after a collapse; the
       // renderer's forwarded hover flips this back within one mouse move.
       if (CAN_CLICK_THROUGH) w.setIgnoreMouseEvents(true, { forward: true });
