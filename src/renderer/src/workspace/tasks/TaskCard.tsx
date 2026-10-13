@@ -15,7 +15,6 @@ import type { DragEvent, KeyboardEvent, MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TaskColumn } from '@shared/workspace/tasks';
 import type { TaskView } from '@shared/workspace/tasksView';
-import { WsIcon } from '../ui';
 import { COLUMN_META, useAge } from './meta';
 import { TaskMenu } from './TaskMenu';
 import type { AgentOption } from './useTaskBoard';
@@ -153,7 +152,6 @@ export function TaskCard({
           <span className="cth-ws-tasks-nowrap">{t('wsTasks.updatedAgo', { age: age(now - view.lastActivity) })}</span>
         )}
         <span className="cth-ws-tasks-card-actions" onClick={stop}>
-          {!staged && view.asks && variant === 'board' ? null : null}
           <TaskMenu
             column={view.column}
             owner={view.owner}
@@ -166,7 +164,6 @@ export function TaskCard({
           />
         </span>
       </div>
-      {lifted && <WsIcon name="chevron-right" size={16} />}
     </div>
   );
 }
