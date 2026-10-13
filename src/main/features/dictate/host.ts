@@ -51,6 +51,8 @@ export class DictationHost {
       const timer = setTimeout(() => {
         this.waiters = this.waiters.filter((w) => w.timer !== timer);
         reject(new Error('the recorder window did not start'));
+        // Start over next time rather than wait on a page that never answers.
+        if (!this.ready) this.destroy();
       }, READY_TIMEOUT_MS);
       this.waiters.push({ resolve, reject, timer });
     });

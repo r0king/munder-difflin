@@ -1,3 +1,306 @@
 {
-  "title": "能力"
+  "title": "能力",
+  "subtitle": "技能、连接和 MCP 服务器，按代理分别授予",
+  "tabs": {
+    "marketplace": "市场",
+    "installed": "已安装",
+    "who": "谁有什么",
+    "temps": "临时工"
+  },
+  "common": {
+    "cancel": "取消",
+    "close": "关闭",
+    "dismiss": "知道了",
+    "everyone": "本机所有代理",
+    "listSep": "、",
+    "loadFailed": "无法从应用读取能力信息，请稍后再试。",
+    "loading": "加载中…",
+    "noAgents": "工位上还没有代理",
+    "noHive": "请先打开一个 hive 文件夹：授权保存在每个代理的 hive 文件夹中。",
+    "orchestratorName": "{{name}}（调度员）"
+  },
+  "kinds": {
+    "skills": "技能",
+    "mcp": "MCP 服务器",
+    "connections": "连接"
+  },
+  "bundles": {
+    "title": "角色套装",
+    "intro": "一键给出一份职位说明。授予套装会设置代理的角色，并一次性写入它的技能、MCP 服务器和连接。写入之前，你会先看到具体会改动什么。",
+    "grantToLabel": "授予",
+    "grantTo": "授予 {{name}}",
+    "pickAgent": "选择一个代理",
+    "hasGaps": "缺少部分组件",
+    "andMore": "还有 {{count}} 个",
+    "showFewer": "收起",
+    "counts": {
+      "skills": "技能 · {{count}}",
+      "mcp": "MCP · {{count}}",
+      "connections": "连接 · {{count}}"
+    },
+    "software-engineer": {
+      "name": "软件工程师",
+      "summary": "代码、git、GitHub、文档、数据库，以及一个审查技能"
+    },
+    "designer": {
+      "name": "设计师",
+      "summary": "参考资料、文档、工作区中的文件"
+    },
+    "product-manager": {
+      "name": "产品经理",
+      "summary": "工单、邮件和日历、网页搜索"
+    },
+    "community-manager": {
+      "name": "社区经理",
+      "summary": "网页、邮件和 GitHub"
+    },
+    "cold-outreach": {
+      "name": "陌生拓客",
+      "summary": "找到合适的人并给他们写信"
+    },
+    "frontend": {
+      "name": "前端",
+      "summary": "界面、浏览器测试和设计规范，外加代码与 git"
+    },
+    "growth": {
+      "name": "增长",
+      "summary": "转化、实验、分析埋点和 SEO 审查"
+    },
+    "demand-gen": {
+      "name": "需求生成",
+      "summary": "内容策略、引流素材、广告创意和邮件序列"
+    },
+    "cfo": {
+      "name": "首席财务官",
+      "summary": "电子表格、定价、收款和数据库"
+    },
+    "legal": {
+      "name": "法务",
+      "summary": "Word 和 PDF 格式的合同，以及网页调研"
+    },
+    "founders-office": {
+      "name": "创始人办公室",
+      "summary": "邮件和日历、内部通报、演示文稿和规划"
+    }
+  },
+  "gaps": {
+    "figma": "目前还没有 Figma 连接，设计文件只能从工作区读取。",
+    "oauthMail": "邮件和日历通过 Email & Calendar MCP 服务器及其密钥运行。Gmail 和 Google 日历暂时不能作为连接使用：它们需要 OAuth，而连接代理不支持 OAuth。",
+    "social": "目前还没有 Discord 或 X 连接。",
+    "peopleSearch": "目前还没有找人类连接（例如 Apollo）；代理通过网页搜索找人。",
+    "analytics": "目前还没有产品分析连接（例如 PostHog 或 Amplitude）。",
+    "adPlatforms": "目前还没有广告平台连接（例如 Google Ads 或 LinkedIn Ads）。",
+    "accounting": "目前还没有财务记账连接（例如 QuickBooks 或 Xero）。",
+    "esign": "目前还没有电子签名或合同管理连接（例如 DocuSign）。"
+  },
+  "review": {
+    "title": "为 {{name}} 授予 {{bundle}}",
+    "role": "角色将变为“{{role}}”",
+    "keepsOrchestratorRole": "调度员保留自己的角色",
+    "nothing": "无",
+    "gapsTitle": "应用中暂时没有",
+    "restartNote": "代理重启后生效。",
+    "nextStartNote": "代理下次启动时生效。",
+    "confirm": "授予 {{name}} · 新增 {{count}} 项",
+    "alreadySet": "已经设置好了",
+    "applying": "正在授予…",
+    "loading": "正在计算会改动什么…",
+    "failed": "无法准备授权：{{error}}",
+    "granted": "已为 {{name}} 授予 {{bundle}}。",
+    "roleFailed": "角色未能保存到 hive；请在代理设置中重新设置。"
+  },
+  "diff": {
+    "state": {
+      "has": "已经拥有",
+      "add": "将会添加",
+      "addNeeds": "将会添加，但需要先补齐条件",
+      "missing": "不可用"
+    },
+    "note": {
+      "builtin": "内置",
+      "machine": "对所有代理开启",
+      "install": "为该代理下载",
+      "notInCatalog": "技能目录中没有",
+      "catalogOffline": "技能目录暂时无法访问",
+      "needsKey": "请在“已安装”中保存它的密钥",
+      "notSetUp": "尚未设置该连接；请在设置的“连接”中添加",
+      "disabled": "该连接已关闭"
+    }
+  },
+  "market": {
+    "title": "技能",
+    "intro": "公开的技能目录。技能是在代理内部运行的指令，会用到你的工具和密钥，所以安装前请先阅读它的源代码。可以为本机所有代理安装，也可以只为某一个代理安装。",
+    "search": "搜索技能",
+    "category": "类别",
+    "allCategories": "全部类别",
+    "publisher": "发布者",
+    "allPublishers": "全部发布者",
+    "show": "显示",
+    "showAll": "全部",
+    "showAvailable": "未安装",
+    "showInstalled": "已安装",
+    "installFor": "安装给",
+    "refresh": "刷新",
+    "stale": "正在显示目录的已保存副本；无法刷新。{{error}}",
+    "loading": "正在加载目录…",
+    "unreachable": "无法加载技能目录",
+    "retry": "重试",
+    "noMatch": "没有匹配的技能",
+    "source": "源代码",
+    "builtin": "内置",
+    "installedEveryone": "已为所有代理安装",
+    "installedFor": "已为 {{name}} 安装",
+    "installing": "正在安装",
+    "manual": "需手动安装",
+    "manualTitle": "该条目没有安装器能获取的文件夹；请打开源代码自行安装。",
+    "install": "安装",
+    "installForAgent": "为 {{name}} 安装",
+    "retryInstall": "重新安装",
+    "notFound": "没有找到可安装的副本。",
+    "showing": "显示 {{count}} 个",
+    "showingFirst": "显示 {{count}} 个中的前 {{shown}} 个；可通过搜索缩小范围"
+  },
+  "installed": {
+    "perAgent": "单独给某个代理的",
+    "perAgentEmpty": "还没有单独授予某个代理的技能。可在“市场”或“谁有什么”中授予。",
+    "notInPlace": "已授予，尚未就位",
+    "revoke": "收回",
+    "machine": "本机",
+    "machineIntro": "你的 Claude 技能文件夹中的技能，每个 Claude Code 代理都会加载。",
+    "machineEmpty": "没有为整台机器安装的技能。",
+    "project": "项目中的",
+    "builtin": "内置",
+    "builtinIntro": "随应用提供，每次启动时复制到每个代理自己的文件夹中。",
+    "plugins": "其他引擎的插件",
+    "uninstall": "卸载",
+    "confirmUninstall": "再次点击以卸载",
+    "uninstallFailed": "无法卸载",
+    "mcpIntro": "在此开启的服务器会提供给每个 Claude Code 代理；授予某个代理的服务器只提供给该代理。会写入工作区之外或需要密钥的服务器，在你开启之前保持关闭。",
+    "tier": {
+      "safe": "只读，无需密钥",
+      "write": "可写入工作区之外",
+      "secret": "需要密钥"
+    },
+    "everyAgent": "所有代理",
+    "consentTitle": "该服务器可以写入工作区之外或会使用密钥。开启后每个 Claude Code 代理都能使用它。",
+    "couldNotSave": "无法保存该设置。",
+    "grantedTo": "已授予 {{names}}",
+    "manageConnections": "管理连接",
+    "connectionsIntro": "连接通过应用的本地代理访问，密钥由它保管，代理永远看不到。临时工和工作者可以使用所有已开启的连接；其他代理只能使用授予它的连接。",
+    "connectionsEmpty": "还没有设置任何连接",
+    "addConnection": "添加连接",
+    "workersOnly": "仅限临时工和工作者",
+    "on": "开",
+    "off": "关"
+  },
+  "keys": {
+    "saved": "密钥已保存",
+    "none": "没有密钥",
+    "add": "添加密钥",
+    "replace": "更换密钥",
+    "remove": "删除密钥",
+    "save": "保存",
+    "placeholder": "粘贴密钥",
+    "newPlaceholder": "粘贴新密钥",
+    "saveFailed": "无法保存密钥",
+    "mcpLabel": "{{name}} 的密钥",
+    "connectionLabel": "{{name}} 的密钥",
+    "notNeeded": "无需密钥"
+  },
+  "restart": {
+    "action": "重启并继续",
+    "busy": "正在重启…",
+    "title": "重启 {{name}} 并继续它的对话，带上新的能力"
+  },
+  "who": {
+    "intro": "工位上的每个代理，对照任何人拥有的每个技能、MCP 服务器和连接。点击单元格可把它授予该代理或收回；点击名字可打开该代理的面板。",
+    "agent": "代理",
+    "emptyTitle": "工位上还没有代理",
+    "emptyBody": "先添加一个代理，再在这里授予它技能、服务器和连接。",
+    "noColumns": "还没有人拥有任何技能、服务器或连接",
+    "legend": "图例",
+    "cellLabel": "{{name}}，{{item}}：{{state}}",
+    "clickGrant": "点击授予",
+    "clickRevoke": "点击收回",
+    "grantFailed": "无法更改授权：{{error}}",
+    "notRunning": "未运行",
+    "engineNote": "{{engine}} 不读取 Claude Code 的技能或 MCP 设置，只有它的连接会生效。",
+    "pendingRestart": "该代理运行的配置比它的授权旧。",
+    "noneGranted": "未授予任何内容",
+    "giveBundle": "授予角色套装",
+    "pickBundle": "选择套装…",
+    "clear": "收回所有授权",
+    "confirmClear": "再次点击以全部收回",
+    "state": {
+      "granted": "已授予",
+      "everyone": "所有代理",
+      "pending": "已授予，重启后生效",
+      "needsKey": "已授予，需要密钥",
+      "missing": "已授予，尚未就位",
+      "unsupported": "该引擎不读取",
+      "none": "未授予"
+    }
+  },
+  "temps": {
+    "intro": "为一项工作雇一个代理。它在自己的工作树中工作，说完成后就被解雇，并留下一行记录：工作内容、运行时长、用掉的 token，以及因含有未合并工作而保留的工作树。",
+    "job": "工作内容",
+    "jobPlaceholder": "把更新日志翻译成西班牙语，并新建一个分支提交",
+    "engine": "引擎",
+    "model": "模型",
+    "defaultModel": "引擎默认",
+    "folder": "文件夹",
+    "noFolder": "选择文件夹",
+    "chooseFolder": "选择文件夹…",
+    "worktree": "独立工作树",
+    "worktreeTitle": "在独立工作树的新分支上工作，它做的任何事都不会碰到你的检出目录。",
+    "hire": "雇用",
+    "hireNote": "片刻后开始，或在有空位时立即开始。",
+    "runningTitle": "{{running}} / {{max}} 正在运行",
+    "atOnce": "同时",
+    "noneRunning": "目前没有临时工。",
+    "open": "打开",
+    "stop": "停止",
+    "cancel": "取消",
+    "tokens": "{{tokens}} token",
+    "noTokens": "无 token 统计",
+    "historyTitle": "历史",
+    "historyEmpty": "完成的临时工会在这里留下一行记录。",
+    "clearHistory": "清空历史",
+    "keptWorktree": "保留了工作树",
+    "keptDetail": "{{branch}} 上有未合并的工作（{{detail}}）：",
+    "keptUnknown": "git 无法判断，因此保留",
+    "copyPath": "复制路径",
+    "loadFailed": "无法读取临时工信息",
+    "state": {
+      "queued": "排队中",
+      "starting": "启动中",
+      "waitingSlot": "等待工作者空位",
+      "running": "运行中",
+      "finishing": "收尾中",
+      "stopping": "正在停止"
+    },
+    "outcome": {
+      "done": "完成",
+      "stopped": "已停止",
+      "failed": "未能启动",
+      "ended": "未完成就结束",
+      "interrupted": "被中断"
+    },
+    "why": {
+      "rejected": "工作者控制器拒绝了它；已告知你的调度员原因。",
+      "lost": "已经移交，但始终没有上岗。",
+      "cwd": "它的文件夹已不存在。",
+      "interrupted": "应用在它开始之前退出了。"
+    },
+    "errors": {
+      "job": "请先写下工作内容。",
+      "jobTooLong": "工作内容太长（最多 4,000 个字符）。",
+      "provider": "该引擎无法从收件箱接收工作。",
+      "model": "该模型名称包含命令行无法接受的字符。",
+      "cwd": "请选择一个存在的文件夹。",
+      "noHive": "请先打开一个 hive 文件夹。",
+      "tooMany": "等待中的临时工已经太多了。",
+      "generic": "无法雇用：{{error}}"
+    }
+  }
 }
