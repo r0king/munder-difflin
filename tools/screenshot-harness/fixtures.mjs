@@ -470,7 +470,6 @@ export function buildFixtures(opts = {}) {
           startedAt: iso(-60 * 24 * 3), durationMs: 31 * 60_000, status: 'ready', segmentCount: 88,
           snippet: 'them: Cache reads are 25% of the token volume but almost none of the spend.' }
       ],
-      meetingGet: null,
       takeMeetingFocus: null
     },
     transcribe: {
@@ -590,6 +589,23 @@ export function buildFixtures(opts = {}) {
       }
     }
   };
+
+  /** features.stapler.meetingGet(id) — MeetingRecord per listed meeting. */
+  const seg = (speaker, startS, endS, text) => ({ speaker, startMs: startS * 1000, endMs: endS * 1000, text });
+  const meetings = Object.fromEntries(features.stapler.meetingList.map((m, i) => [m.id, {
+    id: m.id, title: m.title, description: m.description, startedAt: m.startedAt, durationMs: m.durationMs,
+    status: m.status, engine: 'local', updatedAt: m.startedAt,
+    segments: i === 0 ? [
+      seg('you', 0, 6, 'Jim, where are we on the sidebar?'),
+      seg('them', 6, 19, 'Rail and handle landed, I am writing the keyboard tests today. Home resets the width.'),
+      seg('you', 19, 27, 'Dwight, the Stapler toggle?'),
+      seg('them', 27, 41, 'It renders what main settled on, never the request. Tests are running now.'),
+      seg('you', 41, 52, 'Angela is blocked on the cache-read question. I will answer it after this.')
+    ] : [
+      seg('them', 0, 11, 'Cache reads are 25% of the token volume but almost none of the spend.'),
+      seg('you', 11, 20, 'Then the daily table should show them, but not count them against the cap.')
+    ]
+  }]));
 
   /** features.capabilities.state(agentIds) — CapabilitiesState. */
   const capabilitiesState = {
@@ -756,7 +772,7 @@ export function buildFixtures(opts = {}) {
     version, platform, harnessHome, repo,
     config, agents, rosterSnapshot, registry, directory, ptys, tasks, inbox, messages, log, board, memory,
     telemetry, context: contextFor, control, missions, tools, memoryStatus, kg, git, history,
-    stapler, roster, features, memoryAnswer, capabilitiesState, skillsCatalog, skillsLocal, conversations, activity, ptyOutput, events, hero, changelog
+    stapler, roster, features, meetings, memoryAnswer, capabilitiesState, skillsCatalog, skillsLocal, conversations, activity, ptyOutput, events, hero, changelog
   };
 }
 

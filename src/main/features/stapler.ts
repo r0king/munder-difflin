@@ -50,7 +50,6 @@ import {
   isStaplerTarget,
   sanitizeMeetingFinish,
   type DraftAttachment,
-  type MeetingRecord,
   type MeetingShortcutStatus,
   type MeetingSummary,
   type MeetingTranscribingRequest,

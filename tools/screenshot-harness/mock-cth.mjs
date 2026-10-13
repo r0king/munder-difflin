@@ -145,6 +145,11 @@ export function createCthTree(fx, host) {
           const needle = String(q || '').toLowerCase();
           return res(needle ? all.filter((m) => (m.title + ' ' + m.snippet).toLowerCase().indexOf(needle) >= 0) : all);
         },
+        meetingGet: (id) => res((fx.meetings || {})[id] || null),
+        meetingUpdate: (id, patch) => {
+          const m = (fx.meetings || {})[id];
+          return res(m ? Object.assign({}, m, clone(patch) || {}, { updatedAt: new Date().toISOString() }) : null);
+        },
         onMeetings: on('features.stapler.onMeetings'),
         onFocusMeeting: on('features.stapler.onFocusMeeting')
       },
