@@ -1,0 +1,128 @@
+{
+  "title": "听写",
+  "phase": {
+    "off": "已关闭",
+    "idle": "就绪",
+    "starting": "正在打开麦克风…",
+    "recording": "正在聆听",
+    "recordingFor": "正在聆听 · {{seconds}} 秒",
+    "transcribing": "正在转写…",
+    "inserting": "正在输入…",
+    "error": "未成功"
+  },
+  "notify": {
+    "failed": "听写未成功",
+    "copied": "听写内容已复制到剪贴板"
+  },
+  "error": {
+    "mic-denied": "Munder Difflin 无权使用麦克风。在 Mac 上请前往“系统设置 → 隐私与安全性 → 麦克风”允许，在 Windows 上请前往“设置 → 隐私 → 麦克风”。",
+    "mic-unavailable": "无法打开麦克风。请检查麦克风已连接，且没有被其他应用占用。",
+    "host-failed": "录音器未能启动。请重试；如果一直失败，请重启 Munder Difflin。",
+    "capture-failed": "录音无法保存。",
+    "capture-timeout": "录音器没有响应，本次听写已丢弃。",
+    "transcribe-failed": "转写失败：{{detail}}",
+    "transcribe-timeout": "转写耗时过长，已停止。",
+    "nothing-heard": "没有听到任何话语。",
+    "insert-failed": "无法输入这些文字。"
+  },
+  "notice": {
+    "user-choice": "你选择了自己粘贴。",
+    "accessibility": "如需自动输入，请在“系统设置 → 隐私与安全性 → 辅助功能”中允许 Munder Difflin。",
+    "automation": "如需自动输入，请在“系统设置 → 隐私与安全性 → 自动化”中允许 Munder Difflin 控制“System Events”。",
+    "wayland": "Wayland 不允许一个应用向另一个应用输入文字。安装 wtype 后（Sway、Hyprland 等 wlroots 桌面）即可自动输入；否则请自己按 Ctrl+V。",
+    "wtype-failed": "此桌面拒绝了 wtype（GNOME 和 KDE 不提供它所需的虚拟键盘）。请自己按 Ctrl+V。",
+    "no-xdotool": "安装 xdotool 即可自动输入，例如：sudo apt install xdotool",
+    "no-display": "未找到可供输入的 X11 或 Wayland 显示服务。",
+    "no-powershell": "未找到 Windows PowerShell，无法按下粘贴键。",
+    "paste-failed": "按下粘贴键没有成功。请自己粘贴。",
+    "focus-ours": "Munder Difflin 已切换到前台，所以没有粘贴到另一个应用中。",
+    "no-field": "Munder Difflin 中没有获得焦点的文本框。",
+    "unsupported-platform": "此系统不支持向其他应用输入文字。"
+  },
+  "strategy": {
+    "in-app": "你的话会直接进入当前获得焦点的文本框。",
+    "osascript": "在其他应用中，会用 ⌘V 为你粘贴。",
+    "sendkeys": "在其他应用中，会用 Ctrl+V 为你粘贴。",
+    "xdotool": "在其他应用中，会通过 xdotool 用 Ctrl+V 为你粘贴。",
+    "wtype": "在其他应用中，会通过 wtype 用 Ctrl+V 为你粘贴。",
+    "clipboard": "在其他应用中，你的话会复制到剪贴板，由你粘贴。"
+  },
+  "result": {
+    "typed": "上一次听写，已输入：",
+    "clipboard": "上一次听写，留在剪贴板中："
+  },
+  "accelError": {
+    "empty": "请选择一个快捷键。",
+    "syntax": "Munder Difflin 无法使用这个快捷键。",
+    "no-key": "请在修饰键之外再加一个键。",
+    "needs-modifier": "请同时按住 Ctrl、Alt、Option 或 Command 中的至少一个；单独一个键会让它无法再被输入。",
+    "reserved": "系统或所有应用已经在使用这个快捷键。",
+    "conflict": "这个快捷键已属于另一个听写键或订书机的会议快捷键。",
+    "invalid": "无法保存这项设置。"
+  },
+  "settings": {
+    "title": "在任意应用中听写",
+    "enable": "听写",
+    "intro": "按下 {{shortcut}}，说话，再按一次。文字会出现在你面前的文本框里——任何应用中，以及 Munder Difflin 的每一个文本框中。",
+    "holdNote": "全局快捷键无法得知按键何时松开，所以快捷键负责开始和停止。在 Windows 和 Linux（X11）上，你也可以边按住边说话：按键停止重复时，听写就会停止并输入。{{cancel}} 会丢弃本次听写。",
+    "holdNoteMac": "macOS 无法把单独的 Option 键作为快捷键交给应用，快捷键也无法得知何时松开，所以请按一次开始、再按一次停止。{{cancel}} 会丢弃本次听写。",
+    "cancelNow": "取消",
+    "shortcutSection": "快捷键",
+    "startStop": "开始和停止",
+    "cancelKey": "取消",
+    "change": "更改",
+    "useDefault": "恢复默认",
+    "pressKeys": "请按下新的快捷键…",
+    "shortcutOn": "已启用",
+    "shortcutFocusedOnly": "仅在 Munder Difflin 获得焦点时",
+    "shortcutTaken": "已被其他应用占用",
+    "shortcutUnavailable": "快捷键不可用",
+    "shortcutInvalid": "无效",
+    "cancelNote": "取消键只在你听写时占用，其余时间绝不会从其他应用那里拿走这个键。",
+    "takenHelp": "另一个应用占用了这个快捷键。请换一个，或在那个应用中释放它。",
+    "waylandShortcut": "在 Wayland 上，应用只有在获得焦点时才能收到按键，所以快捷键只在 Munder Difflin 内有效。在其他地方，请使用订书机圆环上的“听写”。",
+    "otherApps": "向其他应用输入",
+    "pasteLabel": "你的话会",
+    "pasteTypeIt": "自动输入",
+    "pasteClipboard": "复制，我来粘贴",
+    "restoreLabel": "恢复我的剪贴板",
+    "restoreNote": "你的话会经由剪贴板传递。之后，你原先复制的文字、链接、富文本或图片会恢复；复制的文件不会恢复。",
+    "inAppNote": "在 Munder Difflin 内不会按下粘贴键：文字会直接进入光标所在的文本框。",
+    "safetyStop": "自动停止时间",
+    "minutes": "{{n}} 分钟",
+    "safetyNote": "忘记结束的听写会自行结束，并像平常一样输入。",
+    "thisComputer": "这台电脑",
+    "tryIt": "试一试",
+    "tryPlaceholder": "点击这里，按下 {{shortcut}}，然后说点什么。",
+    "copyAgain": "再次复制",
+    "copied": "已复制",
+    "loadFailed": "无法加载听写设置。",
+    "loading": "正在加载听写设置"
+  },
+  "status": {
+    "microphone": "麦克风",
+    "accessibility": "辅助功能",
+    "automation": "自动化",
+    "automationNote": "第一次粘贴时，系统会询问是否允许 Munder Difflin 控制“System Events”。请允许，否则文字会留在剪贴板中。",
+    "allow": "允许",
+    "openSettings": "打开设置",
+    "powershell": "粘贴助手（PowerShell）",
+    "session": "显示服务",
+    "installed": "已安装",
+    "missing": "未安装",
+    "waylandNote": "Wayland 不允许一个应用向另一个应用输入文字。在 Sway、Hyprland 等 wlroots 桌面上 wtype 可以做到；在 GNOME 和 KDE 上，你的话会复制到剪贴板，由你粘贴。",
+    "xdotoolNote": "安装 xdotool 即可自动输入，例如：sudo apt install xdotool",
+    "grant": {
+      "granted": "已允许",
+      "denied": "未允许",
+      "not-determined": "尚未询问",
+      "restricted": "被策略阻止",
+      "unknown": "未知"
+    },
+    "sessionKind": {
+      "x11": "X11 会话",
+      "wayland": "Wayland 会话",
+      "unknown": "未找到"
+    }
+  }
+}

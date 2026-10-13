@@ -35,3 +35,7 @@ docs/blog-preview-*/
 # Finder duplicate files, e.g. "spec 2.js", "sitemap 2.xml"
 *\ 2.*
 *\ [0-9].*
+
+# bundled Whisper model for local transcription — fetched at release time by
+# `npm run fetch:whisper` (tools/fetch-whisper-model.cjs), never committed
+/resources/models/

@@ -1,0 +1,127 @@
+{
+  "title": "Sidebar",
+  "floor": {
+    "noHive": "No floor open",
+    "office": "Office {{number}}",
+    "officeOf": "Office {{number}} of {{total}} open",
+    "folderTip": "This floor's folder: {{path}}"
+  },
+  "stapler": {
+    "open": "Open the Stapler",
+    "recording": "The Stapler is recording"
+  },
+  "nav": {
+    "doingWord": "doing",
+    "doingTip": "{{n}} in progress",
+    "questionsTip": "{{n}} waiting on you",
+    "onWord": "on",
+    "onTip": "{{n}} switched on"
+  },
+  "agents": {
+    "title": "Agents",
+    "openAll": "Open every agent's card",
+    "orchestrator": "orchestrator",
+    "noProject": "No folder",
+    "groupNeedsYou": "Someone in this project needs you",
+    "askedYou": "Asked you",
+    "askedYouTip": "{{name}} asked you a question. Answer it in the inbox.",
+    "reorderHint": "Drag to reorder, or Alt+Up and Alt+Down",
+    "moved": "Moved {{name}} to position {{position}} of {{total}}",
+    "movedProject": "Moved project {{name}} to position {{position}} of {{total}}",
+    "empty": "No agents yet."
+  },
+  "ticket": {
+    "open": "Ticket {{key}}: open its details",
+    "untitled": "Untitled ticket",
+    "status": "Status",
+    "statuses": {
+      "todo": "To do",
+      "doing": "Doing",
+      "blocked": "Blocked",
+      "done": "Done"
+    },
+    "assignee": "Assignee",
+    "unassigned": "Unassigned",
+    "updated": "Updated",
+    "never": "Unknown",
+    "noDescription": "No description."
+  },
+  "menu": {
+    "label": "Actions for {{name}}",
+    "openRoom": "Open room",
+    "openOrchestrator": "Open the orchestrator's screen",
+    "focusTerminal": "Open terminal in focus mode",
+    "noTerminal": "This agent has no live terminal",
+    "openIde": "Open in IDE",
+    "restartContinue": "Restart & Continue",
+    "restartContinueTip": "Restart the process and keep the conversation",
+    "restart": "Restart fresh",
+    "restartTip": "Start a new session; the conversation is not kept",
+    "restartConfirm": "Restart {{name}} fresh? Click again",
+    "restarting": "Restarting {{name}}…",
+    "continuing": "Restarting {{name}} and continuing…",
+    "restartFailed": "Restart failed: {{error}}",
+    "stop": "Stop",
+    "stopConfirm": "Stop {{name}}? Click again",
+    "stopFailed": "Could not stop: {{error}}"
+  },
+  "temps": {
+    "title": "Temps",
+    "running": "{{n}} running",
+    "open": "Open Capabilities, Temps",
+    "rowTip": "{{name}}: running for {{age}}, {{tokens}} tokens. Open Temps",
+    "tokens": "{{tokens}} tok",
+    "stopping": "Wrapping up"
+  },
+  "notes": {
+    "title": "Notes",
+    "new": "New note",
+    "newPlaceholder": "Name the note, then Enter",
+    "untitled": "Untitled note",
+    "search": "Search notes",
+    "empty": "Quick notes you write here are saved in the hive, where every agent can read them.",
+    "noMatch": "No note mentions “{{query}}”.",
+    "truncated": "Showing the newest 500 notes. Search to find older ones.",
+    "loading": "Loading notes",
+    "open": "Open",
+    "rename": "Rename",
+    "delete": "Delete",
+    "deleteConfirm": "Delete? Click again",
+    "deleted": "Deleted “{{title}}”",
+    "sendTo": "Send to…",
+    "sent": "Queued for {{name}}",
+    "sendFailed": "Could not send to {{name}}: {{error}}",
+    "sendOnlyOrchestrator": "No other agent is on the floor.",
+    "openInIde": "Open the note's file in the IDE",
+    "ide": "Edit in IDE",
+    "close": "Close the note",
+    "titleLabel": "Note title",
+    "bodyLabel": "Note text (markdown)",
+    "bodyPlaceholder": "Write in markdown. It saves as you go.",
+    "editorLabel": "Note: {{title}}",
+    "menuLabel": "Actions for the note {{title}}",
+    "saving": "Saving…",
+    "unsaved": "Not saved yet",
+    "savedAt": "Saved {{when}}",
+    "conflict": "This note changed on disk while you were editing, perhaps by an agent.",
+    "loadTheirs": "Load the saved version",
+    "keepMine": "Keep mine",
+    "retry": "Try again",
+    "errors": {
+      "noHive": "Open a floor's folder to keep notes.",
+      "notFound": "This note is gone. It was deleted or renamed outside the app.",
+      "conflict": "The note changed on disk.",
+      "invalid": "That note name or text is not allowed.",
+      "io": "Could not reach the notes folder: {{message}}"
+    }
+  },
+  "settings": {
+    "title": "Sidebar settings",
+    "keepOrder": "Keep my agent order",
+    "keepOrderOn": "Drag agents and projects to reorder them, or use Alt+Up and Alt+Down.",
+    "keepOrderOff": "Agents that need you come first, then working, then idle.",
+    "resetOrder": "Reset my order",
+    "agentsNotesOnly": "Agents and notes only",
+    "agentsNotesOnlyHint": "Hides the Stapler and the links from Tasks to Capabilities."
+  }
+}

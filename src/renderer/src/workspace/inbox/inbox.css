@@ -1,0 +1,438 @@
+/* Inbox (wsInbox) — the Inbox screen and the Ask me bell.
+ *
+ * Built on workspace.css: the same tokens, square corners, hairline edges,
+ * logical inline properties so Arabic mirrors without a [dir] rule. Every
+ * class here is `cth-ws-inbox-*`. */
+
+/* ─── Two panes ──────────────────────────────────────────────────────────── */
+
+.cth-ws-inbox {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.cth-ws-inbox-list {
+  flex-shrink: 0;
+  width: 272px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--cth-space-2) 0 var(--cth-space-4);
+  background: var(--cth-cream-100);
+  border-inline-end: 1px solid var(--cth-ink-100);
+}
+.cth-ws-inbox-pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--cth-space-4) var(--cth-space-5) var(--cth-space-6);
+}
+.cth-ws-inbox-pane-inner {
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-3);
+}
+@media (max-width: 1100px) {
+  .cth-ws-inbox-list { width: 216px; }
+  .cth-ws-inbox-pane { padding: var(--cth-space-3) var(--cth-space-4) var(--cth-space-5); }
+}
+
+/* ─── The left list ──────────────────────────────────────────────────────── */
+
+.cth-ws-inbox-group {
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  padding: var(--cth-space-3) var(--cth-space-3) var(--cth-space-1);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cth-ink-500);
+}
+.cth-ws-inbox-group-label { flex: 1; min-width: 0; }
+.cth-ws-inbox-group .cth-ws-btn--sm { text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+.cth-ws-inbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cth-space-2);
+  width: 100%;
+  min-height: 44px;
+  padding: 6px var(--cth-space-3);
+  border: none;
+  border-inline-start: 2px solid transparent;
+  background: transparent;
+  color: var(--cth-ink-700);
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.cth-ws-inbox-row:hover { background: var(--cth-cream-200); color: var(--cth-ink-900); }
+.cth-ws-inbox-row[aria-current='page'] {
+  background: var(--cth-cream-200);
+  color: var(--cth-ink-900);
+  border-inline-start-color: var(--cth-ink-900);
+}
+.cth-ws-inbox-row:focus-visible { outline: 2px solid var(--cth-ink-700); outline-offset: -2px; }
+.cth-ws-inbox-row-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cth-ink-500);
+}
+.cth-ws-inbox-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cth-ws-inbox-row-title {
+  font-size: var(--cth-text-body-sm);
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cth-ws-inbox-row-title--strong { font-weight: 600; color: var(--cth-ink-900); }
+.cth-ws-inbox-row-sub {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cth-ink-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cth-ws-inbox-row-sub--warn { color: var(--cth-ink-700); }
+.cth-ws-inbox-row-meta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cth-space-1);
+  height: 20px;
+}
+
+/* Counts: quiet for totals, accented for what needs you. */
+.cth-ws-inbox-count {
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  color: var(--cth-ink-700);
+  background: var(--cth-cream-200);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+}
+.cth-ws-inbox-count--warn {
+  color: var(--cth-ink-900);
+  background: var(--cth-lemon-light);
+  box-shadow: inset 0 0 0 1px var(--cth-lemon);
+}
+.cth-ws-inbox-count--unread {
+  color: var(--cth-ink-900);
+  background: var(--cth-sky-light);
+  box-shadow: inset 0 0 0 1px var(--cth-sky);
+}
+
+/* The unread mark on a message: a small square, never a circle. */
+.cth-ws-inbox-unread {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  background: var(--cth-sky);
+}
+
+/* ─── Section head inside the pane ───────────────────────────────────────── */
+
+.cth-ws-inbox-head {
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-3);
+  min-height: 32px;
+  flex-wrap: wrap;
+}
+.cth-ws-inbox-head-text { flex: 1; min-width: 200px; display: flex; flex-direction: column; }
+.cth-ws-inbox-head-title {
+  margin: 0;
+  font-size: var(--cth-text-body-md);
+  line-height: var(--cth-lh-body-md);
+  font-weight: 600;
+  color: var(--cth-ink-900);
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+}
+.cth-ws-inbox-head-sub { font-size: var(--cth-text-body-sm); line-height: 18px; color: var(--cth-ink-500); }
+.cth-ws-inbox-head-actions { display: flex; align-items: center; gap: var(--cth-space-2); flex-wrap: wrap; }
+
+.cth-ws-inbox-banner {
+  padding: var(--cth-space-2) var(--cth-space-3);
+  font-size: var(--cth-text-body-sm);
+  line-height: 18px;
+  color: var(--cth-ink-900);
+  background: var(--cth-cream-200);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+}
+.cth-ws-inbox-banner--warn { background: var(--cth-lemon-light); box-shadow: inset 0 0 0 1px var(--cth-lemon); }
+.cth-ws-inbox-banner--danger { background: var(--cth-coral-light); box-shadow: inset 0 0 0 1px var(--cth-coral); }
+.cth-ws-inbox-banner--ok { background: var(--cth-mint-light); box-shadow: inset 0 0 0 1px var(--cth-mint); }
+
+/* ─── An item (ask or message) ───────────────────────────────────────────── */
+
+.cth-ws-inbox-item { display: flex; flex-direction: column; gap: var(--cth-space-2); }
+.cth-ws-inbox-item--needs { box-shadow: inset 0 0 0 1px var(--cth-lemon), inset 3px 0 0 var(--cth-lemon); }
+[dir='rtl'] .cth-ws-inbox-item--needs { box-shadow: inset 0 0 0 1px var(--cth-lemon), inset -3px 0 0 var(--cth-lemon); }
+.cth-ws-inbox-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  min-width: 0;
+  flex-wrap: wrap;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--cth-ink-500);
+}
+.cth-ws-inbox-meta-who {
+  font-size: var(--cth-text-body-sm);
+  font-weight: 600;
+  color: var(--cth-ink-900);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cth-ws-inbox-meta-time { margin-inline-start: auto; white-space: nowrap; }
+.cth-ws-inbox-subject {
+  margin: 0;
+  font-size: var(--cth-text-body-md);
+  line-height: var(--cth-lh-body-md);
+  font-weight: 600;
+  color: var(--cth-ink-900);
+  overflow-wrap: anywhere;
+}
+.cth-ws-inbox-linkbtn {
+  border: none;
+  padding: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.cth-ws-inbox-linkbtn:hover { text-decoration: underline; }
+.cth-ws-inbox-body {
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+  color: var(--cth-ink-900);
+  min-width: 0;
+}
+.cth-ws-inbox-body--clamped {
+  max-height: 180px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+.cth-ws-inbox-plain {
+  font-family: var(--cth-font-mono);
+  font-size: var(--cth-text-mono-sm);
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: var(--cth-space-2) var(--cth-space-3);
+  background: var(--cth-cream-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  color: var(--cth-ink-900);
+}
+.cth-ws-inbox-more {
+  align-self: flex-start;
+  border: none;
+  padding: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cth-ink-700);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.cth-ws-inbox-cascade { font-size: 12px; line-height: 16px; color: var(--cth-ink-700); }
+.cth-ws-inbox-note { font-size: 12px; line-height: 16px; color: var(--cth-ink-500); }
+
+/* Quick replies and the reply box. */
+.cth-ws-inbox-options { display: flex; flex-wrap: wrap; gap: var(--cth-space-2); }
+.cth-ws-inbox-options .cth-ws-btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.cth-ws-inbox-reply { display: flex; flex-direction: column; gap: var(--cth-space-2); }
+.cth-ws-inbox-textarea {
+  width: 100%;
+  min-height: 64px;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: var(--cth-space-2) var(--cth-space-3);
+  border: none;
+  outline: none;
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300);
+  color: var(--cth-ink-900);
+  font-family: var(--cth-font-ui);
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+}
+.cth-ws-inbox-textarea:focus { box-shadow: inset 0 0 0 2px var(--cth-ink-700); }
+.cth-ws-inbox-textarea::placeholder { color: var(--cth-ink-500); }
+.cth-ws-inbox-reply-bar { display: flex; align-items: center; gap: var(--cth-space-2); flex-wrap: wrap; }
+.cth-ws-inbox-reply-hint { font-size: 12px; color: var(--cth-ink-500); display: inline-flex; align-items: center; gap: var(--cth-space-1); }
+.cth-ws-inbox-reply-error { font-size: 12px; line-height: 16px; color: var(--cth-ink-900); }
+.cth-ws-inbox-reply-spacer { flex: 1; }
+
+/* A thread: messages stacked under one subject. */
+.cth-ws-inbox-thread { display: flex; flex-direction: column; gap: 0; }
+.cth-ws-inbox-thread-msg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-1);
+  padding: var(--cth-space-2) 0;
+  border-top: 1px solid var(--cth-ink-100);
+}
+.cth-ws-inbox-thread-msg:first-of-type { border-top: none; padding-top: 0; }
+.cth-ws-inbox-thread-msg--you .cth-ws-inbox-body { color: var(--cth-ink-700); }
+
+/* ─── Everyone: compact rows ─────────────────────────────────────────────── */
+
+.cth-ws-inbox-feed { display: flex; flex-direction: column; }
+.cth-ws-inbox-feed-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--cth-space-3);
+  width: 100%;
+  padding: var(--cth-space-2) var(--cth-space-3);
+  border: none;
+  border-bottom: 1px solid var(--cth-ink-100);
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.cth-ws-inbox-feed-row:hover { background: var(--cth-cream-100); }
+.cth-ws-inbox-feed-row[aria-expanded='true'] { background: var(--cth-cream-100); }
+.cth-ws-inbox-feed-row:focus-visible { outline: 2px solid var(--cth-ink-700); outline-offset: -2px; }
+.cth-ws-inbox-feed-route {
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  min-width: 0;
+  font-size: var(--cth-text-body-sm);
+  line-height: 20px;
+  color: var(--cth-ink-900);
+}
+.cth-ws-inbox-feed-route > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cth-ws-inbox-feed-time { font-size: 12px; line-height: 20px; color: var(--cth-ink-500); white-space: nowrap; }
+.cth-ws-inbox-feed-subject {
+  grid-column: 1 / -1;
+  font-size: var(--cth-text-body-sm);
+  line-height: 18px;
+  color: var(--cth-ink-700);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cth-ws-inbox-feed-open {
+  padding: var(--cth-space-2) var(--cth-space-3) var(--cth-space-3);
+  border-bottom: 1px solid var(--cth-ink-100);
+  background: var(--cth-cream-100);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-2);
+}
+.cth-ws-inbox-arrow { color: var(--cth-ink-500); flex-shrink: 0; }
+[dir='rtl'] .cth-ws-inbox-arrow { transform: scaleX(-1); }
+
+/* ─── Outside ────────────────────────────────────────────────────────────── */
+
+.cth-ws-inbox-exchange-label {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cth-ink-500);
+}
+.cth-ws-inbox-actions { display: flex; align-items: center; gap: var(--cth-space-2); flex-wrap: wrap; }
+
+/* ─── The Ask me bell ────────────────────────────────────────────────────── */
+
+.cth-ws-inbox-bellwrap { position: relative; display: inline-flex; }
+.cth-ws-inbox-bell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cth-space-1);
+  height: 28px;
+  padding: 0 var(--cth-space-2);
+  border: none;
+  font-family: inherit;
+  font-size: var(--cth-text-body-sm);
+  font-weight: 600;
+  color: var(--cth-ink-900);
+  background: var(--cth-lemon-light);
+  box-shadow: inset 0 0 0 1px var(--cth-lemon);
+  cursor: pointer;
+}
+.cth-ws-inbox-bell:hover,
+.cth-ws-inbox-bell[aria-expanded='true'] { box-shadow: inset 0 0 0 2px var(--cth-lemon); }
+.cth-ws-inbox-bell:focus-visible { outline: 2px solid var(--cth-ink-700); outline-offset: 1px; }
+.cth-ws-inbox-pop {
+  position: absolute;
+  top: calc(100% + var(--cth-space-1));
+  inset-inline-end: 0;
+  z-index: 40;
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  max-height: min(640px, calc(100vh - 120px));
+  display: flex;
+  flex-direction: column;
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300), var(--cth-shadow-hard);
+  color: var(--cth-ink-900);
+  text-align: start;
+  font-weight: 400;
+}
+.cth-ws-inbox-pop:focus { outline: none; }
+.cth-ws-inbox-pop-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  padding: var(--cth-space-2) var(--cth-space-2) var(--cth-space-2) var(--cth-space-3);
+  border-bottom: 1px solid var(--cth-ink-100);
+}
+.cth-ws-inbox-pop-title { flex: 1; min-width: 0; margin: 0; font-size: var(--cth-text-body-sm); font-weight: 600; }
+.cth-ws-inbox-pop-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--cth-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-3);
+}
+.cth-ws-inbox-pop-foot {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--cth-space-2) var(--cth-space-3);
+  border-top: 1px solid var(--cth-ink-100);
+}
+
+/* Agent-written one-liners (subjects, previews) in an Arabic UI: let each take
+   its direction from its own text, so an English subject keeps its "?" at the
+   end. Gated on the app language like everything RTL (useRtl). */
+[dir='rtl'] .cth-ws-inbox-subject,
+[dir='rtl'] .cth-ws-inbox-row-sub,
+[dir='rtl'] .cth-ws-inbox-feed-subject,
+[dir='rtl'] .cth-ws-inbox-linkbtn { unicode-bidi: plaintext; }

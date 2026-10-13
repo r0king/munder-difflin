@@ -1,0 +1,343 @@
+/* Memory screen (wsMemory unit). Every value is a --cth-* token; nothing is
+ * rounded; inline layout uses logical properties so Arabic mirrors without a
+ * [dir] rule. Classes are prefixed cth-ws-memory-. */
+
+.cth-ws-memory {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Search bar ─────────────────────────────────────────────────────────── */
+
+.cth-ws-memory-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  padding: var(--cth-space-3) var(--cth-space-5);
+  border-bottom: 1px solid var(--cth-ink-100);
+  background: var(--cth-cream-50);
+}
+.cth-ws-memory-bar .cth-ws-search { flex: 1; min-width: 0; max-width: 720px; }
+.cth-ws-memory-notice {
+  flex-shrink: 0;
+  padding: var(--cth-space-1) var(--cth-space-5);
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--cth-ink-700);
+  background: var(--cth-lemon-light);
+  border-bottom: 1px solid var(--cth-lemon);
+}
+
+/* ─── Body: the two lanes ────────────────────────────────────────────────── */
+
+.cth-ws-memory-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--cth-space-4) var(--cth-space-5);
+}
+.cth-ws-memory-lanes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--cth-space-4);
+  align-items: start;
+}
+.cth-ws-memory-lane {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--cth-paper-100);
+  box-shadow: var(--cth-panel-border-inset);
+}
+.cth-ws-memory-lane-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--cth-space-3) var(--cth-space-4);
+  border-bottom: 1px solid var(--cth-ink-100);
+}
+.cth-ws-memory-lane-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  font-size: var(--cth-text-body-md);
+  line-height: var(--cth-lh-body-md);
+  font-weight: 600;
+  color: var(--cth-ink-900);
+}
+.cth-ws-memory-lane-count { font-size: 12px; font-weight: 400; color: var(--cth-ink-500); }
+.cth-ws-memory-lane-hint { font-size: 12px; line-height: 16px; color: var(--cth-ink-500); }
+.cth-ws-memory-lane-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-4);
+  padding: var(--cth-space-3) var(--cth-space-4) var(--cth-space-4);
+  min-width: 0;
+}
+.cth-ws-memory-lane-body .cth-ws-section + .cth-ws-section { margin-top: 0; }
+.cth-ws-memory-status {
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+  color: var(--cth-ink-700);
+}
+.cth-ws-memory-sub { font-size: 12px; line-height: 16px; color: var(--cth-ink-500); }
+.cth-ws-memory-error { font-size: var(--cth-text-body-sm); line-height: var(--cth-lh-body-sm); color: var(--cth-ink-900); }
+.cth-ws-memory-raw {
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  padding: var(--cth-space-2);
+  background: var(--cth-cream-100);
+  box-shadow: var(--cth-panel-border-inset);
+  font-family: var(--cth-font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--cth-ink-900);
+}
+
+/* ─── Result rows ────────────────────────────────────────────────────────── */
+
+.cth-ws-memory-rows { display: flex; flex-direction: column; }
+.cth-ws-memory-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cth-space-2);
+  padding: var(--cth-space-2) 0;
+  border-top: 1px solid var(--cth-ink-100);
+  min-width: 0;
+}
+.cth-ws-memory-row:first-child { border-top: none; }
+.cth-ws-memory-row[data-selected='true'] { background: var(--cth-cream-100); box-shadow: inset 2px 0 0 var(--cth-ink-700); }
+[dir='rtl'] .cth-ws-memory-row[data-selected='true'] { box-shadow: inset -2px 0 0 var(--cth-ink-700); }
+.cth-ws-memory-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 var(--cth-space-1);
+  text-align: start;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.cth-ws-memory-row-main:hover .cth-ws-memory-row-title { text-decoration: underline; text-underline-offset: 2px; }
+.cth-ws-memory-row-main:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--cth-ink-700); }
+.cth-ws-memory-row-top {
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  min-width: 0;
+}
+.cth-ws-memory-row-title {
+  min-width: 0;
+  flex: 1;
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+  font-weight: 500;
+  color: var(--cth-ink-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cth-ws-memory-row-id { font-family: var(--cth-font-mono); font-size: 12px; color: var(--cth-ink-500); flex-shrink: 0; }
+.cth-ws-memory-row-meta {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cth-ink-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cth-ws-memory-snippet {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cth-ink-700);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.cth-ws-memory-mark {
+  background: var(--cth-lemon-light);
+  color: var(--cth-ink-900);
+  box-shadow: inset 0 -1px 0 var(--cth-lemon);
+}
+.cth-ws-memory-more { align-self: flex-start; margin-top: var(--cth-space-1); }
+
+/* A square tick box (DESIGN.md: never rounded, so not the native one). */
+.cth-ws-memory-check {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300);
+  color: var(--cth-cream-50);
+  cursor: pointer;
+}
+.cth-ws-memory-check:hover { box-shadow: inset 0 0 0 1px var(--cth-ink-700); }
+.cth-ws-memory-check:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--cth-ink-700); }
+.cth-ws-memory-check[aria-checked='true'] { background: var(--cth-ink-900); box-shadow: none; }
+.cth-ws-memory-check svg { width: 12px; height: 12px; }
+
+/* ─── Note drawer ────────────────────────────────────────────────────────── */
+
+.cth-ws-memory-drawer {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 5;
+  width: min(480px, 92%);
+  display: flex;
+  flex-direction: column;
+  background: var(--cth-cream-50);
+  box-shadow: var(--cth-panel-border-dialog), var(--cth-shadow-hard);
+}
+.cth-ws-memory-drawer-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cth-space-2);
+  padding: var(--cth-space-3) var(--cth-space-4);
+  border-bottom: 1px solid var(--cth-ink-100);
+}
+.cth-ws-memory-drawer-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--cth-text-body-md);
+  line-height: var(--cth-lh-body-md);
+  font-weight: 600;
+  color: var(--cth-ink-900);
+  word-break: break-word;
+}
+.cth-ws-memory-drawer-meta {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-1);
+  padding: var(--cth-space-2) var(--cth-space-4);
+  border-bottom: 1px solid var(--cth-ink-100);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cth-ink-500);
+}
+.cth-ws-memory-drawer-path {
+  font-family: var(--cth-font-mono);
+  font-size: 12px;
+  color: var(--cth-ink-700);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: ltr;
+  text-align: start;
+}
+.cth-ws-memory-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--cth-space-3) var(--cth-space-4);
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+  color: var(--cth-ink-900);
+}
+.cth-ws-memory-drawer-actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cth-space-2);
+  padding: var(--cth-space-3) var(--cth-space-4);
+  border-top: 1px solid var(--cth-ink-100);
+}
+
+/* ─── Send bar ───────────────────────────────────────────────────────────── */
+
+.cth-ws-memory-send {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-2);
+  padding: var(--cth-space-3) var(--cth-space-5);
+  border-top: 1px solid var(--cth-ink-300);
+  background: var(--cth-cream-100);
+}
+.cth-ws-memory-send-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--cth-space-2);
+  min-width: 0;
+}
+.cth-ws-memory-send-count { font-size: var(--cth-text-body-sm); font-weight: 600; color: var(--cth-ink-900); }
+.cth-ws-memory-send-label { font-size: 12px; color: var(--cth-ink-500); }
+.cth-ws-memory-select {
+  height: 28px;
+  max-width: 260px;
+  padding: 0 var(--cth-space-1);
+  border: none;
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300);
+  color: var(--cth-ink-900);
+  font-family: inherit;
+  font-size: var(--cth-text-body-sm);
+  cursor: pointer;
+}
+.cth-ws-memory-select:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--cth-ink-700); }
+.cth-ws-memory-prompt {
+  width: 100%;
+  min-height: 56px;
+  max-height: 200px;
+  resize: vertical;
+  padding: var(--cth-space-2);
+  border: none;
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300);
+  color: var(--cth-ink-900);
+  font-family: var(--cth-font-ui);
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+  box-sizing: border-box;
+}
+.cth-ws-memory-prompt:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--cth-ink-700); }
+.cth-ws-memory-prompt::placeholder { color: var(--cth-ink-500); }
+.cth-ws-memory-preview {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: var(--cth-space-2);
+  background: var(--cth-paper-100);
+  box-shadow: var(--cth-panel-border-inset);
+  font-family: var(--cth-font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--cth-ink-900);
+  direction: ltr;
+  text-align: left;
+}
+.cth-ws-memory-send-result { font-size: 12px; line-height: 16px; color: var(--cth-ink-700); }
+.cth-ws-memory-spacer { flex: 1; }
+
+/* ─── Graph ──────────────────────────────────────────────────────────────── */
+
+.cth-ws-memory-graph { flex: 1; min-height: 0; display: flex; flex-direction: column; }

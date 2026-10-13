@@ -1,0 +1,306 @@
+{
+  "title": "Capabilities",
+  "subtitle": "Skills, connections and MCP servers, granted per agent",
+  "tabs": {
+    "marketplace": "Marketplace",
+    "installed": "Installed",
+    "who": "Who has what",
+    "temps": "Temps"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "dismiss": "Dismiss",
+    "everyone": "Every agent on this machine",
+    "listSep": ", ",
+    "loadFailed": "Could not read the capabilities from the app. Try again in a moment.",
+    "loading": "Loading…",
+    "noAgents": "No agents on the floor",
+    "noHive": "Open a hive folder first: grants live with each agent's hive folder.",
+    "orchestratorName": "{{name}} (orchestrator)"
+  },
+  "kinds": {
+    "skills": "Skills",
+    "mcp": "MCP servers",
+    "connections": "Connections"
+  },
+  "bundles": {
+    "title": "Role bundles",
+    "intro": "A job description in one click. Granting a bundle sets the agent's role and adds its skills, MCP servers and connections in a single write. You see exactly what changes before anything is written.",
+    "grantToLabel": "Grant to",
+    "grantTo": "Grant to {{name}}",
+    "pickAgent": "Pick an agent",
+    "hasGaps": "Some pieces missing",
+    "andMore": "And {{count}} more",
+    "showFewer": "Show fewer",
+    "counts": {
+      "skills": "Skills · {{count}}",
+      "mcp": "MCP · {{count}}",
+      "connections": "Connections · {{count}}"
+    },
+    "software-engineer": {
+      "name": "Software Engineer",
+      "summary": "Code, git, GitHub, docs, a database, an audit skill"
+    },
+    "designer": {
+      "name": "Designer",
+      "summary": "References, docs, files in the workspace"
+    },
+    "product-manager": {
+      "name": "Product Manager",
+      "summary": "Issues, mail and calendar, web search"
+    },
+    "community-manager": {
+      "name": "Community Manager",
+      "summary": "The web, mail and GitHub"
+    },
+    "cold-outreach": {
+      "name": "Cold Outreach",
+      "summary": "Finds people and writes to them"
+    },
+    "frontend": {
+      "name": "Frontend",
+      "summary": "Interfaces, browser testing and design guidelines, with code and git"
+    },
+    "growth": {
+      "name": "Growth",
+      "summary": "Conversion, experiments, analytics tracking and SEO audits"
+    },
+    "demand-gen": {
+      "name": "Demand Gen",
+      "summary": "Content strategy, lead magnets, ad creative and email sequences"
+    },
+    "cfo": {
+      "name": "CFO",
+      "summary": "Spreadsheets, pricing, payments and a database"
+    },
+    "legal": {
+      "name": "Legal",
+      "summary": "Contracts as Word and PDF files, research on the web"
+    },
+    "founders-office": {
+      "name": "Founders office",
+      "summary": "Mail and calendar, internal updates, decks and planning"
+    }
+  },
+  "gaps": {
+    "figma": "No Figma connection exists yet, so design files are read from the workspace only.",
+    "oauthMail": "Mail and calendar run through the Email & Calendar MCP server and its key. Gmail and Google Calendar are not available as connections yet: they need OAuth, which the connection broker does not do.",
+    "social": "No Discord or X connection exists yet.",
+    "peopleSearch": "No people-search connection exists yet (such as Apollo); the agent finds people through web search.",
+    "analytics": "No product-analytics connection exists yet (such as PostHog or Amplitude).",
+    "adPlatforms": "No ad-platform connection exists yet (such as Google Ads or LinkedIn Ads).",
+    "accounting": "No accounting connection exists yet (such as QuickBooks or Xero).",
+    "esign": "No e-signature or contract-management connection exists yet (such as DocuSign)."
+  },
+  "review": {
+    "title": "{{bundle}} for {{name}}",
+    "role": "Role becomes “{{role}}”",
+    "keepsOrchestratorRole": "The orchestrator keeps his own role",
+    "nothing": "Nothing",
+    "gapsTitle": "Not available in the app yet",
+    "restartNote": "It takes effect when the agent restarts.",
+    "nextStartNote": "It takes effect the next time the agent starts.",
+    "confirm": "Grant to {{name}} · {{count}} new",
+    "alreadySet": "Already set up",
+    "applying": "Granting…",
+    "loading": "Working out what would change…",
+    "failed": "Could not prepare the grant: {{error}}",
+    "granted": "{{bundle}} granted to {{name}}.",
+    "roleFailed": "The role could not be saved to the hive; set it again from the agent's settings."
+  },
+  "diff": {
+    "state": {
+      "has": "Already has it",
+      "add": "Will be added",
+      "addNeeds": "Will be added, needs something first",
+      "missing": "Not available"
+    },
+    "note": {
+      "builtin": "built in",
+      "machine": "on for every agent",
+      "install": "downloaded for this agent",
+      "notInCatalog": "not in the skills catalog",
+      "catalogOffline": "the skills catalog is unavailable right now",
+      "needsKey": "save its key under Installed",
+      "notSetUp": "no such connection is set up; add it in Settings, Connections",
+      "disabled": "the connection is switched off"
+    }
+  },
+  "market": {
+    "title": "Skills",
+    "intro": "The public skills catalog. A skill is instructions that run inside an agent with your tools and keys, so read its source before you install it. Install for every agent on this machine, or for one agent only.",
+    "search": "Search skills",
+    "category": "Category",
+    "allCategories": "All categories",
+    "publisher": "Publisher",
+    "allPublishers": "All publishers",
+    "show": "Show",
+    "showAll": "All",
+    "showAvailable": "Not installed",
+    "showInstalled": "Installed",
+    "installFor": "Install for",
+    "refresh": "Refresh",
+    "stale": "Showing a saved copy of the catalog; it could not be refreshed. {{error}}",
+    "loading": "Loading the catalog…",
+    "unreachable": "The skills catalog could not be loaded",
+    "retry": "Try again",
+    "noMatch": "No skill matches",
+    "source": "Source",
+    "builtin": "Built in",
+    "installedEveryone": "Installed for every agent",
+    "installedFor": "Installed for {{name}}",
+    "installing": "Installing",
+    "manual": "Install by hand",
+    "manualTitle": "This entry has no folder the installer can fetch; open its source to install it yourself.",
+    "install": "Install",
+    "installForAgent": "Install for {{name}}",
+    "retryInstall": "Retry install",
+    "notFound": "No installable copy of this skill was found.",
+    "showing": "Showing {{count}}",
+    "showingFirst": "Showing the first {{shown}} of {{count}}; search to narrow it down"
+  },
+  "installed": {
+    "perAgent": "Given to one agent",
+    "perAgentEmpty": "No skill has been given to a single agent yet. Grant one from the Marketplace or Who has what.",
+    "notInPlace": "Granted, not in place yet",
+    "revoke": "Take away",
+    "machine": "On this machine",
+    "machineIntro": "Skills in your Claude skills folder. Every Claude Code agent loads these.",
+    "machineEmpty": "None installed for the whole machine.",
+    "project": "In your projects",
+    "builtin": "Built in",
+    "builtinIntro": "Shipped with the app and copied into every agent's own folder each time it starts.",
+    "plugins": "Other engines' plugins",
+    "uninstall": "Uninstall",
+    "confirmUninstall": "Click again to uninstall",
+    "uninstallFailed": "Could not uninstall it",
+    "mcpIntro": "Servers switched on here reach every Claude Code agent. A server granted to one agent reaches only that agent. Servers that write outside the workspace or need a key stay off until you switch them on.",
+    "tier": {
+      "safe": "Read-only, no key",
+      "write": "Can write beyond the workspace",
+      "secret": "Needs a key"
+    },
+    "everyAgent": "Every agent",
+    "consentTitle": "This server can write beyond the workspace or uses a key. Switching it on lets every Claude Code agent use it.",
+    "couldNotSave": "Could not save the setting.",
+    "grantedTo": "Granted to {{names}}",
+    "manageConnections": "Manage connections",
+    "connectionsIntro": "Connections are reached through the app's local broker, which holds the key: an agent never sees it. Temps and workers can use every connection that is switched on; any other agent only the ones granted to it.",
+    "connectionsEmpty": "No connections are set up",
+    "addConnection": "Add a connection",
+    "workersOnly": "Temps and workers only",
+    "on": "On",
+    "off": "Off"
+  },
+  "keys": {
+    "saved": "Key saved",
+    "none": "No key",
+    "add": "Add key",
+    "replace": "Replace key",
+    "remove": "Remove key",
+    "save": "Save",
+    "placeholder": "Paste the key",
+    "newPlaceholder": "Paste the new key",
+    "saveFailed": "Could not save the key",
+    "mcpLabel": "Key for {{name}}",
+    "connectionLabel": "Key for {{name}}",
+    "notNeeded": "No key needed"
+  },
+  "restart": {
+    "action": "Restart & Continue",
+    "busy": "Restarting…",
+    "title": "Restart {{name}} and continue its conversation, with its new capabilities"
+  },
+  "who": {
+    "intro": "Every agent on the floor against every skill, MCP server and connection anyone has. Click a cell to grant it to that agent or take it away; click a name for the agent's own panel.",
+    "agent": "Agent",
+    "emptyTitle": "No agents on the floor",
+    "emptyBody": "Add an agent, then grant it skills, servers and connections here.",
+    "noColumns": "Nobody has any skills, servers or connections yet",
+    "legend": "Legend",
+    "cellLabel": "{{name}}, {{item}}: {{state}}",
+    "clickGrant": "click to grant",
+    "clickRevoke": "click to take away",
+    "grantFailed": "Could not change the grant: {{error}}",
+    "notRunning": "Not running",
+    "engineNote": "{{engine}} does not read Claude Code skills or MCP settings; only its connections apply.",
+    "pendingRestart": "This agent runs on an older setup than its grants.",
+    "noneGranted": "Nothing granted",
+    "giveBundle": "Grant a role bundle",
+    "pickBundle": "Pick a bundle…",
+    "clear": "Take away everything granted",
+    "confirmClear": "Click again to take it all away",
+    "state": {
+      "granted": "Granted",
+      "everyone": "Every agent",
+      "pending": "Granted, restart to apply",
+      "needsKey": "Granted, needs a key",
+      "missing": "Granted, not in place yet",
+      "unsupported": "Not read by this engine",
+      "none": "Not granted"
+    }
+  },
+  "temps": {
+    "intro": "Hire an agent for one job. It works in its own worktree, is let go when it says it is done, and leaves a row behind: the job, how long it ran, the tokens it used, and any worktree it kept because it holds unmerged work.",
+    "job": "The job",
+    "jobPlaceholder": "Translate the changelog into Spanish and open a branch with it",
+    "engine": "Engine",
+    "model": "Model",
+    "defaultModel": "Engine default",
+    "folder": "Folder",
+    "noFolder": "Choose a folder",
+    "chooseFolder": "Choose a folder…",
+    "worktree": "Own worktree",
+    "worktreeTitle": "Work on a fresh branch in its own worktree, so nothing it does touches your checkout.",
+    "hire": "Hire",
+    "hireNote": "It starts in a moment, or as soon as a slot is free.",
+    "runningTitle": "{{running}} of {{max}} running",
+    "atOnce": "At once",
+    "noneRunning": "No temps right now.",
+    "open": "Open",
+    "stop": "Stop",
+    "cancel": "Cancel",
+    "tokens": "{{tokens}} tok",
+    "noTokens": "no token count",
+    "historyTitle": "History",
+    "historyEmpty": "Finished temps leave a row here.",
+    "clearHistory": "Clear history",
+    "keptWorktree": "Kept its worktree",
+    "keptDetail": "Holds unmerged work on {{branch}} ({{detail}}):",
+    "keptUnknown": "git could not say, so it was kept",
+    "copyPath": "Copy path",
+    "loadFailed": "Could not read the temps",
+    "state": {
+      "queued": "Queued",
+      "starting": "Starting",
+      "waitingSlot": "Waiting for a worker slot",
+      "running": "Running",
+      "finishing": "Finishing",
+      "stopping": "Stopping"
+    },
+    "outcome": {
+      "done": "Done",
+      "stopped": "Stopped",
+      "failed": "Did not start",
+      "ended": "Ended without finishing",
+      "interrupted": "Interrupted"
+    },
+    "why": {
+      "rejected": "The worker controller turned it down; your orchestrator was told why.",
+      "lost": "It was handed over but never reached the floor.",
+      "cwd": "Its folder no longer exists.",
+      "interrupted": "The app quit before it started."
+    },
+    "errors": {
+      "job": "Write the job first.",
+      "jobTooLong": "The job is too long (4,000 characters at most).",
+      "provider": "That engine cannot take a job from the inbox.",
+      "model": "That model name has characters the command line cannot take.",
+      "cwd": "Choose a folder that exists.",
+      "noHive": "Open a hive folder first.",
+      "tooMany": "Too many temps are waiting already.",
+      "generic": "Could not hire: {{error}}"
+    }
+  }
+}

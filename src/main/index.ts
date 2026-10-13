@@ -71,6 +71,18 @@ import { fetchHireManifest, readHireManifestFiles } from './hire';
 import { parseHireDeepLink, type HireManifest } from '../shared/hire';
 import { ClosingTimeController } from './closingTime';
 import {
+  applyEarlyFeatureSwitches, createFeatureContext, registerFeatures, featureMicLive,
+  notifyAppWindowsClosed, disposeFeatures
+} from './features';
+import { withContextRules } from './features/automations';
+// Workspace Capabilities: an agent's own grants at spawn, and Temps hired from the app.
+import { capabilitySpawnInjection, tempRequestFiles } from './features/capabilities';
+// Workspace "Deliveries paused" (floor-wide queue hold) and the breaker's default
+// per-agent token cap — both owned by the orchestrator feature, mirrored below.
+import {
+  floorDeliveriesPaused, liftFloorDeliveryPause, orchestratorDefaultAgentTokenCap
+} from './features/orchestrator';
+import {
   argsWithAutoModeFlag,
   inferAgentProvider,
   isClaudeProvider,
@@ -94,6 +106,12 @@ import {
 } from '../shared/codexRemote';
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
+
+// Workspace/Stapler feature modules may need Chromium features enabled (e.g.
+// system-audio capture for meetings). Chromium reads `--enable-features` once,
+// at startup, so this has to run here at module top level — before app 'ready'
+// — and every module's flags are merged into ONE switch (src/main/features).
+applyEarlyFeatureSwitches();
 
 // Keep the main process alive on an unexpected throw/rejection. The harness is a
 // multi-agent supervisor — a single stray throw (e.g. node-pty's ConPTY console
@@ -271,7 +289,11 @@ const grokLedgerGate = new CumulativeSampleGate();
 // enforces its decisions. Config read live so a settings change applies next beat.
 const breaker = new CircuitBreaker(() => {
   const c = readConfig();
-  return { ...(c.circuitBreaker ?? {}), costCapUsd: c.costCapUsd, costCapTokens: c.costCapTokens, agentTokenCaps: c.agentTokenCaps };
+  return {
+    ...(c.circuitBreaker ?? {}), costCapUsd: c.costCapUsd, costCapTokens: c.costCapTokens, agentTokenCaps: c.agentTokenCaps,
+    // Workspace → Orchestrator → Budget: the cap for any agent without its own.
+    defaultAgentTokenCap: orchestratorDefaultAgentTokenCap()
+  };
 });
 // Always-on beats (decoupled from the optional heartbeat): the live fleet snapshot
 // Michael reads + the breaker beat, so guardrails + monitoring work even when the
@@ -308,7 +330,9 @@ const hookServer = new HookServer(
   () => readConfig(),
   control,
   breaker,
-  standingGoalFromRoster,
+  // Workspace → Automations "context rules" (house style and the like) ride the
+  // standing-goal channel: SessionStart, then again whenever the text changes.
+  (agentId) => withContextRules(standingGoalFromRoster(agentId)),
   (agentId, event, message) => workerWake.noteHook(agentId, event, message)
 );
 const memory = new MemoryManager(
@@ -2361,9 +2385,12 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
   // engines, so a CLI-only user must not have the mic gate opened. Every other
   // permission keeps the app's prior permissive behavior (e.g. clipboard for
   // xterm/editor copy must keep working).
+  // Feature modules (Stapler recording, dictation) report their own capture
+  // through featureMicLive(); a module only answers true while it is actually
+  // recording, so this widens the gate for exactly as long as a capture runs.
   const micFeatureLive = (): boolean => {
     const cfg = readConfig();
-    return cfg.freeflowEnabled === true || cfg.realtimeVoiceEnabled === true;
+    return cfg.freeflowEnabled === true || cfg.realtimeVoiceEnabled === true || featureMicLive();
   };
   const ses = win.webContents.session;
   ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
@@ -2467,6 +2494,11 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
       for (const w of allWindows) { if (!w.isDestroyed()) { mainWindow = w; break; } }
     }
     syncKeepAwake();
+    // The last APP window is gone. Feature windows (the Stapler's puck) are not
+    // in allWindows, and while one is open Electron never emits
+    // 'window-all-closed' — so on Windows/Linux the app would idle on with no
+    // office. Modules close their own windows here.
+    if (allWindows.size === 0) notifyAppWindowsClosed();
   });
 
   return win;
@@ -2777,6 +2809,19 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   let seedPrompt: string | undefined;
   if (opts.hive && hive.enabled()) {
     try {
+      // Workspace Capabilities: this agent's own grants (MCP overlay, keyed MCP
+      // servers, a broker token for granted connections). An agent with no grant
+      // gets today's values back unchanged; a spawn that already carries a broker
+      // token (an ephemeral worker) keeps it.
+      const caps = capabilitySpawnInjection({
+        ptyId: opts.id,
+        agentId: opts.hive.id,
+        provider,
+        mcpDefaults: readConfig().mcpDefaults,
+        grantBroker: integrationBroker.running() && !opts.env?.MD_BROKER_TOKEN
+          ? (ids) => ({ url: integrationBroker.url(), token: integrationBroker.grant(opts.id, ids) })
+          : null
+      });
       const inj = await hive.ensureAgent(
         { ...opts.hive, cwd: opts.cwd, provider },
         {
@@ -2789,14 +2834,14 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
           kgCliPath: knowledge.env().KG_CLI,
           theme: readConfig().terminalTheme ?? 'light',
           // W3 — default-MCP consent state + the bundled skills source dir.
-          mcpDefaults: readConfig().mcpDefaults,
+          mcpDefaults: caps.mcpDefaults,
           skillsDir: skillsResourceDir(),
           // The shared palace is mutated by the agent's own `mempalace` calls, so
           // the OS sandbox must let it through (empty when memory is off).
           extraWritableDirs: [memory.env().MEMPALACE_PALACE_PATH].filter((p): p is string => !!p)
         }
       );
-      opts.args = [...(opts.args ?? []), ...inj.args];
+      opts.args = [...(opts.args ?? []), ...inj.args, ...caps.args];
       seedPrompt = inj.seedPrompt;
       // A degraded spawn (proxy bridge never bound) is told to the user the same
       // way breaker escalations are: a native toast, gated on the notifications
@@ -2804,7 +2849,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
       if (inj.degraded) breakerToast('Agent running degraded', inj.degraded);
       // Point the agent's mempalace CLI at the shared palace + the `kg` CLI at the
       // enterprise knowledge store (both no-ops / empty when their flags are off).
-      opts.env = { ...(opts.env ?? {}), ...inj.env, ...memory.env(), ...knowledge.env() };
+      opts.env = { ...(opts.env ?? {}), ...inj.env, ...caps.env, ...memory.env(), ...knowledge.env() };
     } catch (e) {
       // Hive provisioning is best-effort; never block a spawn on it.
       console.error('[hive] ensureAgent failed:', e);
@@ -3655,8 +3700,10 @@ ipcMain.handle('tools:status', (): ToolStatus[] => {
 // refresh() = resetBinCache + an idempotent start(). The poll is the one thing
 // that reliably notices mempalace being installed after boot, so it is what arms
 // the mine loop that boot's start() had to skip — otherwise the pill reads
-// "getting ready" until the app is restarted.
-ipcMain.handle('hive:memoryStatus', () => memory.refresh());
+// "getting ready" until the app is restarted. refreshAsync() is the same with the
+// CLI lookup (a login shell) off the main thread, so a poll — Settings', or the
+// Workspace Memory screen's on every open — never freezes the window.
+ipcMain.handle('hive:memoryStatus', () => memory.refreshAsync());
 ipcMain.handle('hive:searchMemory', (_evt, query: unknown, wing: unknown) => {
   if (typeof query !== 'string' || !query.trim()) return { ok: false, output: '', error: 'empty query' };
   return memory.search(query, { wing: typeof wing === 'string' ? wing : undefined });
@@ -3791,6 +3838,10 @@ function teardownAndQuit(): void {
   try { reflector.stop(); } catch (e) { console.error('[quit] reflector.stop:', e); }
   try { persist.close(); } catch (e) { console.error('[quit] persist.close:', e); }
   try { hive.stopAllProxyBridges(); } catch (e) { console.error('[quit] stopAllProxyBridges:', e); }
+  // Feature modules may own child processes (a transcriber, a dictation
+  // helper); on Windows a child is NOT killed with its parent, so they stop
+  // here rather than waiting for will-quit. Idempotent.
+  try { disposeFeatures(); } catch (e) { console.error('[quit] disposeFeatures:', e); }
   try { ptyManager.killAll(); } catch (e) { console.error('[quit] killAll:', e); }
   app.quit();
 }
@@ -3850,6 +3901,7 @@ ipcMain.handle('app:resetAll', () => {
   try { memory.stop(); } catch (e) { console.error('[reset] memory.stop:', e); }
   try { reflector.stop(); } catch (e) { console.error('[reset] reflector.stop:', e); }
   try { persist.close(); } catch (e) { console.error('[reset] persist.close:', e); }
+  try { disposeFeatures(); } catch (e) { console.error('[reset] disposeFeatures:', e); }
   try { ptyManager.killAll(); } catch (e) { console.error('[reset] killAll:', e); }
   try { hive.removeExposedCodexData(); } catch (e) { console.error('[reset] removeExposedCodexData:', e); }
   // Erase the hive (Michael's + every agent's memory, inboxes, tasks, board,
@@ -3971,7 +4023,11 @@ ipcMain.handle('control:autoDelivery', (_evt, agentId: unknown, paused: unknown)
   const current = new Set(readConfig().autoDeliveryPausedAgents ?? []);
   if (on) current.add(agentId); else current.delete(agentId);
   writeConfig({ autoDeliveryPausedAgents: Array.from(current).sort() });
-  return control.snapshot(agentId);
+  // The Workspace's floor-wide hold shows up in every snapshot (below), so the
+  // Classic floor switch reads it as "paused"; resuming from there must lift it
+  // too, or that switch would flip to "auto" while nothing moved.
+  if (!on) liftFloorDeliveryPause();
+  return controlSnapshotWithFloorHold(agentId);
 });
 ipcMain.handle('control:resume', (_evt, agentId: unknown) => {
   if (typeof agentId !== 'string') return null;
@@ -3997,8 +4053,16 @@ ipcMain.handle('control:halt', (_evt, agentId: unknown) => {
   control.halt(agentId);
   return control.snapshot(agentId);
 });
+/** An agent's control snapshot with the Workspace's floor-wide delivery hold
+ *  (features/orchestrator.ts) ORed into `autoDeliveryPaused`. The renderer's
+ *  queue drain (useHive) and every composer read this one flag, so the hold
+ *  needs no second gate: queued work waits, "send now" and steer still pass. */
+function controlSnapshotWithFloorHold(agentId: string) {
+  const snap = control.snapshot(agentId);
+  return floorDeliveriesPaused() ? { ...snap, autoDeliveryPaused: true } : snap;
+}
 ipcMain.handle('control:snapshot', (_evt, agentId: unknown) =>
-  typeof agentId === 'string' ? control.snapshot(agentId) : null);
+  typeof agentId === 'string' ? controlSnapshotWithFloorHold(agentId) : null);
 
 // ─── IPC: scheduled missions (recurring auto-dispatch) ──────────────────────
 ipcMain.handle('missions:list', () => readConfig().missions ?? []);
@@ -5003,6 +5067,14 @@ async function ephemeralWorkerTick(): Promise<void> {
         await processSpawnRequest(join(dir, f));
       }
     }
+    // Temps hired by the USER from Workspace → Capabilities. Their queue lives
+    // under userData, outside every agent's writable dirs, so the orchestrator
+    // gate above does not apply: the hire is the user's own click. Still bounded
+    // by maxWorkers; the Temps cap (features/capabilities) sits in front of it.
+    for (const f of tempRequestFiles()) {
+      if (liveWorkers.size >= maxWorkers) break;
+      if (existsSync(f)) await processSpawnRequest(f);
+    }
 
     // (3) GC preserved worktrees whose work has since integrated. Throttled to
     //     GC_SWEEP_MS and a no-op when nothing is preserved (the common case).
@@ -5229,7 +5301,8 @@ function runWorkerWakeBeat(): void {
       ptyId,
       lastOutputAt: ptyManager.lastOutputAt(ptyId) ?? 0,
       inboxIds: mail.map((message) => message.id).filter(Boolean),
-      autoDeliveryPaused: snap.autoDeliveryPaused,
+      // The floor-wide hold (Workspace "Deliveries paused") holds wakes too.
+      autoDeliveryPaused: snap.autoDeliveryPaused || floorDeliveriesPaused(),
       paused: snap.paused,
       halted: snap.halted,
       // A turn the CLI demonstrably took: a tool span, or a usage sample WITH
@@ -5429,6 +5502,21 @@ app.whenReady().then(() => {
   // off, the app keeps Electron's default menu — zero behavior change.
   if (readConfig().multiWindow) installAppMenu();
   createWindow();
+  // Workspace/Stapler feature modules (src/main/features). After the hive
+  // services and the primary window exist, and in the same tick as
+  // createWindow(), so every feat:* handler is registered before the renderer
+  // can invoke one. A module that throws is logged and skipped.
+  registerFeatures(createFeatureContext({
+    isDev,
+    preloadPath: join(__dirname, '../preload/index.js'),
+    rendererDir: join(__dirname, '../renderer'),
+    rendererUrl: process.env.ELECTRON_RENDERER_URL,
+    getMainWindow: () => mainWindow,
+    appWindows: () => [...allWindows],
+    readConfig,
+    writeConfig,
+    harnessHome: () => readConfig().harnessHome ?? null
+  }));
   // Auto-start the Slack webhook server when configured. Best-effort: a tunnel
   // failure (offline) is logged, not fatal. The tunnel URL is ephemeral and
   // changes per restart, so the user re-pastes it via Settings → Start.
@@ -5448,8 +5536,11 @@ app.whenReady().then(() => {
       else console.log('[webhook] listening', r.url ? `(tunnel: ${r.url})` : '(no tunnel)');
     });
   }
+  // allWindows, not BrowserWindow.getAllWindows(): a feature window (the
+  // Stapler's puck floats over every app) must not stop a Dock click from
+  // reopening the office on macOS.
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (allWindows.size === 0) createWindow();
   });
 });
 
@@ -5500,6 +5591,9 @@ app.on('window-all-closed', () => {
 // exactly what's left to do.
 let analyticsFlushed = false;
 app.on('will-quit', (e) => {
+  // Every quit path ends here (teardownAndQuit already disposed; a plain
+  // app.quit on macOS did not). Idempotent.
+  try { disposeFeatures(); } catch (err) { console.error('[quit] disposeFeatures:', err); }
   if (analyticsFlushed) return;
   analyticsFlushed = true;
   e.preventDefault();

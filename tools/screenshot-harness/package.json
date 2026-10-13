@@ -1,0 +1,10 @@
+{
+  "name": "munder-difflin-screenshot-harness",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Headless-Chromium screenshot harness for the renderer (no Electron). See README.md.",
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "1.56.1"
+  }
+}

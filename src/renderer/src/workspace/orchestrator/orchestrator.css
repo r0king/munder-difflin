@@ -1,0 +1,386 @@
+/* The orchestrator's screen (wsOrchestrator unit). Classes are prefixed
+ * `cth-ws-orch-`; every value is a `--cth-*` token, nothing is rounded, and
+ * inline layout uses logical properties so the Arabic interface mirrors. */
+
+/* ─── Frame ──────────────────────────────────────────────────────────────── */
+
+.cth-ws-orch-top {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-2);
+  padding: var(--cth-space-3) var(--cth-space-5);
+  border-bottom: 1px solid var(--cth-ink-100);
+  background: var(--cth-cream-50);
+}
+.cth-ws-orch-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cth-ws-orch-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--cth-space-4) var(--cth-space-5);
+}
+.cth-ws-orch-narrow { max-width: 880px; }
+.cth-ws-orch-muted { color: var(--cth-ink-500); font-size: var(--cth-text-body-sm); line-height: var(--cth-lh-body-sm); }
+.cth-ws-orch-error { color: var(--cth-coral); font-size: var(--cth-text-body-sm); line-height: var(--cth-lh-body-sm); }
+.cth-ws-orch-mono { font-family: var(--cth-font-mono); font-size: var(--cth-text-mono-sm); }
+
+/* ─── Stat strip ─────────────────────────────────────────────────────────── */
+
+.cth-ws-orch-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--cth-space-2);
+}
+@media (max-width: 900px) {
+  .cth-ws-orch-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.cth-ws-orch-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--cth-space-2) var(--cth-space-3);
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  border: none;
+  font-family: inherit;
+  text-align: start;
+  color: inherit;
+}
+button.cth-ws-orch-tile { cursor: pointer; }
+button.cth-ws-orch-tile:hover { box-shadow: inset 0 0 0 1px var(--cth-ink-300); }
+button.cth-ws-orch-tile:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--cth-ink-700); }
+.cth-ws-orch-tile-label {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cth-ink-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cth-ws-orch-tile-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--cth-text-body-lg);
+  line-height: var(--cth-lh-body-lg);
+  font-weight: 600;
+  color: var(--cth-ink-900);
+  white-space: nowrap;
+}
+.cth-ws-orch-tile-sub {
+  font-size: var(--cth-text-body-sm);
+  font-weight: 400;
+  color: var(--cth-ink-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cth-ws-orch-tile--warn { box-shadow: inset 0 0 0 1px var(--cth-lemon); background: var(--cth-lemon-light); }
+.cth-ws-orch-tile--danger { box-shadow: inset 0 0 0 1px var(--cth-coral); background: var(--cth-coral-light); }
+button.cth-ws-orch-tile--danger:hover { box-shadow: inset 0 0 0 2px var(--cth-coral); }
+button.cth-ws-orch-tile--warn:hover { box-shadow: inset 0 0 0 2px var(--cth-lemon); }
+
+/* A square-ended progress meter. */
+.cth-ws-orch-meter {
+  position: relative;
+  height: 4px;
+  margin-top: 2px;
+  background: var(--cth-cream-200);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  overflow: hidden;
+}
+.cth-ws-orch-meter--lg { height: 8px; }
+.cth-ws-orch-meter-fill { height: 100%; background: var(--cth-mint); }
+.cth-ws-orch-meter-fill--near { background: var(--cth-lemon); }
+.cth-ws-orch-meter-fill--over { background: var(--cth-coral); }
+.cth-ws-orch-meter-fill--none { background: var(--cth-ink-300); }
+
+/* ─── Banner ─────────────────────────────────────────────────────────────── */
+
+.cth-ws-orch-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-3);
+  padding: var(--cth-space-2) var(--cth-space-5);
+  background: var(--cth-lemon-light);
+  border-bottom: 1px solid var(--cth-lemon);
+  color: var(--cth-ink-900);
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+}
+.cth-ws-orch-banner--budget { background: var(--cth-coral-light); border-bottom-color: var(--cth-coral); }
+.cth-ws-orch-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cth-ws-orch-banner-title { font-weight: 600; }
+.cth-ws-orch-banner-actions { display: flex; gap: var(--cth-space-2); flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+/* Two bars, drawn in the text colour so it reads on the dark primary button
+   and on the banner alike. */
+.cth-ws-orch-pausemark {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-inline-start: 3px solid currentColor;
+  border-inline-end: 3px solid currentColor;
+  box-sizing: border-box;
+}
+
+/* ─── Terminal tab ───────────────────────────────────────────────────────── */
+
+.cth-ws-orch-terminal {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: var(--cth-paper-100);
+}
+
+/* ─── Toolbar (Messages, Routing) ────────────────────────────────────────── */
+
+.cth-ws-orch-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--cth-space-2);
+  padding: var(--cth-space-2) var(--cth-space-5);
+  border-bottom: 1px solid var(--cth-ink-100);
+  background: var(--cth-cream-50);
+}
+.cth-ws-orch-toolbar .cth-ws-search { flex: 1 1 220px; max-width: 420px; }
+.cth-ws-orch-select {
+  height: 28px;
+  min-width: 0;
+  max-width: 220px;
+  padding: 0 var(--cth-space-2);
+  border: none;
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  color: var(--cth-ink-900);
+  font-family: inherit;
+  font-size: var(--cth-text-body-sm);
+  cursor: pointer;
+}
+.cth-ws-orch-select:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--cth-ink-700); }
+.cth-ws-orch-select:disabled { color: var(--cth-ink-500); cursor: default; }
+.cth-ws-orch-spacer { flex: 1; }
+
+/* ─── Messages tab ───────────────────────────────────────────────────────── */
+
+.cth-ws-orch-thread {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--cth-space-3) var(--cth-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-2);
+}
+.cth-ws-orch-msg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-1);
+  max-width: 760px;
+  padding: var(--cth-space-2) var(--cth-space-3);
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+}
+.cth-ws-orch-msg--out { align-self: flex-end; background: var(--cth-cream-100); }
+.cth-ws-orch-msg--you { align-self: flex-end; background: var(--cth-sky-light); box-shadow: inset 0 0 0 1px var(--cth-sky); }
+.cth-ws-orch-msg--unread { box-shadow: inset 2px 0 0 var(--cth-ink-900), inset 0 0 0 1px var(--cth-ink-300); }
+.cth-ws-orch-msg-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cth-ink-500);
+}
+.cth-ws-orch-msg-who { color: var(--cth-ink-900); font-weight: 600; }
+.cth-ws-orch-msg-subject { font-size: var(--cth-text-body-sm); font-weight: 600; color: var(--cth-ink-900); overflow-wrap: anywhere; }
+.cth-ws-orch-msg-body {
+  margin: 0;
+  font-family: inherit;
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+  color: var(--cth-ink-700);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.cth-ws-orch-msg-body--clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cth-ws-orch-linkbtn {
+  align-self: flex-start;
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: var(--cth-ink-700);
+  font-family: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.cth-ws-orch-linkbtn:hover { color: var(--cth-ink-900); }
+.cth-ws-orch-steer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  padding: var(--cth-space-2) var(--cth-space-5);
+  border-top: 1px solid var(--cth-ink-100);
+  background: var(--cth-cream-100);
+}
+.cth-ws-orch-steer-hint { flex: 1; min-width: 0; font-size: 12px; line-height: 16px; color: var(--cth-ink-500); }
+
+/* ─── Routing tab ────────────────────────────────────────────────────────── */
+
+.cth-ws-orch-routes { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--cth-space-5) var(--cth-space-4); }
+.cth-ws-orch-day {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--cth-space-3) 0 var(--cth-space-1);
+  background: var(--cth-cream-50);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--cth-ink-500);
+}
+.cth-ws-orch-route {
+  display: grid;
+  grid-template-columns: 48px minmax(120px, 0.9fr) minmax(0, 2fr) auto;
+  align-items: center;
+  gap: var(--cth-space-3);
+  min-height: 32px;
+  padding: var(--cth-space-1) var(--cth-space-2);
+  border-bottom: 1px solid var(--cth-ink-100);
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+}
+.cth-ws-orch-route:hover { background: var(--cth-cream-100); }
+.cth-ws-orch-route-time { font-family: var(--cth-font-mono); font-size: 12px; color: var(--cth-ink-500); }
+.cth-ws-orch-route-who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--cth-ink-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cth-ws-orch-route-arrow { color: var(--cth-ink-300); flex-shrink: 0; }
+.cth-ws-orch-route-subject { min-width: 0; color: var(--cth-ink-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cth-ws-orch-route-tags { display: flex; gap: var(--cth-space-1); justify-content: flex-end; flex-wrap: wrap; }
+@media (max-width: 760px) {
+  .cth-ws-orch-route { grid-template-columns: 48px minmax(0, 1fr) auto; }
+  .cth-ws-orch-route-subject { grid-column: 2 / -1; }
+}
+.cth-ws-orch-foot { padding: var(--cth-space-3) 0; display: flex; align-items: center; gap: var(--cth-space-3); }
+
+/* ─── Budget tab ─────────────────────────────────────────────────────────── */
+
+.cth-ws-orch-spend {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--cth-space-4);
+}
+@media (max-width: 760px) {
+  .cth-ws-orch-spend { grid-template-columns: minmax(0, 1fr); }
+}
+.cth-ws-orch-figure { font-size: 28px; line-height: 36px; font-weight: 600; color: var(--cth-ink-900); }
+.cth-ws-orch-figure-sub { font-size: var(--cth-text-body-sm); color: var(--cth-ink-500); }
+.cth-ws-orch-bars {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--cth-space-1);
+  height: 96px;
+}
+.cth-ws-orch-bar { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-end; gap: 2px; height: 100%; min-width: 0; }
+.cth-ws-orch-bar-fill { min-height: 1px; background: var(--cth-ink-300); }
+.cth-ws-orch-bar-fill--today { background: var(--cth-ink-700); }
+.cth-ws-orch-bar-fill--over { background: var(--cth-coral); }
+.cth-ws-orch-bar-label { font-size: 11px; line-height: 14px; color: var(--cth-ink-500); text-align: center; white-space: nowrap; overflow: hidden; }
+
+.cth-ws-orch-rows { display: flex; flex-direction: column; }
+.cth-ws-orch-row {
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-3);
+  min-height: 36px;
+  padding: var(--cth-space-1) 0;
+  border-bottom: 1px solid var(--cth-ink-100);
+  font-size: var(--cth-text-body-sm);
+}
+.cth-ws-orch-row:last-child { border-bottom: none; }
+.cth-ws-orch-row-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--cth-space-2); color: var(--cth-ink-900); }
+.cth-ws-orch-row-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cth-ws-orch-row-value { flex-shrink: 0; font-family: var(--cth-font-mono); font-size: 12px; color: var(--cth-ink-700); text-align: end; }
+.cth-ws-orch-row-reason { font-size: 12px; color: var(--cth-ink-500); overflow-wrap: anywhere; }
+
+/* An inline editable value: text input + a quiet hint. */
+.cth-ws-orch-input {
+  height: 28px;
+  width: 120px;
+  padding: 0 var(--cth-space-2);
+  border: none;
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  color: var(--cth-ink-900);
+  font-family: var(--cth-font-mono);
+  font-size: var(--cth-text-mono-sm);
+  outline: none;
+}
+.cth-ws-orch-input:focus { box-shadow: inset 0 0 0 2px var(--cth-ink-700); }
+.cth-ws-orch-input[aria-invalid='true'] { box-shadow: inset 0 0 0 2px var(--cth-coral); }
+.cth-ws-orch-input--wide { width: 100%; font-family: var(--cth-font-ui); font-size: var(--cth-text-body-sm); }
+.cth-ws-orch-textarea {
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  padding: var(--cth-space-2);
+  border: none;
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  color: var(--cth-ink-900);
+  font-family: var(--cth-font-ui);
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+  outline: none;
+  box-sizing: border-box;
+}
+.cth-ws-orch-textarea:focus { box-shadow: inset 0 0 0 2px var(--cth-ink-700); }
+
+/* ─── Configuration tab ──────────────────────────────────────────────────── */
+
+.cth-ws-orch-field {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
+  gap: var(--cth-space-2) var(--cth-space-4);
+  align-items: start;
+  padding: var(--cth-space-2) 0;
+}
+@media (max-width: 760px) {
+  .cth-ws-orch-field { grid-template-columns: minmax(0, 1fr); }
+}
+.cth-ws-orch-field-label { font-size: var(--cth-text-body-sm); line-height: 28px; color: var(--cth-ink-900); }
+.cth-ws-orch-field-control { display: flex; flex-direction: column; gap: var(--cth-space-1); min-width: 0; }
+.cth-ws-orch-field-line { display: flex; align-items: center; flex-wrap: wrap; gap: var(--cth-space-2); min-width: 0; }
+.cth-ws-orch-field-hint { font-size: 12px; line-height: 16px; color: var(--cth-ink-500); }
+.cth-ws-orch-saved { font-size: 12px; color: var(--cth-ink-500); }
+
+/* The Board tab hosts the Classic kanban: give it the screen's full height. */
+.cth-ws-orch-board { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }

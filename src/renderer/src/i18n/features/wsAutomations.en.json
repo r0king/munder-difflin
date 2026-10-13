@@ -1,0 +1,268 @@
+{
+  "title": "Automations",
+  "onCount": "{{n}} on",
+  "intro": "Missions on a schedule, context rules and webhooks, in one list. Each one starts the moment you switch it on. There is no save button: text saves when you leave the field, switches save at once.",
+  "heldBanner": "Webhook deliveries waiting for your yes: {{n}}",
+  "heldReview": "Review",
+  "dismiss": "Dismiss",
+  "loading": "Loading automations",
+  "untitled": "Untitled",
+  "filter": {
+    "label": "Show",
+    "all": "All · {{n}}",
+    "schedule": "Schedules · {{n}}",
+    "context": "Context rules · {{n}}",
+    "webhook": "Webhooks · {{n}}"
+  },
+  "kind": {
+    "schedule": "Schedule",
+    "context": "Context rule",
+    "webhook": "Webhook"
+  },
+  "new": {
+    "button": "New automation",
+    "scheduleBlurb": "A mission sent on chosen days at a time, or on a repeat",
+    "contextBlurb": "Text every agent reads before it starts",
+    "webhookBlurb": "Outside events in, held for your yes if you like",
+    "scheduleName": "New schedule",
+    "ruleName": "New context rule",
+    "webhookName": "New webhook",
+    "scheduleAction": "New schedule",
+    "contextAction": "New context rule",
+    "webhookAction": "New webhook"
+  },
+  "empty": {
+    "all": {
+      "title": "Nothing automated yet",
+      "body": "Pick what to set up first. It starts switched off, so you can write it before it runs."
+    },
+    "schedule": {
+      "title": "No schedules",
+      "body": "A schedule sends a mission on chosen weekdays at a time, or on a repeat: a morning triage at 9, a Friday summary at 5."
+    },
+    "context": {
+      "title": "No context rules",
+      "body": "A context rule is text every agent reads before it starts, like your house style."
+    },
+    "webhook": {
+      "title": "No webhooks",
+      "body": "A webhook brings outside events in: an issue labelled bug, a failed deploy, a form someone sent."
+    }
+  },
+  "row": {
+    "turnOn": "Switch {{name}} on",
+    "turnOff": "Switch {{name}} off",
+    "expand": "Edit {{name}}",
+    "collapse": "Close {{name}}",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this for good?",
+    "deleteYes": "Delete",
+    "deleteNo": "Keep"
+  },
+  "save": {
+    "saving": "Saving…",
+    "saved": "Saved"
+  },
+  "field": {
+    "name": "Name",
+    "goesTo": "Goes to",
+    "when": "When",
+    "prompt": "Mission",
+    "ruleText": "What every agent reads",
+    "required": "This cannot be empty, so the saved value was kept.",
+    "tooLong": "Too long: keep it under {{max}} characters. The saved text was kept.",
+    "count": "{{n}} / {{max}} characters"
+  },
+  "blocked": {
+    "noPrompt": "Write the mission first, then switch it on.",
+    "noWhen": "Pick when it runs first, then switch it on.",
+    "noTarget": "Pick who it goes to first, then switch it on.",
+    "noRuleText": "Write the rule first, then switch it on."
+  },
+  "desc": {
+    "schedule": "{{when}}, {{target}}: {{what}}",
+    "scheduleNoPrompt": "{{when}}, to {{target}}. No mission written yet",
+    "heartbeat": "{{when}}, a look at the floor; {{godName}} is nudged only when it has gone quiet",
+    "rule": "A context rule every agent reads: {{what}}",
+    "ruleEmpty": "A context rule, not written yet",
+    "compact": "{{every}} at most, compacts any agent past {{pct}}% of its context",
+    "clear": "{{every}} at most, clears any agent past {{pct}}% of its context",
+    "webhook": {
+      "holdAll": "A webhook: everything waits for your yes, then goes to {{godName}}",
+      "passAll": "A webhook: everything goes straight to {{godName}}",
+      "holdWork": "A webhook: questions go straight in, work waits for your yes"
+    }
+  },
+  "every": {
+    "minuteOne": "Every minute",
+    "minuteMany": "Every {{n}} minutes",
+    "hourOne": "Every hour",
+    "hourMany": "Every {{n}} hours",
+    "dayOne": "Every day",
+    "dayMany": "Every {{n}} days",
+    "weekOne": "Every week",
+    "weekMany": "Every {{n}} weeks"
+  },
+  "when": {
+    "everyDay": "Every day at {{time}}",
+    "weekdays": "Weekdays at {{time}}",
+    "weekends": "Weekends at {{time}}",
+    "days": "{{days}} at {{time}}",
+    "onDay": {
+      "0": "Sundays at {{time}}",
+      "1": "Mondays at {{time}}",
+      "2": "Tuesdays at {{time}}",
+      "3": "Wednesdays at {{time}}",
+      "4": "Thursdays at {{time}}",
+      "5": "Fridays at {{time}}",
+      "6": "Saturdays at {{time}}"
+    },
+    "interval": "{{every}}",
+    "heartbeat": "{{every}}",
+    "unset": "Never: pick when it runs",
+    "modeWeekly": "On days",
+    "modeInterval": "On a repeat",
+    "everyLabel": "Every",
+    "unitLabel": "Unit",
+    "unit": {
+      "minute": "minutes",
+      "hour": "hours",
+      "day": "days",
+      "week": "weeks"
+    },
+    "countLabel": "How many",
+    "badCount": "Use a whole number from 1 to {{max}}.",
+    "daysLabel": "Days",
+    "initial": {
+      "0": "S",
+      "1": "M",
+      "2": "T",
+      "3": "W",
+      "4": "T",
+      "5": "F",
+      "6": "S"
+    },
+    "at": "at",
+    "timeLabel": "Time",
+    "weekdaysButton": "Weekdays",
+    "everyDayButton": "Every day",
+    "weekendsButton": "Weekends",
+    "pickADay": "Pick at least one day. Nothing is saved until you do.",
+    "localTime": "Times are this computer's local time."
+  },
+  "meta": {
+    "next": "Next {{when}}",
+    "nextNow": "Runs now",
+    "last": "Last ran {{when}}",
+    "builtIn": "Built in"
+  },
+  "time": {
+    "now": "just now",
+    "ago": {
+      "m": "{{n}} min ago",
+      "h": "{{n}} h ago",
+      "d": "{{n}} d ago"
+    },
+    "in": {
+      "m": "in {{n}} min",
+      "h": "in {{n}} h",
+      "d": "in {{n}} d"
+    }
+  },
+  "target": {
+    "everyone": "Everyone",
+    "orchestrator": "{{godName}}",
+    "gone": "{{name}} (left the floor)"
+  },
+  "schedule": {
+    "namePlaceholder": "Morning triage",
+    "promptPlaceholder": "Sort the new GitHub issues into tickets and tell me what looks urgent.",
+    "promptHint": "Sent to {{target}} as a request every time it runs.",
+    "heartbeatHint": "The heartbeat looks at the floor on this cadence and nudges {{godName}} only when everyone has gone quiet. This text is the nudge."
+  },
+  "rule": {
+    "namePlaceholder": "House style",
+    "textPlaceholder": "Write in plain English. No exclamation marks. Sentence case for headings.",
+    "hint": "Every agent reads this before it starts, and running agents pick up a change on their next prompt. Agents whose engine has no hook support do not see context rules."
+  },
+  "maintenance": {
+    "compact": {
+      "name": "Auto-compact",
+      "blurb": "Asks an agent to summarise its context and carry on once it fills past the bar. Nothing is lost; the context gets shorter.",
+      "messageLabel": "Extra focus for the summary",
+      "messageHint": "Added to the compaction command on engines that read it."
+    },
+    "clear": {
+      "name": "Auto-clear",
+      "blurb": "Throws an agent's context away once it fills past the bar. For agents whose work needs no memory between tasks.",
+      "messageLabel": "Clear command",
+      "messageHint": "Leave empty to send the engine's own clear command; set one for engines that have none.",
+      "caution": "Clearing discards the conversation. It ships switched off; turn it on only for agents that can start fresh."
+    },
+    "noSoonerThan": "No more often than",
+    "bar": "When context is at least (%)",
+    "barHint": "0 means time alone sets it off.",
+    "bigBar": "On very large windows (%)",
+    "bigBarHint": "A lower bar for windows of about a million tokens, where a smaller share is still a lot of text.",
+    "badPct": "Use a number from 0 to 100."
+  },
+  "webhook": {
+    "namePlaceholder": "New bug report",
+    "trust": "What gets through without you",
+    "mode": {
+      "strict": "Ask me first",
+      "allow-all": "Let everything in",
+      "communication-only": "Questions only"
+    },
+    "modeHint": {
+      "strict": "Every delivery waits for your yes.",
+      "allow-all": "Messages and requests for work go straight to {{godName}}.",
+      "communication-only": "Questions and updates go straight in; requests for work wait for your yes."
+    },
+    "address": "Address",
+    "addressWhenOn": "Switch it on to get its public address.",
+    "howToCall": "POST JSON with a \"message\" field, and send the secret in the x-md-webhook-secret header.",
+    "tunnelPending": "The server is up; the public address is still being set up.",
+    "serverDown": "The webhook server is not running. It starts when a webhook is on; check your connection if this stays.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Could not copy to the clipboard.",
+    "secret": "Secret",
+    "secretHint": "The caller sends this with every request. Anyone who has it can post to this webhook.",
+    "show": "Show",
+    "hide": "Hide",
+    "schema": "Body schema (JSON)",
+    "schemaHint": "Deliveries are checked against this. \"message\" is the one field the floor needs.",
+    "badSchema": "Not valid JSON, so it was not saved: {{error}}",
+    "deliveries": "Deliveries",
+    "noDeliveries": "Nothing has come in yet.",
+    "allInInbox": "All {{n}} in the Inbox",
+    "approve": "Approve",
+    "reject": "Reject",
+    "from": "from {{peer}}",
+    "decision": {
+      "pending": "Waiting for you",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "delivered": "Delivered"
+    },
+    "kindDirective": "Asks the floor to do something",
+    "kindCommunication": "Informational",
+    "heldChip": "{{n}} held",
+    "live": "Live",
+    "noAddressYet": "Starting",
+    "offline": "Server down",
+    "noSecret": "This webhook has no secret, so it cannot be switched on. Delete it and make a new one."
+  },
+  "error": {
+    "invalid": "That did not pass the app's check, so nothing was saved.",
+    "full": "That is as many context rules as the floor can hold. Delete one first.",
+    "gone": "It was already deleted.",
+    "writeFailed": "Could not write the settings file. Check the disk and try again.",
+    "notDispatched": "Not sent yet: the floor could not take it. Open a hive, then approve again.",
+    "generic": "Could not save: {{error}}",
+    "createFailed": "Could not create it: {{error}}",
+    "deleteFailed": "Could not delete {{name}}: {{error}}",
+    "loadFailed": "Some automations could not be read: {{error}}"
+  }
+}

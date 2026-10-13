@@ -1,0 +1,127 @@
+{
+  "title": "侧边栏",
+  "floor": {
+    "noHive": "未打开楼层",
+    "office": "{{number}} 号办公室",
+    "officeOf": "已打开 {{total}} 个办公室，这是第 {{number}} 个",
+    "folderTip": "此楼层的文件夹：{{path}}"
+  },
+  "stapler": {
+    "open": "打开订书机",
+    "recording": "订书机正在录制"
+  },
+  "nav": {
+    "doingWord": "进行中",
+    "doingTip": "{{n}} 项进行中",
+    "questionsTip": "{{n}} 项在等你处理",
+    "onWord": "已开启",
+    "onTip": "已开启 {{n}} 项"
+  },
+  "agents": {
+    "title": "智能体",
+    "openAll": "打开所有智能体的卡片",
+    "orchestrator": "调度者",
+    "noProject": "无文件夹",
+    "groupNeedsYou": "此项目中有智能体需要你",
+    "askedYou": "问了你",
+    "askedYouTip": "{{name}} 问了你一个问题，请在收件箱中回答。",
+    "reorderHint": "拖动以排序，或使用 Alt+上 和 Alt+下",
+    "moved": "已将 {{name}} 移到第 {{position}} 位（共 {{total}} 位）",
+    "movedProject": "已将项目 {{name}} 移到第 {{position}} 位（共 {{total}} 个）",
+    "empty": "还没有智能体。"
+  },
+  "ticket": {
+    "open": "工单 {{key}}：查看详情",
+    "untitled": "无标题工单",
+    "status": "状态",
+    "statuses": {
+      "todo": "待办",
+      "doing": "进行中",
+      "blocked": "受阻",
+      "done": "已完成"
+    },
+    "assignee": "负责人",
+    "unassigned": "未分配",
+    "updated": "更新于",
+    "never": "未知",
+    "noDescription": "没有描述。"
+  },
+  "menu": {
+    "label": "{{name}} 的操作",
+    "openRoom": "打开房间",
+    "openOrchestrator": "打开调度者的屏幕",
+    "focusTerminal": "在专注模式中打开终端",
+    "noTerminal": "此智能体没有正在运行的终端",
+    "openIde": "在 IDE 中打开",
+    "restartContinue": "重启并继续",
+    "restartContinueTip": "重启进程并保留对话",
+    "restart": "全新重启",
+    "restartTip": "开始新会话，不保留对话",
+    "restartConfirm": "全新重启 {{name}}？再点一次确认",
+    "restarting": "正在重启 {{name}}…",
+    "continuing": "正在重启 {{name}} 并继续…",
+    "restartFailed": "重启失败：{{error}}",
+    "stop": "停止",
+    "stopConfirm": "停止 {{name}}？再点一次确认",
+    "stopFailed": "无法停止：{{error}}"
+  },
+  "temps": {
+    "title": "临时工",
+    "running": "{{n}} 个运行中",
+    "open": "打开能力中的临时工",
+    "rowTip": "{{name}}：已运行 {{age}}，用了 {{tokens}} 个 token。打开临时工",
+    "tokens": "{{tokens}} token",
+    "stopping": "正在收尾"
+  },
+  "notes": {
+    "title": "笔记",
+    "new": "新建笔记",
+    "newPlaceholder": "输入笔记名称，然后按回车",
+    "untitled": "无标题笔记",
+    "search": "搜索笔记",
+    "empty": "在这里写的速记会保存在蜂巢中，每个智能体都能读到。",
+    "noMatch": "没有笔记提到“{{query}}”。",
+    "truncated": "只显示最新的 500 条笔记，搜索可找到更早的笔记。",
+    "loading": "正在加载笔记",
+    "open": "打开",
+    "rename": "重命名",
+    "delete": "删除",
+    "deleteConfirm": "删除？再点一次确认",
+    "deleted": "已删除“{{title}}”",
+    "sendTo": "发送给…",
+    "sent": "已加入 {{name}} 的队列",
+    "sendFailed": "无法发送给 {{name}}：{{error}}",
+    "sendOnlyOrchestrator": "楼层上没有其他智能体。",
+    "openInIde": "在 IDE 中打开笔记文件",
+    "ide": "在 IDE 中编辑",
+    "close": "关闭笔记",
+    "titleLabel": "笔记标题",
+    "bodyLabel": "笔记正文（markdown）",
+    "bodyPlaceholder": "用 markdown 书写，边写边保存。",
+    "editorLabel": "笔记：{{title}}",
+    "menuLabel": "笔记 {{title}} 的操作",
+    "saving": "正在保存…",
+    "unsaved": "尚未保存",
+    "savedAt": "已保存 {{when}}",
+    "conflict": "你编辑时，这条笔记在磁盘上被改动了，可能是某个智能体改的。",
+    "loadTheirs": "载入已保存的版本",
+    "keepMine": "保留我的",
+    "retry": "重试",
+    "errors": {
+      "noHive": "打开楼层文件夹后才能记笔记。",
+      "notFound": "这条笔记不见了，它已在应用外被删除或重命名。",
+      "conflict": "笔记在磁盘上已更改。",
+      "invalid": "不允许使用该笔记名称或内容。",
+      "io": "无法访问笔记文件夹：{{message}}"
+    }
+  },
+  "settings": {
+    "title": "侧边栏设置",
+    "keepOrder": "保持我的智能体顺序",
+    "keepOrderOn": "拖动智能体和项目来排序，或使用 Alt+上 和 Alt+下。",
+    "keepOrderOff": "需要你的智能体排在最前，其次是工作中的，然后是空闲的。",
+    "resetOrder": "重置我的顺序",
+    "agentsNotesOnly": "只显示智能体和笔记",
+    "agentsNotesOnlyHint": "隐藏订书机以及从任务到能力的链接。"
+  }
+}

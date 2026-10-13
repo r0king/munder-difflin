@@ -1,0 +1,481 @@
+/* Workspace primitives (workspace/ui.tsx) and the shell (workspace/Workspace.tsx).
+ *
+ * The Workspace is the PROFESSIONAL face of the app: dense, calm, quiet chrome.
+ * It is still this design system — every colour, font and spacing below is a
+ * `--cth-*` token, nothing is rounded, and the only shadow is the hard offset
+ * one — it just spends far less of it than the pixel office does. Light and
+ * dark both come from tokens.css; there is no theme logic in here.
+ *
+ * Every class is prefixed `cth-ws-`. This file is foundation-owned: a unit that
+ * needs its own styles adds a CSS file in its own folder, imported by its own
+ * component, with classes prefixed `cth-ws-<unit>-` (or `cth-stapler-`).
+ *
+ * Inline layout uses LOGICAL properties (inline-start/end) throughout, so the
+ * Arabic interface mirrors without a single `[dir="rtl"]` rule here. */
+
+/* ─── Shell ──────────────────────────────────────────────────────────────── */
+
+.cth-ws-root {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  background: var(--cth-cream-50);
+  color: var(--cth-ink-900);
+  font-family: var(--cth-font-ui);
+  font-size: var(--cth-text-body-md);
+  line-height: var(--cth-lh-body-md);
+}
+.cth-ws-sidebar {
+  flex-shrink: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--cth-cream-100);
+  border-inline-end: 1px solid var(--cth-ink-100);
+  overflow: hidden;
+}
+.cth-ws-rail {
+  flex-shrink: 0;
+  width: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: var(--cth-space-2);
+  gap: var(--cth-space-1);
+  background: var(--cth-cream-100);
+  border-inline-end: 1px solid var(--cth-ink-100);
+}
+.cth-ws-resize {
+  flex-shrink: 0;
+  width: 4px;
+  margin-inline-start: -2px;
+  margin-inline-end: -2px;
+  position: relative;
+  z-index: 2;
+  cursor: ew-resize;
+  background: transparent;
+  outline: none;
+}
+.cth-ws-resize:hover,
+.cth-ws-resize:focus-visible,
+.cth-ws-resize[data-active='true'] { background: var(--cth-ink-300); }
+.cth-ws-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* A screen: header on top, body scrolls. Screens that need their own layout
+   (split panes, a terminal) put `cth-ws-screen-body--fill` on the body. */
+.cth-ws-screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cth-ws-screen-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--cth-space-4) var(--cth-space-5);
+}
+.cth-ws-screen-body--fill { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+
+/* ─── ScreenHeader ───────────────────────────────────────────────────────── */
+
+.cth-ws-header {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-2);
+  padding: var(--cth-space-3) var(--cth-space-5) 0;
+  border-bottom: 1px solid var(--cth-ink-100);
+  background: var(--cth-cream-50);
+}
+.cth-ws-header-row {
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-3);
+  min-height: 32px;
+  padding-bottom: var(--cth-space-3);
+}
+.cth-ws-header:has(.cth-ws-tabs) .cth-ws-header-row { padding-bottom: 0; }
+.cth-ws-header-text { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: var(--cth-space-3); }
+.cth-ws-header-title {
+  margin: 0;
+  font-size: var(--cth-text-body-lg);
+  line-height: var(--cth-lh-body-lg);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cth-ws-header-subtitle {
+  font-size: var(--cth-text-body-sm);
+  color: var(--cth-ink-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cth-ws-header-actions { display: flex; align-items: center; gap: var(--cth-space-2); flex-shrink: 0; }
+
+/* ─── Card ───────────────────────────────────────────────────────────────── */
+
+.cth-ws-card {
+  display: block;
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  color: inherit;
+  text-align: start;
+  min-width: 0;
+}
+.cth-ws-card--pad-sm { padding: var(--cth-space-2) var(--cth-space-3); }
+.cth-ws-card--pad-md { padding: var(--cth-space-3) var(--cth-space-4); }
+.cth-ws-card--clickable { cursor: pointer; }
+.cth-ws-card--clickable:hover { box-shadow: inset 0 0 0 1px var(--cth-ink-300); }
+.cth-ws-card--selected,
+.cth-ws-card--selected:hover { box-shadow: inset 0 0 0 2px var(--cth-ink-700); }
+
+/* ─── Chip ───────────────────────────────────────────────────────────────── */
+
+.cth-ws-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cth-space-1);
+  flex-shrink: 0;
+  max-width: 100%;
+  height: 20px;
+  padding: 0 var(--cth-space-2);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--cth-on-accent);
+  background: var(--cth-cream-200);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  border: none;
+  font-family: inherit;
+}
+/* Neutral rides the THEMED ink (it sits on a themed surface); the tones sit on
+   accent "-light" fills, which are light in light mode and deep in dark mode,
+   so their text follows the theme's ink too. */
+.cth-ws-chip--neutral { color: var(--cth-ink-700); }
+.cth-ws-chip--info    { color: var(--cth-ink-900); background: var(--cth-sky-light);   box-shadow: inset 0 0 0 1px var(--cth-sky); }
+.cth-ws-chip--warn    { color: var(--cth-ink-900); background: var(--cth-lemon-light); box-shadow: inset 0 0 0 1px var(--cth-lemon); }
+.cth-ws-chip--danger  { color: var(--cth-ink-900); background: var(--cth-coral-light); box-shadow: inset 0 0 0 1px var(--cth-coral); }
+.cth-ws-chip--ok      { color: var(--cth-ink-900); background: var(--cth-mint-light);  box-shadow: inset 0 0 0 1px var(--cth-mint); }
+.cth-ws-chip--accent  { color: var(--cth-ink-900); background: var(--cth-lilac-light); box-shadow: inset 0 0 0 1px var(--cth-lilac); }
+button.cth-ws-chip { cursor: pointer; }
+
+/* ─── Status ─────────────────────────────────────────────────────────────── */
+
+.cth-ws-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(26, 19, 32, 0.12);
+}
+.cth-ws-dot--pulse { animation: cth-ws-pulse 1.6s steps(2, end) infinite; }
+@keyframes cth-ws-pulse {
+  0%, 60% { opacity: 1; }
+  61%, 100% { opacity: 0.45; }
+}
+.cth-ws-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: var(--cth-text-body-sm);
+  line-height: 18px;
+  color: var(--cth-ink-700);
+  white-space: nowrap;
+}
+
+/* ─── Tabs ───────────────────────────────────────────────────────────────── */
+
+.cth-ws-tabs {
+  display: flex;
+  gap: var(--cth-space-4);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.cth-ws-tabs::-webkit-scrollbar { height: 0; display: none; }
+.cth-ws-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--cth-ink-500);
+  font-family: inherit;
+  font-size: var(--cth-text-body-md);
+  cursor: pointer;
+  box-shadow: inset 0 -2px 0 transparent;
+}
+.cth-ws-tab:hover { color: var(--cth-ink-900); }
+.cth-ws-tab[aria-selected='true'] { color: var(--cth-ink-900); box-shadow: inset 0 -2px 0 var(--cth-ink-900); }
+.cth-ws-tab-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  color: var(--cth-ink-700);
+  background: var(--cth-cream-200);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+}
+
+/* ─── SegmentedControl ───────────────────────────────────────────────────── */
+
+.cth-ws-seg {
+  display: inline-flex;
+  flex-shrink: 0;
+  background: var(--cth-cream-200);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  padding: 2px;
+  gap: 2px;
+}
+.cth-ws-seg-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cth-space-1);
+  height: 24px;
+  padding: 0 var(--cth-space-2);
+  border: none;
+  background: transparent;
+  color: var(--cth-ink-500);
+  font-family: inherit;
+  font-size: var(--cth-text-body-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cth-ws-seg--sm .cth-ws-seg-item { height: 20px; padding: 0 6px; font-size: 12px; }
+.cth-ws-seg-item:hover { color: var(--cth-ink-900); }
+.cth-ws-seg-item[aria-checked='true'] {
+  color: var(--cth-ink-900);
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300);
+}
+.cth-ws-seg-item:disabled { color: var(--cth-ink-300); cursor: default; }
+
+/* ─── Inputs ─────────────────────────────────────────────────────────────── */
+
+.cth-ws-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 var(--cth-space-2);
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  color: var(--cth-ink-500);
+  min-width: 0;
+}
+.cth-ws-search:focus-within { box-shadow: inset 0 0 0 2px var(--cth-ink-700); }
+.cth-ws-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--cth-ink-900);
+  font-size: var(--cth-text-body-sm);
+  font-family: inherit;
+  padding: 0;
+}
+.cth-ws-search input::placeholder { color: var(--cth-ink-500); }
+
+.cth-ws-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: var(--cth-ink-700);
+  font-family: inherit;
+  font-size: var(--cth-text-body-sm);
+  cursor: pointer;
+}
+.cth-ws-toggle:disabled { cursor: default; opacity: 0.55; }
+.cth-ws-toggle-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 28px;
+  height: 16px;
+  background: var(--cth-cream-300);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300);
+}
+.cth-ws-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  inset-inline-start: 3px;
+  width: 10px;
+  height: 10px;
+  background: var(--cth-ink-500);
+}
+.cth-ws-toggle[aria-checked='true'] .cth-ws-toggle-track { background: var(--cth-mint-light); box-shadow: inset 0 0 0 1px var(--cth-mint); }
+.cth-ws-toggle[aria-checked='true'] .cth-ws-toggle-thumb { inset-inline-start: 15px; background: var(--cth-mint); }
+
+/* ─── Buttons ────────────────────────────────────────────────────────────── */
+
+.cth-ws-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--cth-ink-700);
+  cursor: pointer;
+}
+.cth-ws-iconbtn--sm { width: 24px; height: 24px; }
+.cth-ws-iconbtn:hover { background: var(--cth-cream-200); color: var(--cth-ink-900); }
+.cth-ws-iconbtn[aria-pressed='true'] { background: var(--cth-cream-200); color: var(--cth-ink-900); box-shadow: inset 0 0 0 1px var(--cth-ink-300); }
+.cth-ws-iconbtn:disabled { color: var(--cth-ink-300); cursor: default; background: transparent; }
+
+.cth-ws-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 var(--cth-space-3);
+  border: none;
+  font-family: inherit;
+  font-size: var(--cth-text-body-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cth-ws-btn--sm { height: 24px; padding: 0 var(--cth-space-2); font-size: 12px; }
+.cth-ws-btn--primary { background: var(--cth-ink-900); color: var(--cth-cream-50); }
+.cth-ws-btn--primary:hover { background: var(--cth-ink-700); }
+.cth-ws-btn--secondary { background: var(--cth-paper-100); color: var(--cth-ink-900); box-shadow: inset 0 0 0 1px var(--cth-ink-300); }
+.cth-ws-btn--secondary:hover { background: var(--cth-cream-200); }
+.cth-ws-btn--ghost { background: transparent; color: var(--cth-ink-700); }
+.cth-ws-btn--ghost:hover { background: var(--cth-cream-200); color: var(--cth-ink-900); }
+.cth-ws-btn--danger { background: var(--cth-coral); color: var(--cth-on-accent); }
+.cth-ws-btn--danger:hover { box-shadow: inset 0 0 0 1px var(--cth-ink-700); }
+.cth-ws-btn:disabled,
+.cth-ws-btn:disabled:hover { background: var(--cth-cream-300); color: var(--cth-ink-500); box-shadow: none; cursor: default; }
+
+/* ─── EmptyState / Section / KeyHint / Spinner ───────────────────────────── */
+
+.cth-ws-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cth-space-2);
+  padding: var(--cth-space-7) var(--cth-space-5);
+  text-align: center;
+  color: var(--cth-ink-700);
+}
+.cth-ws-empty--compact { padding: var(--cth-space-5) var(--cth-space-4); }
+.cth-ws-empty--fill { flex: 1; min-height: 0; }
+.cth-ws-empty-icon { color: var(--cth-ink-300); margin-bottom: var(--cth-space-1); }
+.cth-ws-empty-title { margin: 0; font-size: var(--cth-text-body-lg); line-height: var(--cth-lh-body-lg); font-weight: 600; color: var(--cth-ink-900); }
+.cth-ws-empty-body { margin: 0; max-width: 420px; font-size: var(--cth-text-body-sm); line-height: var(--cth-lh-body-sm); color: var(--cth-ink-500); }
+.cth-ws-empty-action { margin-top: var(--cth-space-2); display: flex; gap: var(--cth-space-2); }
+
+.cth-ws-section { display: flex; flex-direction: column; gap: var(--cth-space-2); min-width: 0; }
+.cth-ws-section + .cth-ws-section { margin-top: var(--cth-space-5); }
+.cth-ws-section-head { display: flex; align-items: center; gap: var(--cth-space-2); min-height: 24px; }
+.cth-ws-section-title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--cth-ink-500);
+}
+.cth-ws-section-count { font-size: 12px; color: var(--cth-ink-500); }
+.cth-ws-section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cth-space-1);
+  border: none;
+  padding: 0;
+  background: transparent;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+
+.cth-ws-keys { display: inline-flex; gap: 2px; flex-shrink: 0; }
+.cth-ws-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-family: var(--cth-font-mono);
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--cth-ink-700);
+  background: var(--cth-cream-200);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100), inset 0 -1px 0 var(--cth-ink-300);
+}
+
+.cth-ws-spinner {
+  display: inline-flex;
+  gap: 4px;
+}
+.cth-ws-spinner span {
+  width: 6px;
+  height: 6px;
+  background: var(--cth-ink-300);
+  animation: cth-ws-spin 0.9s steps(1, end) infinite;
+}
+.cth-ws-spinner span:nth-child(2) { animation-delay: 0.3s; }
+.cth-ws-spinner span:nth-child(3) { animation-delay: 0.6s; }
+@keyframes cth-ws-spin {
+  0%, 33% { background: var(--cth-ink-700); }
+  34%, 100% { background: var(--cth-ink-300); }
+}
+
+/* ─── Sidebar list rows (shared by the shell's nav and the sidebar unit) ─── */
+
+.cth-ws-navrow {
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  width: 100%;
+  min-height: 28px;
+  padding: 0 var(--cth-space-3);
+  border: none;
+  /* The current-page marker is a BORDER, not an inset shadow, so it is logical
+     and lands on the leading edge in Arabic too. Always 2px (transparent when
+     not current) so selecting a row never shifts its text. */
+  border-inline-start: 2px solid transparent;
+  background: transparent;
+  color: var(--cth-ink-700);
+  font-family: inherit;
+  font-size: var(--cth-text-body-md);
+  text-align: start;
+  cursor: pointer;
+}
+.cth-ws-navrow:hover { background: var(--cth-cream-200); color: var(--cth-ink-900); }
+.cth-ws-navrow[aria-current='page'] { background: var(--cth-cream-200); color: var(--cth-ink-900); border-inline-start-color: var(--cth-ink-900); }
+.cth-ws-navrow-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cth-ws-navrow-meta { flex-shrink: 0; font-size: 12px; color: var(--cth-ink-500); }
+
+/* Utility: one-line truncation and quiet secondary text. */
+.cth-ws-ellipsis { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cth-ws-muted { color: var(--cth-ink-500); }
+.cth-ws-mono { font-family: var(--cth-font-mono); font-size: var(--cth-text-mono-sm); }

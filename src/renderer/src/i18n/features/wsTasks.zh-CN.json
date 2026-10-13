@@ -1,0 +1,138 @@
+{
+  "title": "任务",
+  "loading": "正在读取任务账本",
+  "dismiss": "关闭",
+  "unassigned": "未分配",
+  "ownerGod": "{{name}}（编排者）",
+  "ownerAway": "不在楼层",
+  "ago": "{{age}}前",
+  "updatedAgo": "{{age}}前更新",
+  "age": {
+    "m": "{{n}} 分钟",
+    "h": "{{n}} 小时",
+    "d": "{{n}} 天"
+  },
+  "col": {
+    "todo": "待办",
+    "doing": "进行中",
+    "blocked": "已阻塞",
+    "done": "已完成"
+  },
+  "view": {
+    "label": "视图",
+    "board": "看板",
+    "list": "列表",
+    "cards": "卡片"
+  },
+  "range": {
+    "today": "今天",
+    "week": "本周",
+    "month": "本月",
+    "all": "全部时间"
+  },
+  "summary": {
+    "empty": "还没有任务",
+    "inProgress": "{{count}} 项进行中",
+    "asksYouOne": "{{count}} 项在问你",
+    "asksYouMany": "{{count}} 项在问你",
+    "join": "{{a}}，{{b}}"
+  },
+  "filter": {
+    "range": "时间",
+    "assignee": "负责人",
+    "everyone": "所有人",
+    "search": "搜索任务",
+    "clear": "清除筛选",
+    "showing": "{{shown}} / {{total}}"
+  },
+  "empty": {
+    "title": "还没有任务",
+    "body": "{{godName}} 规划工作时，卡片会出现在这里。你也可以用「新建任务」自己添加。",
+    "filteredTitle": "没有匹配的卡片",
+    "filteredBody": "没有卡片符合这些筛选条件。在问你问题或已停滞的卡片始终会显示。"
+  },
+  "flag": {
+    "asks": "在问你",
+    "asksTitle": "这张卡片在等你回答。在「问我」中打开。",
+    "stale": "停滞 · {{age}}",
+    "staleTitle": "在「进行中」已有 {{age}} 没有更新",
+    "sentMove": "已发送 · → {{column}}",
+    "sentOwner": "已发送 · → {{owner}}",
+    "sentTitle": "{{age}}前已发送给 {{godName}}。他更新账本后卡片才会移动。"
+  },
+  "pending": {
+    "short": "待发送",
+    "from": "待发送 · 原在{{column}}",
+    "owner": "改给 {{owner}}",
+    "undo": "撤销"
+  },
+  "card": {
+    "role": "任务卡片"
+  },
+  "menu": {
+    "label": "卡片操作",
+    "moveTo": "移到",
+    "owner": "负责人",
+    "open": "打开详情",
+    "undo": "撤销这项改动"
+  },
+  "board": {
+    "empty": "这里没有卡片",
+    "dropHere": "把卡片放到这里",
+    "hiddenDone": "{{count}} 项在一天多以前完成。",
+    "showInList": "在列表中查看"
+  },
+  "kbd": {
+    "hint": "方向键在卡片之间移动。按住 Shift 再按左或右，把卡片移动一列。空格键拿起卡片，方向键移动它，再按空格键放下，Esc 取消。回车键打开卡片。",
+    "short": "Shift+← → 移动卡片 · 空格键拿起",
+    "moved": "{{id}} 已暂存到{{column}}。点「发送」交给 {{godName}}。",
+    "lifted": "已拿起 {{id}}，位于{{column}}。",
+    "cancelled": "{{id}} 已放回原处。"
+  },
+  "list": {
+    "id": "编号",
+    "title": "标题",
+    "column": "列",
+    "owner": "负责人",
+    "updated": "更新",
+    "flags": "标记",
+    "columnFor": "{{id}} 所在的列",
+    "ownerFor": "{{id}} 的负责人",
+    "rawStatus": "账本中写的是「{{status}}」"
+  },
+  "send": {
+    "region": "已暂存的改动",
+    "stagedOne": "已暂存 1 项改动。",
+    "stagedMany": "已暂存 {{count}} 项改动。",
+    "hint": "「发送」会把它们合成一条消息交给 {{godName}}，由他更新看板。",
+    "hintAway": "{{godName}} 还不在楼层。你的消息会在他的队列里等他上线。",
+    "review": "查看",
+    "hide": "收起",
+    "discard": "全部丢弃",
+    "send": "发送给 {{godName}}",
+    "sending": "发送中",
+    "sentOne": "已把 1 项改动发送给 {{godName}}。他执行后卡片才会移动。",
+    "sentMany": "已把 {{count}} 项改动发送给 {{godName}}。他逐项执行时卡片会移动。",
+    "failed": "发送失败：{{error}}",
+    "failedGeneric": "消息没有被接受",
+    "columnChange": "{{from}} → {{to}}",
+    "ownerChange": "负责人 {{from}} → {{to}}"
+  },
+  "newTask": {
+    "button": "新建任务",
+    "heading": "新建任务",
+    "title": "标题",
+    "titlePlaceholder": "需要做什么",
+    "description": "详情（可选）",
+    "descriptionPlaceholder": "背景、约束，以及怎样算完成",
+    "assignee": "负责人（可选）",
+    "tell": "通知 {{godName}}，让他派发",
+    "cancel": "取消",
+    "create": "添加任务",
+    "creating": "添加中",
+    "failed": "无法添加任务：{{error}}",
+    "failedGeneric": "账本没有接受它",
+    "created": "{{id}} 已在看板上。",
+    "createdNotTold": "{{id}} 已在看板上，但没能通知 {{godName}}：{{error}}"
+  }
+}

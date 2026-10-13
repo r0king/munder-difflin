@@ -1,0 +1,92 @@
+{
+  "title": "Workspace",
+  "mode": {
+    "label": "Interface",
+    "classic": "Classic",
+    "workspace": "Workspace",
+    "tip": "Switch between the pixel office and the workspace"
+  },
+  "nav": {
+    "orchestrator": "Orchestrator",
+    "agents": "Agents",
+    "tasks": "Tasks",
+    "inbox": "Inbox",
+    "automations": "Automations",
+    "memory": "Memory",
+    "capabilities": "Capabilities",
+    "stapler": "Stapler"
+  },
+  "status": {
+    "working": "Working",
+    "thinking": "Thinking",
+    "needsYou": "Needs you",
+    "waiting": "Waiting",
+    "compacting": "Compacting",
+    "looping": "Looping",
+    "idle": "Idle",
+    "offline": "Offline"
+  },
+  "live": {
+    "offline": "Offline",
+    "starting": "Starting up",
+    "idle": "Idle",
+    "thinking": "Thinking",
+    "working": "Working",
+    "workingDetail": "Working: {{detail}}",
+    "inbox": "Reading its inbox",
+    "compacting": "Boxing up its context",
+    "looping": "Stopped by the breaker",
+    "loopingDetail": "Stopped by the breaker: {{detail}}",
+    "needsYou": "Waiting on you",
+    "askedYou": "Asked you a question",
+    "waiting": "Waiting on another agent",
+    "running": "Running a command",
+    "runningDetail": "Running {{detail}}",
+    "reading": "Reading files",
+    "readingDetail": "Reading {{detail}}",
+    "editing": "Editing files",
+    "editingDetail": "Editing {{detail}}",
+    "searching": "Searching the code",
+    "searchingDetail": "Searching for {{detail}}",
+    "browsing": "Looking something up on the web",
+    "browsingDetail": "Looking up {{detail}}",
+    "planning": "Updating its plan",
+    "delegating": "Handing work to a subagent",
+    "tool": "Using a tool",
+    "toolDetail": "Using {{detail}}"
+  },
+  "stapler": {
+    "on": "Stapler is on",
+    "off": "Stapler is off",
+    "toggleAria": "Show or hide the Stapler"
+  },
+  "shell": {
+    "booting": "Waking the floor",
+    "bootingBody": "{{godName}} is clocking in. This screen fills in as soon as the terminal is up.",
+    "failed": "{{godName}} could not start",
+    "failedBody": "The orchestrator's terminal did not come up. Check the engine in Settings, then restart the app.",
+    "empty": "No agents on the floor yet",
+    "emptyBody": "Add an agent and its card, status and terminal land here.",
+    "addAgent": "Add an agent",
+    "agentGone": "This agent has left the floor",
+    "agentGoneBody": "Its terminal was closed. Pick another agent, or restore it from the agents list.",
+    "backToAgents": "Back to agents",
+    "resizeSidebar": "Drag to resize the sidebar. Double-click to reset.",
+    "collapseSidebar": "Hide the sidebar",
+    "expandSidebar": "Show the sidebar",
+    "screenCrashed": "This screen hit a snag",
+    "screenCrashedBody": "Something on it failed to draw. The rest of the app is fine.",
+    "retry": "Try again",
+    "stubBody": "This screen is on its way."
+  },
+  "keys": {
+    "sidebar": "Sidebar",
+    "settings": "Settings",
+    "details": "Agent details",
+    "ide": "Open in the IDE"
+  },
+  "ui": {
+    "search": "Search",
+    "clear": "Clear"
+  }
+}

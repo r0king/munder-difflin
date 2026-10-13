@@ -1,0 +1,268 @@
+{
+  "title": "自动化",
+  "onCount": "已开启 {{n}} 项",
+  "intro": "定时任务、上下文规则和 Webhook，都在一个列表里。每一项在你打开开关的那一刻开始生效。这里没有保存按钮：文字在离开输入框时保存，开关即时保存。",
+  "heldBanner": "等待你批准的 Webhook 投递：{{n}} 条",
+  "heldReview": "查看",
+  "dismiss": "关闭",
+  "loading": "正在载入自动化",
+  "untitled": "未命名",
+  "filter": {
+    "label": "显示",
+    "all": "全部 · {{n}}",
+    "schedule": "定时任务 · {{n}}",
+    "context": "上下文规则 · {{n}}",
+    "webhook": "Webhook · {{n}}"
+  },
+  "kind": {
+    "schedule": "定时任务",
+    "context": "上下文规则",
+    "webhook": "网络钩子"
+  },
+  "new": {
+    "button": "新建自动化",
+    "scheduleBlurb": "在选定的日子和时间发送任务，或按固定间隔重复",
+    "contextBlurb": "每个智能体开始工作前都会读到的文字",
+    "webhookBlurb": "接收外部事件，可选择先由你批准",
+    "scheduleName": "新定时任务",
+    "ruleName": "新上下文规则",
+    "webhookName": "新 Webhook",
+    "scheduleAction": "新建定时任务",
+    "contextAction": "新建上下文规则",
+    "webhookAction": "新建 Webhook"
+  },
+  "empty": {
+    "all": {
+      "title": "还没有任何自动化",
+      "body": "先选一个来设置。新建的项目默认关闭，写好之后再让它运行。"
+    },
+    "schedule": {
+      "title": "没有定时任务",
+      "body": "定时任务会在选定的工作日和时间发送任务，或按间隔重复：比如早上 9 点的分拣，周五下午 5 点的周报。"
+    },
+    "context": {
+      "title": "没有上下文规则",
+      "body": "上下文规则是每个智能体开始工作前都会读到的文字，比如你的写作风格。"
+    },
+    "webhook": {
+      "title": "没有 Webhook",
+      "body": "Webhook 把外部事件带进来：一个标记为 bug 的 issue、一次失败的部署、有人提交的表单。"
+    }
+  },
+  "row": {
+    "turnOn": "开启 {{name}}",
+    "turnOff": "关闭 {{name}}",
+    "expand": "编辑 {{name}}",
+    "collapse": "收起 {{name}}",
+    "delete": "删除",
+    "deleteConfirm": "要永久删除吗？",
+    "deleteYes": "删除",
+    "deleteNo": "保留"
+  },
+  "save": {
+    "saving": "正在保存…",
+    "saved": "已保存"
+  },
+  "field": {
+    "name": "名称",
+    "goesTo": "发送给",
+    "when": "时间",
+    "prompt": "任务内容",
+    "ruleText": "每个智能体都会读到的内容",
+    "required": "此项不能为空，已保留原来保存的内容。",
+    "tooLong": "太长了：请控制在 {{max}} 个字符以内。已保留原来保存的内容。",
+    "count": "{{n}} / {{max}} 个字符"
+  },
+  "blocked": {
+    "noPrompt": "请先写好任务内容，再打开开关。",
+    "noWhen": "请先选好运行时间，再打开开关。",
+    "noTarget": "请先选好发送对象，再打开开关。",
+    "noRuleText": "请先写好规则内容，再打开开关。"
+  },
+  "desc": {
+    "schedule": "{{when}}，{{target}}：{{what}}",
+    "scheduleNoPrompt": "{{when}}，发送给 {{target}}。尚未填写任务内容",
+    "heartbeat": "{{when}}查看一次工作区；只有在大家都安静下来时才提醒 {{godName}}",
+    "rule": "每个智能体都会读到的上下文规则：{{what}}",
+    "ruleEmpty": "一条上下文规则，尚未填写",
+    "compact": "最多{{every}}一次，压缩上下文超过 {{pct}}% 的智能体",
+    "clear": "最多{{every}}一次，清空上下文超过 {{pct}}% 的智能体",
+    "webhook": {
+      "holdAll": "Webhook：所有投递都先等你批准，再交给 {{godName}}",
+      "passAll": "Webhook：所有投递直接交给 {{godName}}",
+      "holdWork": "Webhook：提问直接进入，工作请求等你批准"
+    }
+  },
+  "every": {
+    "minuteOne": "每分钟",
+    "minuteMany": "每 {{n}} 分钟",
+    "hourOne": "每小时",
+    "hourMany": "每 {{n}} 小时",
+    "dayOne": "每天",
+    "dayMany": "每 {{n}} 天",
+    "weekOne": "每周",
+    "weekMany": "每 {{n}} 周"
+  },
+  "when": {
+    "everyDay": "每天 {{time}}",
+    "weekdays": "工作日 {{time}}",
+    "weekends": "周末 {{time}}",
+    "days": "{{days}} {{time}}",
+    "onDay": {
+      "0": "每周日 {{time}}",
+      "1": "每周一 {{time}}",
+      "2": "每周二 {{time}}",
+      "3": "每周三 {{time}}",
+      "4": "每周四 {{time}}",
+      "5": "每周五 {{time}}",
+      "6": "每周六 {{time}}"
+    },
+    "interval": "{{every}}",
+    "heartbeat": "{{every}}",
+    "unset": "从不运行：请选择运行时间",
+    "modeWeekly": "按星期",
+    "modeInterval": "按间隔",
+    "everyLabel": "每",
+    "unitLabel": "单位",
+    "unit": {
+      "minute": "分钟",
+      "hour": "小时",
+      "day": "天",
+      "week": "周"
+    },
+    "countLabel": "数量",
+    "badCount": "请输入 1 到 {{max}} 之间的整数。",
+    "daysLabel": "星期",
+    "initial": {
+      "0": "日",
+      "1": "一",
+      "2": "二",
+      "3": "三",
+      "4": "四",
+      "5": "五",
+      "6": "六"
+    },
+    "at": "时间",
+    "timeLabel": "时间",
+    "weekdaysButton": "工作日",
+    "everyDayButton": "每天",
+    "weekendsButton": "周末",
+    "pickADay": "请至少选择一天。选好之前不会保存。",
+    "localTime": "时间以这台电脑的本地时间为准。"
+  },
+  "meta": {
+    "next": "下次：{{when}}",
+    "nextNow": "立即运行",
+    "last": "上次运行：{{when}}",
+    "builtIn": "内置"
+  },
+  "time": {
+    "now": "刚刚",
+    "ago": {
+      "m": "{{n}} 分钟前",
+      "h": "{{n}} 小时前",
+      "d": "{{n}} 天前"
+    },
+    "in": {
+      "m": "{{n}} 分钟后",
+      "h": "{{n}} 小时后",
+      "d": "{{n}} 天后"
+    }
+  },
+  "target": {
+    "everyone": "所有人",
+    "orchestrator": "{{godName}}",
+    "gone": "{{name}}（已离开工作区）"
+  },
+  "schedule": {
+    "namePlaceholder": "早间分拣",
+    "promptPlaceholder": "把新的 GitHub issue 整理成工单，并告诉我哪些看起来比较紧急。",
+    "promptHint": "每次运行时作为请求发送给 {{target}}。",
+    "heartbeatHint": "心跳按这个节奏查看工作区，只有在大家都安静下来时才提醒 {{godName}}。这段文字就是提醒的内容。"
+  },
+  "rule": {
+    "namePlaceholder": "写作风格",
+    "textPlaceholder": "用平实的语言写作。不用感叹号。标题只首字母大写。",
+    "hint": "每个智能体开始工作前都会读到它，正在运行的智能体会在下一次收到提示时读到改动。引擎不支持钩子的智能体看不到上下文规则。"
+  },
+  "maintenance": {
+    "compact": {
+      "name": "自动压缩",
+      "blurb": "当智能体的上下文超过阈值时，让它总结上下文后继续工作。内容不会丢失，只是上下文变短。",
+      "messageLabel": "总结时额外关注的内容",
+      "messageHint": "对能读取附加文字的引擎，会附在压缩命令后面。"
+    },
+    "clear": {
+      "name": "自动清空",
+      "blurb": "当智能体的上下文超过阈值时直接清空。适用于任务之间不需要记忆的智能体。",
+      "messageLabel": "清空命令",
+      "messageHint": "留空则发送引擎自带的清空命令；对没有清空命令的引擎请自行填写。",
+      "caution": "清空会丢弃对话内容。它默认关闭；只对可以从头开始的智能体开启。"
+    },
+    "noSoonerThan": "最短间隔",
+    "bar": "上下文至少达到（%）",
+    "barHint": "设为 0 表示只按时间触发。",
+    "bigBar": "超大上下文窗口（%）",
+    "bigBarHint": "针对约一百万 token 的窗口设置更低的阈值，因为较小的比例也已经是大量文字。",
+    "badPct": "请输入 0 到 100 之间的数字。"
+  },
+  "webhook": {
+    "namePlaceholder": "新的 bug 报告",
+    "trust": "无需你批准即可通过的内容",
+    "mode": {
+      "strict": "先问我",
+      "allow-all": "全部放行",
+      "communication-only": "只放行提问"
+    },
+    "modeHint": {
+      "strict": "每一条投递都等你批准。",
+      "allow-all": "消息和工作请求都直接交给 {{godName}}。",
+      "communication-only": "提问和动态直接进入；工作请求等你批准。"
+    },
+    "address": "地址",
+    "addressWhenOn": "打开开关后会得到公开地址。",
+    "howToCall": "用 POST 发送带 \"message\" 字段的 JSON，并在 x-md-webhook-secret 请求头中附上密钥。",
+    "tunnelPending": "服务器已启动，公开地址仍在设置中。",
+    "serverDown": "Webhook 服务器没有运行。有 Webhook 开启时它会启动；如果一直如此，请检查网络连接。",
+    "copy": "复制",
+    "copied": "已复制",
+    "copyFailed": "无法复制到剪贴板。",
+    "secret": "密钥",
+    "secretHint": "调用方每次请求都要带上它。持有它的人都能向这个 Webhook 发送内容。",
+    "show": "显示",
+    "hide": "隐藏",
+    "schema": "请求体结构（JSON）",
+    "schemaHint": "投递会按此结构校验。\"message\" 是工作区唯一需要的字段。",
+    "badSchema": "不是有效的 JSON，因此没有保存：{{error}}",
+    "deliveries": "投递记录",
+    "noDeliveries": "还没有收到任何内容。",
+    "allInInbox": "在收件箱中查看全部 {{n}} 条",
+    "approve": "批准",
+    "reject": "拒绝",
+    "from": "来自 {{peer}}",
+    "decision": {
+      "pending": "等你处理",
+      "approved": "已批准",
+      "rejected": "已拒绝",
+      "delivered": "已送达"
+    },
+    "kindDirective": "要求工作区做事",
+    "kindCommunication": "仅供参考",
+    "heldChip": "{{n}} 条待批",
+    "live": "在线",
+    "noAddressYet": "启动中",
+    "offline": "服务器未运行",
+    "noSecret": "这个 Webhook 没有密钥，无法开启。请删除后重新创建。"
+  },
+  "error": {
+    "invalid": "未通过应用的校验，没有保存任何内容。",
+    "full": "上下文规则已达到上限。请先删除一条。",
+    "gone": "它已经被删除了。",
+    "writeFailed": "无法写入设置文件。请检查磁盘后重试。",
+    "notDispatched": "尚未发送：工作区暂时无法接收。请先打开一个工作区，再批准一次。",
+    "generic": "无法保存：{{error}}",
+    "createFailed": "无法创建：{{error}}",
+    "deleteFailed": "无法删除 {{name}}：{{error}}",
+    "loadFailed": "部分自动化无法读取：{{error}}"
+  }
+}

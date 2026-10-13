@@ -1,0 +1,147 @@
+{
+  "title": "Memory",
+  "header": {
+    "topics": "{{count}} topics",
+    "topicsOne": "1 topic",
+    "stats": "{{tickets}} tickets · {{agents}} agents with notes · {{notes}} of your notes",
+    "documents": "{{count}} documents",
+    "statsTip": "Topics are the distinct headings and key terms your agents, the board and your notes have written down.",
+    "partial": "The floor is large: the count covers what could be read in a few seconds."
+  },
+  "view": {
+    "label": "View",
+    "results": "Results",
+    "graph": "Graph"
+  },
+  "search": {
+    "placeholder": "Ask the floor: words, a ticket id, an agent…",
+    "aria": "Search the floor's memory",
+    "button": "Search"
+  },
+  "intro": {
+    "title": "Ask the floor what it knows",
+    "body": "Everything your agents learn becomes a graph of agents, tickets and notes, on your machine. Search it by the exact words or by meaning.",
+    "hint": "Put an exact phrase in quotes, like \"login test\". Tick results to send them to an agent with a prompt."
+  },
+  "lane": {
+    "exact": "Exact matches",
+    "meaning": "By meaning",
+    "exactHint": "The words as you typed them, in agents' memory, tickets, the board and your notes",
+    "meaningHint": "Related notes, even when the words differ, from the MemPalace index",
+    "count": "{{count}} results",
+    "countOne": "1 result"
+  },
+  "exact": {
+    "searching": "Searching…",
+    "none": "No exact matches for “{{query}}”.",
+    "noneHint": "Try fewer words, drop the quotes, or see what turns up by meaning.",
+    "partial": "The scan stopped at its time limit, so these results are partial.",
+    "error": "Exact search failed: {{error}}",
+    "noHive": "Open a hive to search its memory."
+  },
+  "meaning": {
+    "checking": "Checking for MemPalace…",
+    "searching": "Searching by meaning…",
+    "slow": "The first search loads the language model and can take a minute.",
+    "none": "Nothing related to “{{query}}” in the index yet.",
+    "notInstalledTitle": "Search by meaning is not set up",
+    "notInstalledBody": "It needs MemPalace on this machine. Exact matches work without it.",
+    "setUp": "Set it up in Prerequisites",
+    "checkAgain": "Check again",
+    "disabledTitle": "Search by meaning is off",
+    "disabledBody": "Turn it on to find notes by what they mean, not only by the words they use.",
+    "turnOn": "Turn on",
+    "notReadyTitle": "The index is still being built",
+    "notReadyBody": "Agents' notes are indexed in the background, within ten minutes of being written. Exact matches work now.",
+    "error": "Search by meaning failed: {{error}}",
+    "retry": "Try again",
+    "unparsed": "MemPalace answered in a form this version cannot read. This is what it said:"
+  },
+  "shapes": {
+    "tickets": "Tickets",
+    "agents": "Agents",
+    "notes": "Notes",
+    "showAll": "Show all {{count}}",
+    "showFewer": "Show fewer"
+  },
+  "chip": {
+    "ticket": "ticket",
+    "agent": "agent",
+    "note": "note"
+  },
+  "ticket": {
+    "mentioned": "named in a note",
+    "nobody": "No one on it yet",
+    "open": "Open ticket {{id}}",
+    "status": {
+      "todo": "To do",
+      "doing": "Doing",
+      "blocked": "Blocked",
+      "done": "Done"
+    }
+  },
+  "agent": {
+    "tickets": "{{count}} tickets",
+    "ticketsOne": "1 ticket",
+    "notes": "{{count}} notes",
+    "notesOne": "1 note",
+    "byName": "matches the name or role",
+    "left": "has left the floor",
+    "orchestrator": "orchestrator",
+    "open": "Open {{name}}"
+  },
+  "note": {
+    "from": "from {{name}}",
+    "fromWhen": "from {{name}}, {{when}}",
+    "fromYou": "from you",
+    "fromYouWhen": "from you, {{when}}",
+    "document": "document",
+    "documentWhen": "document, {{when}}",
+    "unknown": "an agent no longer on the floor",
+    "today": "today",
+    "yesterday": "yesterday",
+    "open": "Open note {{title}}",
+    "source": {
+      "memory": "memory",
+      "board": "board",
+      "notes": "your note",
+      "knowledge": "knowledge graph",
+      "palace": "by meaning"
+    }
+  },
+  "select": {
+    "aria": "Select {{title}}"
+  },
+  "drawer": {
+    "aria": "Note",
+    "close": "Close",
+    "loading": "Opening…",
+    "error": "Could not open this note: {{error}}",
+    "select": "Select to send",
+    "selected": "Selected",
+    "copyPath": "Copy path",
+    "copied": "Copied",
+    "editInSidebar": "Edit in sidebar",
+    "editInSidebarTip": "Open this note in the sidebar's notes editor.",
+    "truncated": "This file is long; showing the first part.",
+    "moved": "That section has changed since the search; showing the whole file."
+  },
+  "send": {
+    "selected": "{{count}} selected",
+    "selectedOne": "1 selected",
+    "clear": "Clear",
+    "to": "Send to",
+    "orchestrator": "{{godName}} (orchestrator)",
+    "archivedNote": "Only agents on the floor can receive messages.",
+    "prompt": "What should they do with this?",
+    "promptAria": "Prompt to send with the results",
+    "preview": "Preview what they get",
+    "hidePreview": "Hide preview",
+    "send": "Send",
+    "sending": "Sending…",
+    "sendHint": "to send",
+    "sent": "Queued for {{name}}. It goes in as soon as they are free.",
+    "open": "Open",
+    "failed": "Could not send: {{error}}"
+  }
+}

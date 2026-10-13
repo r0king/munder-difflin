@@ -55,6 +55,15 @@ files:
   - CHANGELOG.md
   - "!**/*.{md,map,ts,tsx}"
   - "!**/{.eslintrc,.prettierrc,tsconfig*.json,electron.vite.config.*}"
+  # Local transcription (@huggingface/transformers on onnxruntime-node) runs
+  # in Node only: its browser builds, the WASM runtime and onnxruntime-web are
+  # never loaded, and the worker stubs `sharp` (image code speech never uses),
+  # so none of them ship. Per-platform blocks below drop the other platforms'
+  # onnxruntime binaries.
+  - "!**/node_modules/onnxruntime-web/**"
+  - "!**/node_modules/sharp/**"
+  - "!**/node_modules/@img/**"
+  - "!**/node_modules/@huggingface/transformers/dist/{*.wasm,ort-wasm*,transformers.js,transformers.min.js,transformers.web.js,transformers.web.min.js}"
 
 # Ship the standalone Slack reply helper as a plain file under the app's
 # resources dir (process.resourcesPath). It runs under `node`, NOT inside the
@@ -75,11 +84,23 @@ extraResources:
   # repo resources/skills). Directory copy preserves the <id>/SKILL.md tree.
   - from: resources/skills
     to: skills
+  # The bundled Whisper model (transcription's default engine). Filled at
+  # release time by `npm run fetch:whisper` (tools/fetch-whisper-model.cjs);
+  # absent in a plain checkout, in which case the app downloads it on first
+  # use. Read from <process.resourcesPath>/models.
+  - from: resources/models
+    to: models
+    filter:
+      - "**/*"
+      - "!**/*.part"
 
 asarUnpack:
   - "**/node_modules/node-pty/**"
   # better-sqlite3 is native (bindings/prebuild need the .node on the real FS).
   - "**/node_modules/better-sqlite3/**"
+  # onnxruntime-node (local transcription) is native too: its .node binding
+  # and the libonnxruntime it links must be real files to dlopen.
+  - "**/node_modules/onnxruntime-node/**"
 
 # Rebuild native deps (node-pty) for the target during packaging.
 npmRebuild: true
@@ -97,10 +118,15 @@ mac:
     NSDownloadsFolderUsageDescription: "Munder Difflin's agents may work on projects located in your Downloads."
     NSRemovableVolumesUsageDescription: "Munder Difflin's agents may work on projects located on external volumes."
     NSNetworkVolumesUsageDescription: "Munder Difflin's agents may work on projects located on network volumes."
-    # The microphone is used by two opt-in, off-by-default voice features: Free
-    # Flow dictation (Groq transcription) and Realtime Michael (live voice chat
-    # with the orchestrator via OpenAI). Mic access only happens while one is on.
-    NSMicrophoneUsageDescription: "Munder Difflin uses your microphone only for its opt-in voice features: Free Flow dictation (transcribed by Groq into the message queue) and talking to Michael in real time (streamed to OpenAI). The mic is off unless you turn one of these on."
+    # The microphone is used only by opt-in voice features: the Stapler's
+    # Record message and Record meeting (meetings also record system audio),
+    # Dictate into any app, Free Flow dictation and Realtime Michael. Mic
+    # access only happens while one of them is recording.
+    NSMicrophoneUsageDescription: "Munder Difflin uses your microphone only while you record: a Stapler message or meeting (meetings also record the other side's audio), dictation into any app, Free Flow dictation, or talking to Michael in real time. Recordings are transcribed on this Mac unless you choose Groq (Free Flow uses Groq; Realtime Michael streams to OpenAI)."
+    # Dictate into any app (Stapler, opt-in, off by default) pastes the words
+    # into the app in front by asking System Events to press Command-V. macOS
+    # refuses that Apple Event outright unless this purpose string exists.
+    NSAppleEventsUsageDescription: "Munder Difflin types your dictated words into the app in front of you by pressing paste for you. It only does this right after you dictate, and only when dictation is turned on."
   # Hardened runtime + entitlements so the spawned `claude` agents inherit this
   # app's TCC responsibility (one grant covers them all) and node-pty can load.
   hardenedRuntime: true
@@ -131,6 +157,13 @@ mac:
     - target: zip
       arch: [universal]
   artifactName: Munder-Difflin-${version}-mac-${arch}.${ext}
+  # onnxruntime-node ships prebuilt darwin/x64 AND darwin/arm64 binaries in one
+  # package, so both halves of the universal build carry identical copies;
+  # @electron/universal refuses identical Mach-O files unless they are listed
+  # here (each is already single-arch, nothing to lipo).
+  x64ArchFiles: "**/node_modules/onnxruntime-node/bin/napi-v3/darwin/**"
+  files:
+    - "!**/node_modules/onnxruntime-node/bin/napi-v3/{linux,win32}/**"
 
 dmg:
   title: Munder Difflin ${version}
@@ -143,6 +176,10 @@ win:
       arch: [x64]
     - target: portable
       arch: [x64]
+  # Only this platform's (x64) onnxruntime binaries (local transcription).
+  files:
+    - "!**/node_modules/onnxruntime-node/bin/napi-v3/{darwin,linux}/**"
+    - "!**/node_modules/onnxruntime-node/bin/napi-v3/win32/arm64/**"
 
 nsis:
   oneClick: false
@@ -162,3 +199,10 @@ linux:
     - target: AppImage
       arch: [x64]
   artifactName: Munder-Difflin-${version}-linux-x86_64.AppImage
+  # Only this platform's (x64) onnxruntime binaries (local transcription).
+  files:
+    - "!**/node_modules/onnxruntime-node/bin/napi-v3/{darwin,win32}/**"
+    - "!**/node_modules/onnxruntime-node/bin/napi-v3/linux/arm64/**"
+    # Backstop for an install that ran without the .npmrc / CI skip: the CUDA
+    # and TensorRT providers are hundreds of MB and never loaded (CPU only).
+    - "!**/node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime_providers_{cuda,tensorrt}.so"

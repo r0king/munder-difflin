@@ -18,6 +18,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+        env:
+          ONNXRUNTIME_NODE_INSTALL_CUDA: skip
       - name: Typecheck (node + web)
         run: npm run typecheck
       # Release gate: every advertised download link and docs version string must
@@ -39,4 +41,6 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+        env:
+          ONNXRUNTIME_NODE_INSTALL_CUDA: skip
       - run: npm run build

@@ -1,0 +1,33 @@
+{
+  "comment": "Whisper models for local transcription. Pinned to a Hugging Face commit; every file is verified after download (sha256 for LFS files, the git blob sha1 for small ones). Read by src/main/features/transcribe/models.ts and tools/fetch-whisper-model.cjs. dtype q8 = the *_quantized.onnx files.",
+  "models": {
+    "base": {
+      "repo": "onnx-community/whisper-base.en",
+      "revision": "51eefc0af78b103839eda9e7e4f4186acc6517fe",
+      "dtype": "q8",
+      "files": [
+        { "path": "config.json", "size": 2197, "gitOid": "1d26eef96852a247a15abeee24630b81de8c5835" },
+        { "path": "generation_config.json", "size": 1556, "gitOid": "84c050f8e56d93c2b29d9768be849360960483a7" },
+        { "path": "preprocessor_config.json", "size": 339, "gitOid": "91876762a536a746d268353c5cba57286e76b058" },
+        { "path": "tokenizer.json", "size": 2405679, "gitOid": "b5bd266de2f9b9a68efe13fb48ac6830ca71c0bb" },
+        { "path": "tokenizer_config.json", "size": 282662, "gitOid": "220314442bbc85c24bb2ee0b4b8d682615dd79e7" },
+        { "path": "onnx/encoder_model_quantized.onnx", "size": 23201320, "sha256": "6e8001198c490bbae018c0044f630c2915efb826bad957006ce36152d0ab2a10" },
+        { "path": "onnx/decoder_model_merged_quantized.onnx", "size": 53692803, "sha256": "dd4761a3f7add26afda3512abff4706920404c2517e85a9f2ff090b0c0987909" }
+      ]
+    },
+    "large": {
+      "repo": "onnx-community/whisper-small.en",
+      "revision": "482fb8ba081b6e906f92efe103622316b2a0cc69",
+      "dtype": "q8",
+      "files": [
+        { "path": "config.json", "size": 2203, "gitOid": "addf243260366954f680bba396c6f8be6557d163" },
+        { "path": "generation_config.json", "size": 1956, "gitOid": "5d992f09576afe6e961860bb4f97de33aba08f86" },
+        { "path": "preprocessor_config.json", "size": 339, "gitOid": "91876762a536a746d268353c5cba57286e76b058" },
+        { "path": "tokenizer.json", "size": 2405679, "gitOid": "b5bd266de2f9b9a68efe13fb48ac6830ca71c0bb" },
+        { "path": "tokenizer_config.json", "size": 282662, "gitOid": "220314442bbc85c24bb2ee0b4b8d682615dd79e7" },
+        { "path": "onnx/encoder_model_quantized.onnx", "size": 92326170, "sha256": "dae677b93ca77f911d858238e277026fa8f95a94cb899ea443ec78ee62726edf" },
+        { "path": "onnx/decoder_model_merged_quantized.onnx", "size": 156750076, "sha256": "29132c41903c252d0f2b9e59ee1e7d75f7d0b64d37f3e36d1ecc4a1a1af62953" }
+      ]
+    }
+  }
+}

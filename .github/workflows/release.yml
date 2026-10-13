@@ -46,6 +46,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        env:
+          # onnxruntime-node's postinstall would otherwise download ~225 MB of
+          # CUDA/TensorRT providers on linux-x64 (and fail the install if that
+          # download does). Local transcription runs on the CPU only.
+          ONNXRUNTIME_NODE_INSTALL_CUDA: skip
 
       - name: Compile (electron-vite → out/)
         run: npm run build
@@ -55,6 +60,13 @@ jobs:
           # forks without the secret compile with '' and analytics no-ops.
           POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
           POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+
+      # The Whisper model local transcription ships with (resources/models →
+      # <resources>/models via extraResources). Without it a release still works,
+      # but downloads the same ~80 MB on first use. Verified against the pinned
+      # checksums in src/main/features/transcribe/models.json.
+      - name: Fetch the bundled Whisper model
+        run: npm run fetch:whisper
 
       - name: Package installers
         # GH_TOKEN lets electron-builder skip its own publish; we upload via the

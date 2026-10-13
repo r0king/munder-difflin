@@ -318,6 +318,13 @@ export interface HarnessConfig {
    *  `tvShowOffices` is on; otherwise the office theme is used. Unbuilt show
    *  themes fall back to 'office' in the loader. */
   officeTheme?: 'office' | 'friends' | 'brooklyn99' | 'siliconvalley' | 'got' | 'hogwarts';
+  /** Which interface the main window shows: 'classic' (the pixel office — the
+   *  floor, the right-hand agent panel and the agent strip) or 'workspace' (the
+   *  professional sidebar + full screens, src/renderer/src/workspace). Switched
+   *  from the titlebar; every hook and service runs identically in both, so this
+   *  is purely a presentation choice. Default 'classic'. (Mirrored in preload +
+   *  renderer config.) */
+  uiMode?: 'classic' | 'workspace';
   /** Per-CLI-provider local/self-hosted base URL (Ollama/LM Studio/vLLM, …) for the
    *  OpenCode/Crush/pi/qwen engines; applied at spawn (config-injection or proxy
    *  upstream). API KEYS are NOT stored here — they live write-only in the secret
@@ -450,6 +457,7 @@ const DEFAULTS: HarnessConfig = {
   multiWindow: true,
   tvShowOffices: false,
   officeTheme: 'office',
+  uiMode: 'classic',
   slackEnabled: false,
   slackSigningSecret: undefined,
   slackBotToken: undefined,

@@ -1,0 +1,104 @@
+/* DictateSettings (stapler/dictate). Tokens only, no radius, logical
+ * properties so Arabic mirrors without [dir] rules. Built on the cth-ws-*
+ * primitives (workspace/ui.tsx); these classes only lay them out. */
+
+.cth-stapler-dictate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-4);
+  min-width: 0;
+  color: var(--cth-ink-900);
+  font-family: var(--cth-font-ui);
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+}
+
+.cth-stapler-dictate p { margin: 0; }
+
+.cth-stapler-dictate-note {
+  color: var(--cth-ink-500);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.cth-stapler-dictate-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-2);
+}
+
+.cth-stapler-dictate-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--cth-space-2);
+  min-height: 28px;
+  min-width: 0;
+}
+
+.cth-stapler-dictate-label {
+  flex: 0 0 136px;
+  min-width: 0;
+  color: var(--cth-ink-700);
+}
+
+.cth-stapler-dictate-grow { flex: 1; min-width: 0; }
+
+.cth-stapler-dictate-error {
+  color: var(--cth-status-blocked);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.cth-stapler-dictate-record {
+  min-width: 160px;
+  height: 28px;
+  padding: 0 var(--cth-space-2);
+  background: var(--cth-paper-100);
+  color: var(--cth-ink-700);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300);
+  font-family: var(--cth-font-ui);
+  font-size: 12px;
+  text-align: start;
+  cursor: pointer;
+}
+.cth-stapler-dictate-record[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 2px var(--cth-ink-900);
+  color: var(--cth-ink-900);
+}
+.cth-stapler-dictate-record:focus-visible { outline: 2px solid var(--cth-ink-900); outline-offset: 2px; }
+
+.cth-stapler-dictate-try {
+  width: 100%;
+  min-height: 64px;
+  box-sizing: border-box;
+  padding: var(--cth-space-2);
+  resize: vertical;
+  background: var(--cth-paper-100);
+  color: var(--cth-ink-900);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300);
+  font-family: var(--cth-font-ui);
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+}
+.cth-stapler-dictate-try:focus { outline: none; box-shadow: inset 0 0 0 2px var(--cth-ink-900); }
+
+.cth-stapler-dictate-last {
+  padding: var(--cth-space-2) var(--cth-space-3);
+  background: var(--cth-cream-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  color: var(--cth-ink-700);
+  overflow-wrap: anywhere;
+  max-height: 96px;
+  overflow: auto;
+}
+
+.cth-stapler-dictate-code {
+  font-family: var(--cth-font-mono);
+  font-size: var(--cth-text-mono-sm);
+  color: var(--cth-ink-700);
+  direction: ltr;
+  unicode-bidi: isolate;
+}

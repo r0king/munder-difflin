@@ -14,15 +14,22 @@ import { useRtl } from '@/i18n/useDirection';
 const EMPTY_QUEUE: QueuedMessage[] = [];
 
 /** A file/image attached to the draft. Travels to the agent as a PATH it Reads. */
-interface Attachment {
+export interface ComposerAttachment {
   path: string;
   name: string;
 }
+type Attachment = ComposerAttachment;
 
 // Prepended (only to the enqueued value, never the visible draft) when the
 
 export interface MessageQueueComposerProps {
   agent: Agent;
+  /** Optional: hold the staged attachments outside (controlled), so another
+   *  control beside the composer can send them too (the Workspace
+   *  orchestrator's Steer). Pass both or neither; without them the composer
+   *  keeps its own, exactly as before. */
+  attachments?: ComposerAttachment[];
+  onAttachmentsChange?: (next: ComposerAttachment[]) => void;
 }
 
 /**
@@ -30,7 +37,7 @@ export interface MessageQueueComposerProps {
  * messages park in a per-agent queue and are submitted to the agent's Claude
  * TUI one-by-one as soon as it goes idle (see useHive's flush loop).
  */
-export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
+export function MessageQueueComposer({ agent, attachments: heldAttachments, onAttachmentsChange }: MessageQueueComposerProps) {
   const { t } = useTranslation();
   const rtl = useRtl();
   const queue = useStore((s) => s.messageQueues[agent.id]) ?? EMPTY_QUEUE;
@@ -73,10 +80,25 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
 
   // Only the god/Michael agent gets the delegation toggle. Default OFF.
 
-  // Files/images staged for the next message. Component-local: switching agents
-  // remounts this component, so attachments are cleared on tab switch (drafts
-  // persist in the store, attachments deliberately don't carry over).
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // Files/images staged for the next message. Component-local (unless the
+  // parent holds them, below): switching agents remounts this component, so
+  // attachments are cleared on tab switch (drafts persist in the store,
+  // attachments deliberately don't carry over).
+  const [ownAttachments, setOwnAttachments] = useState<Attachment[]>([]);
+  // Controlled when the parent holds them (it then owns clearing them per
+  // agent). Updates go through a ref so two in one tick (a paste right after a
+  // drop) compose instead of the second one starting from a stale prop.
+  const controlled = heldAttachments !== undefined && !!onAttachmentsChange;
+  const attachments = controlled ? heldAttachments : ownAttachments;
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
+  const setAttachments = (update: Attachment[] | ((prev: Attachment[]) => Attachment[])) => {
+    if (!controlled) { setOwnAttachments(update); return; }
+    const next = typeof update === 'function' ? update(attachmentsRef.current) : update;
+    if (next === attachmentsRef.current) return;
+    attachmentsRef.current = next;
+    onAttachmentsChange?.(next);
+  };
   const [dragOver, setDragOver] = useState(false);
 
   const addAttachments = (incoming: Attachment[]) =>
