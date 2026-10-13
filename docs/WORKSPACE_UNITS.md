@@ -147,6 +147,23 @@ accent), `StatusDot`, `StatusBadge`, `Tabs`, `SegmentedControl`, `SearchInput`,
 (+ `formatKeyCombo`, `isMac`), `WsIcon`; CSS classes `cth-ws-navrow`,
 `cth-ws-ellipsis`, `cth-ws-muted`, `cth-ws-mono`.
 
+### Shared across screens
+
+- **Waiting on you** is one number: `useWaitingOnYou()` (`workspace/inbox/model.ts`,
+  `.items.length`) — card asks plus requests addressed `to: "human"` that need a
+  reply. The sidebar's Inbox badge, the Ask me bell and the orchestrator's tile
+  all read it; it sits on the shared ledger and mail polls (no timer of its own).
+- **Header extras** (the bell) render on the screen's primary header only — the
+  one passed to `Screen` as `header`. Headers inside a screen body never get them.
+- **Deliveries paused** banner is mounted once by the shell above every screen;
+  screens do not mount it.
+- **Restart an agent**: `restartAgentProcess(agentId, opts)` in
+  `workspace/agents/restartAgent.ts` is the one Workspace restart path (the
+  Command Center's `restartWithModel`); `RestartResult.code` names the failed step
+  for callers that word their own errors.
+- **Open a note in the sidebar**: `openSidebarNote(slug)` (`workspace/sidebar/openNote.ts`)
+  expands a collapsed sidebar and opens `<hive>/notes/<slug>.md` in its editor.
+
 ### Main-process modules — `src/main/features/`
 
 ```ts
