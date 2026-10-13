@@ -2,10 +2,15 @@
  * Main-side host for the transcription worker (transcribe-worker.ts).
  *
  * One worker, created on first use and terminated after IDLE_MS without work,
- * which is what returns the model's few hundred MB to the OS. Jobs carry a
- * timeout scaled to the audio's length; a job that overruns terminates the
- * worker (the only way to stop a running ONNX session) and the next job
- * starts a fresh one.
+ * which is what returns the model's few hundred MB to the OS. Jobs are queued
+ * here and handed over one at a time, so each job's timeout (scaled to its
+ * audio's length) runs only while the worker is actually on it. A job that
+ * overruns terminates the worker — the only way to stop a running ONNX
+ * session — and fails alone; the queue carries on in a fresh worker.
+ *
+ * Short jobs (a dictation, a recorded message) go ahead of long ones still
+ * waiting, so dictating while an hour-long meeting is being transcribed does
+ * not wait for the meeting. A job already running is never interrupted.
  */
 import { Worker } from 'node:worker_threads';
 import { availableParallelism, cpus } from 'node:os';
@@ -13,12 +18,20 @@ import workerPath from './transcribe-worker?modulePath';
 import type { WorkerInit, WorkerRequest, WorkerResponse } from './protocol';
 
 const IDLE_MS = 10 * 60 * 1000;
+/** Audio shorter than this jumps the queue. */
+const SHORT_AUDIO_MS = 2 * 60 * 1000;
 
-type Pending = {
+/** Distributive Omit, so each request variant keeps its own fields. */
+type WithoutId<T> = T extends unknown ? Omit<T, 'id'> : never;
+
+interface Job {
+  id: number;
+  req: WithoutId<WorkerRequest>;
+  timeoutMs: number;
+  short: boolean;
   resolve: (r: WorkerResponse) => void;
   reject: (e: Error) => void;
-  timer: ReturnType<typeof setTimeout>;
-};
+}
 
 /** Leave cores for the agents and the UI: half the machine, at most 4. */
 function inferenceThreads(): number {
@@ -26,12 +39,10 @@ function inferenceThreads(): number {
   return Math.max(1, Math.min(4, Math.floor(n / 2)));
 }
 
-/** Distributive Omit, so each request variant keeps its own fields. */
-type WithoutId<T> = T extends unknown ? Omit<T, 'id'> : never;
-
 export class LocalEngine {
   private worker: Worker | null = null;
-  private pending = new Map<number, Pending>();
+  private queue: Job[] = [];
+  private current: { job: Job; timer: ReturnType<typeof setTimeout> } | null = null;
   private nextId = 1;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private onBusy: (busy: boolean) => void;
@@ -41,32 +52,60 @@ export class LocalEngine {
   }
 
   get busy(): boolean {
-    return this.pending.size > 0;
+    return !!this.current || this.queue.length > 0;
   }
 
-  run(req: WithoutId<WorkerRequest>, timeoutMs: number): Promise<WorkerResponse> {
-    const id = this.nextId++;
-    const w = this.ensure();
-    if (this.idleTimer) {
-      clearTimeout(this.idleTimer);
-      this.idleTimer = null;
-    }
-    return new Promise<WorkerResponse>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        // Terminating fails every job queued behind this one too; they would
-        // otherwise wait on a session that is wedged.
-        this.fail(new Error('transcription timed out'));
-      }, Math.max(30_000, timeoutMs));
-      this.pending.set(id, { resolve, reject, timer });
-      if (this.pending.size === 1) this.onBusy(true);
-      w.postMessage({ ...req, id } as WorkerRequest);
+  /** Queue a job. `audioMs` sizes nothing but its place in the queue. */
+  run(req: WithoutId<WorkerRequest>, timeoutMs: number, audioMs = Number.POSITIVE_INFINITY): Promise<WorkerResponse> {
+    const wasBusy = this.busy;
+    const p = new Promise<WorkerResponse>((resolve, reject) => {
+      const job: Job = { id: this.nextId++, req, timeoutMs: Math.max(30_000, timeoutMs), short: audioMs < SHORT_AUDIO_MS, resolve, reject };
+      const at = job.short ? this.queue.findIndex((j) => !j.short) : -1;
+      if (at >= 0) this.queue.splice(at, 0, job);
+      else this.queue.push(job);
     });
+    if (!wasBusy) this.onBusy(true);
+    this.pump();
+    return p;
   }
 
   dispose(): void {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.idleTimer = null;
-    this.fail(new Error('transcription stopped'));
+    const err = new Error('transcription stopped');
+    for (const j of this.queue.splice(0)) j.reject(err);
+    if (this.current) {
+      clearTimeout(this.current.timer);
+      this.current.job.reject(err);
+      this.current = null;
+    }
+    this.stopWorker();
+  }
+
+  private pump(): void {
+    if (this.current) return;
+    const job = this.queue.shift();
+    if (!job) {
+      this.onBusy(false);
+      if (this.idleTimer) clearTimeout(this.idleTimer);
+      this.idleTimer = setTimeout(() => this.stopWorker(), IDLE_MS);
+      return;
+    }
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
+    let w: Worker;
+    try {
+      w = this.ensure();
+    } catch (e) {
+      job.reject(e instanceof Error ? e : new Error(String(e)));
+      this.pump();
+      return;
+    }
+    const timer = setTimeout(() => this.failCurrent(new Error('transcription timed out')), job.timeoutMs);
+    this.current = { job, timer };
+    w.postMessage({ ...job.req, id: job.id } as WorkerRequest);
   }
 
   private ensure(): Worker {
@@ -76,12 +115,12 @@ export class LocalEngine {
     w.on('message', (msg: WorkerResponse) => this.settle(msg));
     w.on('error', (e) => {
       console.error('[transcribe] worker error:', e);
-      this.fail(e instanceof Error ? e : new Error(String(e)));
+      if (this.worker === w) this.failCurrent(e instanceof Error ? e : new Error(String(e)));
     });
     w.on('exit', (code) => {
       if (this.worker !== w) return;
       this.worker = null;
-      if (this.pending.size) this.fail(new Error(`transcription worker exited (${code})`));
+      if (this.current) this.failCurrent(new Error(`transcription worker exited (${code})`));
     });
     // An idle worker must not keep the app alive at quit.
     w.unref();
@@ -90,27 +129,26 @@ export class LocalEngine {
   }
 
   private settle(msg: WorkerResponse): void {
-    const p = this.pending.get(msg.id);
-    if (!p) return;
-    clearTimeout(p.timer);
-    this.pending.delete(msg.id);
-    if (msg.type === 'error') p.reject(new Error(msg.error));
-    else p.resolve(msg);
-    if (!this.pending.size) {
-      this.onBusy(false);
-      this.idleTimer = setTimeout(() => this.stopWorker(), IDLE_MS);
-    }
+    const c = this.current;
+    if (!c || c.job.id !== msg.id) return;
+    clearTimeout(c.timer);
+    this.current = null;
+    if (msg.type === 'error') c.job.reject(new Error(msg.error));
+    else c.job.resolve(msg);
+    this.pump();
   }
 
-  private fail(err: Error): void {
-    const jobs = [...this.pending.values()];
-    this.pending.clear();
-    for (const p of jobs) {
-      clearTimeout(p.timer);
-      p.reject(err);
-    }
-    if (jobs.length) this.onBusy(false);
+  /** The running job failed (timeout, crash): drop the worker, fail that job
+   *  alone, and go on with the queue in a fresh worker. */
+  private failCurrent(err: Error): void {
+    const c = this.current;
+    this.current = null;
     this.stopWorker();
+    if (c) {
+      clearTimeout(c.timer);
+      c.job.reject(err);
+    }
+    this.pump();
   }
 
   private stopWorker(): void {

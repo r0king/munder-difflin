@@ -24,22 +24,24 @@ const CSP_META = /<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]*
 
 /**
  * The renderer's HTML entries carry a strict CSP meta (`script-src 'self'`).
- * Under the Vite DEV server that blocks @vitejs/plugin-react's inline
- * react-refresh preamble (every component module then throws "can't detect
- * preamble"). The Playwright init script itself is unaffected (CDP injection
- * bypasses page CSP).
+ * Checked against this setup: it blocks nothing the harness needs. The mock is
+ * injected over CDP (Playwright's addInitScript, which page CSP does not
+ * apply to), Vite's client and the entry are same-origin `src=` scripts, and
+ * @vitejs/plugin-react 4.7 adds no inline preamble to the HTML. So the
+ * default is to serve the REAL policy, and a CSP regression (say a new
+ * dependency that needs eval) shows up in the sidecar's `cspViolations`
+ * exactly as it would in the packaged app.
  *
- *   relax (default): keep the policy, add only what Vite dev needs —
- *                    'unsafe-inline' on script-src and the dev server's ws:
- *                    origin on connect-src. 'unsafe-eval' stays OUT, so a
- *                    production-only CSP break (eval / new Function) still
- *                    shows up as a violation in the sidecar.
- *   strip:           remove the CSP meta entirely.
- *   keep:            serve it untouched (expect the preamble error).
+ *   keep (default): serve the CSP meta untouched.
+ *   relax:          add 'unsafe-inline' to script-src and the dev server's ws:/http:
+ *                   origin to connect-src. Use it if a future plugin-react or
+ *                   Vite injects inline scripts, or with HMR on. 'unsafe-eval'
+ *                   stays out either way.
+ *   strip:          remove the CSP meta entirely.
  *
  * Only the served HTML changes; src/renderer/*.html are never edited.
  */
-export function harnessCspPlugin(mode = 'relax', port = HARNESS_PORT) {
+export function harnessCspPlugin(mode = 'keep', port = HARNESS_PORT) {
   return {
     name: 'cth-harness-csp',
     transformIndexHtml: {
@@ -64,7 +66,7 @@ export function harnessCspPlugin(mode = 'relax', port = HARNESS_PORT) {
 
 /**
  * @param {object} [opts]
- * @param {'relax'|'strip'|'keep'} [opts.csp]
+ * @param {'keep'|'relax'|'strip'} [opts.csp]
  * @param {number} [opts.port]
  * @param {boolean} [opts.watch] watch src/ for changes (default false: other
  *        engineers save files under src/ all the time, and a mid-shot reload
@@ -83,7 +85,7 @@ export function createHarnessConfig(opts = {}) {
     // node_modules/.vite while it re-optimises deps.
     cacheDir: resolve(HERE, '.vite-cache'),
     define: { __APP_VERSION__: JSON.stringify(pkg.version) },
-    plugins: [react(), harnessCspPlugin(opts.csp ?? 'relax', port)],
+    plugins: [react(), harnessCspPlugin(opts.csp ?? 'keep', port)],
     resolve: {
       alias: {
         '@': resolve(REPO_ROOT, 'src/renderer/src'),

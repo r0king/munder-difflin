@@ -328,7 +328,8 @@ async function runLocal(path: string, which: LocalModelId, words: string[], lead
       vocabulary: words,
       promptTokens: LOCAL_PROMPT_TOKENS
     },
-    60_000 + audioSeconds(path) * 1000 * factor
+    60_000 + audioSeconds(path) * 1000 * factor,
+    audioSeconds(path) * 1000
   );
   if (res.type !== 'transcribed') throw new Error('unexpected worker reply');
   return {
@@ -347,7 +348,8 @@ async function runGroq(path: string, words: string[], lead: string, language?: s
   try {
     const prep = await engine.run(
       { type: 'prepare', wavPath: path, outDir, maxChunkSec: GROQ_MAX_CHUNK_SEC },
-      60_000 + audioSeconds(path) * 200
+      60_000 + audioSeconds(path) * 200,
+      audioSeconds(path) * 1000
     );
     if (prep.type !== 'prepared') throw new Error('unexpected worker reply');
     const prompt = buildVocabularyPrompt(words, { lead, maxTokens: GROQ_PROMPT_TOKENS });

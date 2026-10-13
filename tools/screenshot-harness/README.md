@@ -50,11 +50,24 @@ written), `2` harness failure (server, browser or navigation).
 | `--lang en\|zh-CN\|ar` | `localStorage['cth.language']` |
 | `--settle <ms>` | wait after load + network idle (default 3000) |
 | `--advance <ms>` | fast-forward the Pixi office floor (default 15000 on the index entry, `0` = off; see below) |
-| `--csp relax\|strip\|keep` | how the served HTML's CSP meta is treated (default `relax`) |
+| `--csp keep\|relax\|strip` | the served HTML's CSP meta: `keep` (default) serves the real policy; `relax` adds `'unsafe-inline'` + the dev ws origin; `strip` removes it |
 | `--seed <n>\|off` | seeds `Math.random` so the floor's idle wandering is repeatable (default 1337) |
 | `--events on\|off` | fire the fixture subscription events |
 | `--stapler-enabled` | the Stapler toggle reads ON |
 | `--port <n>` | dev-server port (default 5190; if it is taken, the next free port up to 5209, since several people run this at once) |
+
+### CSP
+
+`src/renderer/index.html` and `stapler.html` carry a strict CSP meta
+(`script-src 'self'`). It does not get in the harness's way, so it is served
+unmodified by default:
+- the mock arrives through Playwright's `addInitScript` (CDP), which page CSP does not apply to;
+- Vite's client and the entry are same-origin `src=` scripts;
+- `@vitejs/plugin-react` 4.7 adds no inline preamble to the HTML.
+
+A `transformIndexHtml` plugin in `vite.config.mjs` can relax or strip the policy
+if a future Vite or plugin version starts injecting inline scripts. It only
+changes the served copy; the HTML files are never edited.
 
 ## The sidecar JSON
 

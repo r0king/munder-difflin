@@ -43,7 +43,7 @@ export const DEFAULTS = {
   settle: 3000,            // ms after load + network idle
   advance: undefined,      // ms of office-floor (Pixi) time to fast-forward; default 15000 for the index entry, else 0
   timeout: 45000,
-  csp: 'relax',
+  csp: 'keep',             // CSP meta of the served HTML: keep | relax | strip (vite.config.mjs)
   seed: 1337,              // Math.random seed, or 'off'
   events: true,            // fire fixture subscription events
   staplerEnabled: false,
@@ -254,7 +254,7 @@ function normalise(options) {
   o.timeout = Number(o.timeout);
   o.seed = o.seed === 'off' || o.seed === false ? null : Number(o.seed);
   o.events = !(o.events === false || o.events === 'off' || o.events === 'false');
-  for (const [k, allowed] of Object.entries({ entry: ['index', 'stapler'], mode: ['classic', 'workspace'], theme: ['light', 'dark'], csp: ['relax', 'strip', 'keep'] })) {
+  for (const [k, allowed] of Object.entries({ entry: ['index', 'stapler'], mode: ['classic', 'workspace'], theme: ['light', 'dark'], csp: ['keep', 'relax', 'strip'] })) {
     if (!allowed.includes(o[k])) throw new Error(`--${k} must be one of ${allowed.join('|')} (got "${o[k]}")`);
   }
   return o;
@@ -275,6 +275,9 @@ export async function shoot(harness, options = {}) {
   const version = harness.server.config.define?.__APP_VERSION__ ? JSON.parse(harness.server.config.define.__APP_VERSION__) : '0.0.0';
   const fixtures = buildFixtures({ mode: o.mode, theme: o.theme, platform: o.platform, version, staplerEnabled: o.staplerEnabled });
   if (o.onboarding) fixtures.config.onboardingComplete = false;
+  // Programmatic only: tweak the fixtures for one shot (a state to capture,
+  // or a deliberately broken payload to prove an error path).
+  if (typeof options.patchFixtures === 'function') options.patchFixtures(fixtures);
   const localStorage = {
     'cth.theme': o.theme,
     'cth.language': o.lang,
@@ -503,7 +506,7 @@ async function main() {
   --lang en|zh-CN|ar  --viewport 1440x900  --settle <ms>  --timeout <ms>
   --advance <ms>               fast-forward the Pixi office floor by <ms> of simulated time
                                before the shot (default 15000 for --entry index, 0 = off)
-  --csp relax|strip|keep       how the served HTML's CSP meta is treated (default relax)
+  --csp keep|relax|strip       how the served HTML's CSP meta is treated (default keep = the real policy)
   --seed <n>|off  --events on|off  --stapler-enabled  --keep-picker  --onboarding
   --port <n>                   dev-server port (default 5190, or the next free one up to 5209)`);
     return 0;

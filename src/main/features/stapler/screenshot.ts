@@ -185,6 +185,9 @@ export class ScreenshotController {
       enableLargerThanScreen: true,
       roundedCorners: false,
       title: 'Stapler',
+      // macOS: a non-activating panel takes Esc/Enter without activating the
+      // app, so the office window does not jump in front of the user's work.
+      ...(IS_MAC ? { type: 'panel' } : {}),
       webPreferences: {
         preload: ctx.preloadPath,
         sandbox: true,
