@@ -64,3 +64,10 @@ test('mid-line: the full stop goes when the line carries on, and a space joins t
 test('nothing to insert stays nothing', () => {
   assert.equal(fitToContext('[BLANK_AUDIO]', 'abc', 'def'), '');
 });
+
+test('polish: clean-up, then the vocabulary spellings, whole words only', () => {
+  const { polishTranscript } = loadTs('src/shared/features/dictate.ts');
+  assert.equal(polishTranscript(' deploy it on kubernetes [BLANK_AUDIO] ', ['Kubernetes']), 'deploy it on Kubernetes');
+  assert.equal(polishTranscript('the apiary', ['API']), 'the apiary');
+  assert.equal(polishTranscript('[Music]', ['Kubernetes']), '');
+});

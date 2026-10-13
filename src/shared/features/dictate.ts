@@ -14,6 +14,8 @@
  * the repeats stop and treats that as "let go" — see main/features/dictate/press.ts.
  */
 
+import { applyVocabularyCasing } from './vocabulary';
+
 // ─── State (main → every window) ────────────────────────────────────────────
 
 /** idle → starting (mic opening) → recording → transcribing → inserting → idle.
@@ -472,6 +474,18 @@ export function cleanTranscript(raw: string): string {
   // segment, not something anyone dictates.
   text = text.replace(/^(?:\.\.\.|…|-+)\s*/, '').replace(/\s*(?:-+)$/, '').trim();
   return text.slice(0, MAX_DICTATION_TEXT);
+}
+
+/**
+ * The transcript as it should be typed: cleaned, then the vocabulary's
+ * spellings applied (the transcribe unit's casing pass — "kubernetes" →
+ * "Kubernetes", whole words only). The engine already runs that pass; running
+ * it again here is idempotent and keeps the guarantee whichever engine
+ * answered.
+ */
+export function polishTranscript(raw: string, vocabulary: readonly string[]): string {
+  const text = cleanTranscript(raw);
+  return text ? applyVocabularyCasing(text, vocabulary) : '';
 }
 
 /** Pronoun forms that keep their capital mid-sentence. */

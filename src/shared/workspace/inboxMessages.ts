@@ -223,37 +223,62 @@ const ms = (iso: string | undefined | null): number => {
   return Date.parse(iso);
 };
 
+export interface PendingOptions {
+  /** The orchestrator's id. Mail `to: "human"` is DELIVERED to him (he is the
+   *  human's proxy on the floor), so when he answers it in the conversation
+   *  the agent has its answer and nothing waits on you any more. */
+  proxyId?: string | null;
+  /** Ignore requests from before this time (epoch ms): the Inbox's baseline,
+   *  so mail the orchestrator fielded long before this screen existed does
+   *  not resurface as "waiting on you". */
+  since?: number;
+}
+
 /**
  * Ids of the messages that still wait on the human's reply: a request,
  * query or proposal addressed `to: "human"` (the "→ You · needs a reply"
- * state), with no answer from the human yet. An answer is any message from the
- * human that names it in `in_reply_to`, or that comes later in the same
- * conversation — replying to the newest message in a thread answers the
- * thread.
+ * state), with no answer yet. An answer is a message from the human — or from
+ * the orchestrator answering for them, when the request was not his own —
+ * that names it in `in_reply_to`, or that comes later in the same
+ * conversation (replying to the newest message in a thread answers the
+ * thread).
  *
  * A message only FLAGGED for the human (`needs_human` on mail to the
  * orchestrator) is "about you", not a request to you: the orchestrator owns
  * the answer, so it never needs YOUR reply.
  */
-export function pendingReplyIds(messages: InboxMessage[]): Set<string> {
-  const answeredIds = new Set<string>();
-  // Latest human message time per conversation.
-  const humanLatest = new Map<string, number>();
+export function pendingReplyIds(messages: InboxMessage[], opts: PendingOptions = {}): Set<string> {
+  const proxy = opts.proxyId ?? null;
+  const isProxy = (id: string): boolean => id === GOD_ALIAS || (!!proxy && id === proxy);
+  // Answers by who gave them: the human, or the proxy.
+  const repliedBy = new Map<string, Set<'human' | 'proxy'>>();
+  const latest = { human: new Map<string, number>(), proxy: new Map<string, number>() };
   for (const m of messages) {
-    if (!isFromHuman(m)) continue;
-    if (m.inReplyTo) answeredIds.add(m.inReplyTo);
+    const who = isFromHuman(m) ? 'human' : isProxy(m.from) ? 'proxy' : null;
+    if (!who) continue;
+    if (m.inReplyTo) {
+      const set = repliedBy.get(m.inReplyTo) ?? new Set();
+      set.add(who);
+      repliedBy.set(m.inReplyTo, set);
+    }
     const t = ms(m.createdAt);
     if (Number.isNaN(t)) continue;
-    const prev = humanLatest.get(m.conversation);
-    if (prev === undefined || t > prev) humanLatest.set(m.conversation, t);
+    const prev = latest[who].get(m.conversation);
+    if (prev === undefined || t > prev) latest[who].set(m.conversation, t);
   }
+  const answered = (m: InboxMessage, who: 'human' | 'proxy', t: number): boolean => {
+    if (repliedBy.get(m.id)?.has(who)) return true;
+    const last = latest[who].get(m.conversation);
+    return last !== undefined && !Number.isNaN(t) && last >= t;
+  };
   const out = new Set<string>();
   for (const m of messages) {
     if (m.to !== HUMAN || isFromHuman(m) || !m.requiresReply) continue;
-    if (answeredIds.has(m.id)) continue;
-    const last = humanLatest.get(m.conversation);
     const t = ms(m.createdAt);
-    if (last !== undefined && !Number.isNaN(t) && last >= t) continue;
+    if (opts.since !== undefined && Number.isFinite(opts.since) && !Number.isNaN(t) && t < opts.since) continue;
+    if (answered(m, 'human', t)) continue;
+    // The proxy cannot answer his own question for you.
+    if (!isProxy(m.from) && answered(m, 'proxy', t)) continue;
     out.add(m.id);
   }
   return out;
@@ -283,6 +308,13 @@ export function isUnread(m: InboxMessage, mark: number): boolean {
   if (!isToHuman(m)) return false;
   const t = ms(m.createdAt);
   return !Number.isNaN(t) && t > mark;
+}
+
+/** The options every caller of pendingReplyIds uses: the orchestrator as the
+ *  proxy, and the Inbox baseline as the cut-off. */
+export function pendingOptions(godId: string | null | undefined, marks: ReadMarks | null | undefined): PendingOptions {
+  const since = ms(marks?.[BASELINE_MARK]);
+  return { proxyId: godId ?? null, ...(Number.isNaN(since) ? {} : { since }) };
 }
 
 /** The newest createdAt in a list, as an ISO string — what opening a section
@@ -322,7 +354,7 @@ export function summarizeAgents(
   sectionKey: (agentId: string) => string
 ): AgentInboxSummary[] {
   const groups = groupByAgent(messages, godId);
-  const pending = pendingReplyIds(messages);
+  const pending = pendingReplyIds(messages, pendingOptions(godId, marks));
   const rows: AgentInboxSummary[] = [];
   for (const [agentId, list] of groups) {
     const mark = watermark(marks, sectionKey(agentId));
