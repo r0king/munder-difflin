@@ -56,6 +56,13 @@ jobs:
           POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
           POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
 
+      # The Whisper model local transcription ships with (resources/models →
+      # <resources>/models via extraResources). Without it a release still works,
+      # but downloads the same ~80 MB on first use. Verified against the pinned
+      # checksums in src/main/features/transcribe/models.json.
+      - name: Fetch the bundled Whisper model
+        run: npm run fetch:whisper
+
       - name: Package installers
         # GH_TOKEN lets electron-builder skip its own publish; we upload via the
         # release step below for full control over the asset set.
