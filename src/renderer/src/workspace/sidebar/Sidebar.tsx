@@ -7,7 +7,7 @@
  *   - the floor: the hive folder's name, and the office number when more than
  *     one floor is open; the Stapler with its on/off switch;
  *   - Tasks, Inbox, Automations, Memory, Capabilities, each with what it is
- *     counting (doing / open questions / switched on);
+ *     counting (doing / waiting on you / switched on);
  *   - Agents: the orchestrator, then everyone grouped under their projects
  *     (AgentList), then Temps running right now;
  *   - Notes you can search (NotesSection);
@@ -23,7 +23,8 @@ import { useTranslation } from 'react-i18next';
 import { useStore } from '@/store/store';
 import { useWorkspace, type WorkspaceRoute } from '../store';
 import { useStaplerState, setStaplerEnabled } from '../useStaplerState';
-import { useHiveTasks, useOpenQuestions } from '../useHiveTasks';
+import { useHiveTasks } from '../useHiveTasks';
+import { useWaitingOnYou } from '../inbox/model';
 import { Button, IconButton, Toggle, WsIcon, type WsIconName } from '../ui';
 import type { WorkspaceScreenProps } from '../types';
 import { pathBasename } from '@shared/workspace/sidebarProjects';
@@ -60,7 +61,11 @@ export function WorkspaceSidebar({ config }: WorkspaceSidebarProps) {
   const floor = useFloorInfo();
   const agentsNotesOnly = useSidebarPrefs((s) => s.agentsNotesOnly);
   const { tasks } = useHiveTasks();
-  const openQuestions = useOpenQuestions().length;
+  // The Inbox's own "waiting on you" (asks on cards AND requests addressed to
+  // you that need a reply), so this badge, the Ask me bell and the Inbox count
+  // one number. It reads the two shared polls (ledger, mail) the bell already
+  // keeps running; no timer of its own.
+  const waitingOnYou = useWaitingOnYou().items.length;
   const doing = useMemo(() => countDoing(tasks as unknown as LedgerCard[]), [tasks]);
   const automationsOn = useAutomationsOn(config);
   const [settings, setSettings] = useState<PopoverAnchor | null>(null);
@@ -75,8 +80,8 @@ export function WorkspaceSidebar({ config }: WorkspaceSidebarProps) {
       case 'tasks':
         return doing > 0 ? { text: String(doing), word: t('wsSidebar.nav.doingWord'), tip: t('wsSidebar.nav.doingTip', { n: doing }) } : null;
       case 'inbox':
-        return openQuestions > 0
-          ? { text: String(openQuestions), tip: t('wsSidebar.nav.questionsTip', { n: openQuestions }), alert: true }
+        return waitingOnYou > 0
+          ? { text: String(waitingOnYou), tip: t('wsSidebar.nav.questionsTip', { n: waitingOnYou }), alert: true }
           : null;
       case 'automations':
         return automationsOn > 0

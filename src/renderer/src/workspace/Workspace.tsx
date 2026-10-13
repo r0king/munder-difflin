@@ -31,6 +31,7 @@ import { MemoryScreen } from './screens/MemoryScreen';
 import { CapabilitiesScreen } from './screens/CapabilitiesScreen';
 import { StaplerScreen } from './screens/StaplerScreen';
 import { AskMeBell } from './inbox/AskMeBell';
+import { DeliveriesPausedBanner } from './orchestrator/Deliveries';
 
 /** The main area never gets narrower than this while dragging the sidebar. */
 const MIN_MAIN_WIDTH = 480;
@@ -46,6 +47,7 @@ export function Workspace({ config }: { config: HarnessConfig }) {
   const collapsed = useWorkspace((s) => s.sidebarCollapsed);
   const width = useWorkspace((s) => s.sidebarWidth);
   const toggleSidebar = useWorkspace((s) => s.toggleSidebar);
+  const navigate = useWorkspace((s) => s.navigate);
   const { t } = useTranslation();
 
   // Controls every screen header carries, after the screen's own actions
@@ -70,6 +72,14 @@ export function Workspace({ config }: { config: HarnessConfig }) {
         </>
       )}
       <main className="cth-ws-main">
+        {/* The floor-wide delivery hold is everyone's business, so its banner
+            heads the main area on every screen (and over the shell's own
+            booting / empty states), not only on the orchestrator's. Outside the
+            screen boundary, so a crashed screen still says deliveries are held;
+            inside its own, so a fault in the banner never takes the shell. */}
+        <NoticeBoundary>
+          <DeliveriesPausedBanner onRaiseCap={() => navigate({ kind: 'orchestrator', tab: 'budget' })} />
+        </NoticeBoundary>
         <ScreenHeaderExtrasContext.Provider value={headerExtras}>
           <ScreenBoundary resetKey={JSON.stringify(route)}>
             <RouteScreen route={route} config={config} />
@@ -198,6 +208,24 @@ class ScreenBoundary extends Component<BoundaryProps, BoundaryState> {
       return <CrashedScreen message={this.state.error.message} onRetry={() => this.setState({ error: null })} />;
     }
     return this.props.children;
+  }
+}
+
+/** A shell-level notice that throws renders nothing (and logs) rather than
+ *  blanking the window: a banner is never worth the whole Workspace. */
+class NoticeBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error('[workspace] shell notice crashed:', error, info.componentStack);
+  }
+
+  render(): ReactNode {
+    return this.state.failed ? null : this.props.children;
   }
 }
 

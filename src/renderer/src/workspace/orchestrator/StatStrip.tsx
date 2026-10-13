@@ -1,13 +1,16 @@
 /**
  * The four figures at the top of the orchestrator's screen: spend today
- * against the daily cap, the breaker, the tasks in progress and the questions
- * waiting on the human. Each is a button that opens where it is dealt with.
+ * against the daily cap, the breaker, the tasks in progress and what waits on
+ * the human — the Inbox's own count (useWaitingOnYou), so this tile, the
+ * sidebar's Inbox badge and the Ask me bell always agree. Each is a button
+ * that opens where it is dealt with.
  */
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '@/store/store';
 import type { HarnessConfig } from '@/store/config';
-import { useHiveTasks, useOpenQuestions } from '../useHiveTasks';
+import { useHiveTasks } from '../useHiveTasks';
+import { useWaitingOnYou } from '../inbox/model';
 import { useWorkspace } from '../store';
 import { useOrchestratorState } from './useOrchestratorState';
 import { floorBreaker, useBreakerLevels } from './useBreakerLevels';
@@ -19,7 +22,8 @@ export function StatStrip({ config, onOpenTab }: { config: HarnessConfig; onOpen
   const navigate = useWorkspace((s) => s.navigate);
   const { state } = useOrchestratorState();
   const { tasks, loaded: tasksLoaded } = useHiveTasks();
-  const questions = useOpenQuestions();
+  const waiting = useWaitingOnYou();
+  const waitingCount = waiting.items.length;
   const levels = useBreakerLevels();
   const agents = useStore((s) => s.agents);
 
@@ -87,13 +91,13 @@ export function StatStrip({ config, onOpenTab }: { config: HarnessConfig; onOpen
 
       <button
         type="button"
-        className={`cth-ws-orch-tile${questions.length > 0 ? ' cth-ws-orch-tile--warn' : ''}`}
+        className={`cth-ws-orch-tile${waitingCount > 0 ? ' cth-ws-orch-tile--warn' : ''}`}
         onClick={() => navigate({ kind: 'inbox', section: 'askme' })}
         title={t('wsOrchestrator.strip.waitingTip')}
       >
         <span className="cth-ws-orch-tile-label">{t('wsOrchestrator.strip.waiting')}</span>
         <span className="cth-ws-orch-tile-value">
-          {tasksLoaded ? questions.length : '…'}
+          {waiting.loaded ? waitingCount : '…'}
           <span className="cth-ws-orch-tile-sub">{t('wsOrchestrator.strip.toAnswer')}</span>
         </span>
       </button>

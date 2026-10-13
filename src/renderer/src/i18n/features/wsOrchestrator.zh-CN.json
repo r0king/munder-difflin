@@ -32,7 +32,7 @@
     "tasksTip": "进行中的卡片。打开看板。",
     "waiting": "等你处理",
     "toAnswer": "待回答",
-    "waitingTip": "智能体卡住等待你回答的问题。在收件箱中打开。"
+    "waitingTip": "等待你回答的问题和请求。在收件箱中打开。"
   },
   "breaker": {
     "armed": "已启用",

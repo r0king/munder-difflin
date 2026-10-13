@@ -1,5 +1,7 @@
 /**
- * The floor's mail and this hive's read marks, for the Inbox and its bell.
+ * The floor's mail and this hive's read marks, for the Inbox, its bell and
+ * everything else that shows the "waiting on you" count (useWaitingOnYou: the
+ * sidebar's Inbox badge, the orchestrator's stat tile).
  *
  * One poller for the whole Workspace, on the useHiveTasks pattern: the first
  * subscriber starts it, the last stops it, every hook reads one snapshot. Mail

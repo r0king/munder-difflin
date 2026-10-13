@@ -13,7 +13,7 @@
   "nav": {
     "doingWord": "进行中",
     "doingTip": "{{n}} 项进行中",
-    "questionsTip": "{{n}} 个问题在等你",
+    "questionsTip": "{{n}} 项在等你处理",
     "onWord": "已开启",
     "onTip": "已开启 {{n}} 项"
   },

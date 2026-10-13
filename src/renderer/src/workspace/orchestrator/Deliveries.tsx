@@ -4,8 +4,9 @@
  * (features/orchestrator.ts), so they agree with each other, with every
  * composer ("held") and with a reload.
  *
- * `DeliveriesPausedBanner` renders nothing while deliveries flow, so it can be
- * mounted anywhere a screen-wide notice belongs.
+ * `DeliveriesPausedBanner` renders nothing while deliveries flow. The
+ * Workspace shell mounts it once, above every screen; a screen does not mount
+ * its own.
  */
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';

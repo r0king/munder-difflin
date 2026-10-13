@@ -3,9 +3,11 @@
  * breaker, board, configuration. Owned by the `wsOrchestrator` unit; the tabs
  * and their pieces live in ../orchestrator/.
  *
- * Above the tabs: the floor-wide "Deliveries paused" switch (header), its
- * banner while it is on, and the stat strip — spend today against the cap,
- * the breaker, tasks in progress, questions waiting on you.
+ * Above the tabs: the floor-wide "Deliveries paused" switch (header) and the
+ * stat strip — spend today against the cap, the breaker, tasks in progress,
+ * what is waiting on you. The banner that says deliveries are held is the
+ * shell's (Workspace.tsx), so it shows on every screen; it is not repeated
+ * here.
  *
  * The open tab is the route's `tab` param, so it survives a reload and a
  * deep link (navigate({ kind: 'orchestrator', tab: 'budget' })) opens it.
@@ -22,7 +24,7 @@ import { useWorkspace } from '../store';
 import type { WorkspaceScreenProps } from '../types';
 import { ORCH_TABS, toOrchTab, type OrchTab } from '../orchestrator/tabs';
 import { StatStrip } from '../orchestrator/StatStrip';
-import { DeliveriesPausedBanner, DeliveriesToggle } from '../orchestrator/Deliveries';
+import { DeliveriesToggle } from '../orchestrator/Deliveries';
 import { TerminalTab } from '../orchestrator/TerminalTab';
 import { MessagesTab } from '../orchestrator/MessagesTab';
 import { RoutingTab } from '../orchestrator/RoutingTab';
@@ -93,7 +95,6 @@ export function OrchestratorScreen({ config, tab }: OrchestratorScreenProps) {
         </ScreenHeader>
       }
     >
-      <DeliveriesPausedBanner onRaiseCap={() => open('budget')} />
       <div className="cth-ws-orch-top">
         <StatStrip config={config} onOpenTab={open} />
       </div>

@@ -32,7 +32,7 @@
     "tasksTip": "Cards in progress. Open the board.",
     "waiting": "Waiting on you",
     "toAnswer": "to answer",
-    "waitingTip": "Questions agents are blocked on. Open them in the Inbox."
+    "waitingTip": "Questions and requests waiting on your answer. Open them in the Inbox."
   },
   "breaker": {
     "armed": "Armed",

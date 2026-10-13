@@ -46,6 +46,11 @@ export interface ScreenHeaderProps {
  * provided once by Workspace.tsx and rendered after each screen's own actions.
  * A screen does nothing to get them; outside the shell (the Stapler window)
  * the context is empty.
+ *
+ * They belong to the screen's PRIMARY header only — the one handed to
+ * `Screen` as `header`. `Screen` clears the context for its body and
+ * `ScreenHeader` for its own children, so a header drawn inside a screen (a
+ * pane, a drawer, an embedded screen) never repeats the bell.
  */
 export const ScreenHeaderExtrasContext = createContext<ReactNode>(null);
 
@@ -65,7 +70,7 @@ export function ScreenHeader({ title, subtitle, actions, leading, children }: Sc
         </div>
         {(actions || extras) && <div className="cth-ws-header-actions">{actions}{extras}</div>}
       </div>
-      {children}
+      <ScreenHeaderExtrasContext.Provider value={null}>{children}</ScreenHeaderExtrasContext.Provider>
     </header>
   );
 }
@@ -81,7 +86,9 @@ export function Screen({ header, children, fill, bodyClassName }: {
   return (
     <section className="cth-ws-screen">
       {header}
-      <div className={cx('cth-ws-screen-body', fill && 'cth-ws-screen-body--fill', bodyClassName)}>{children}</div>
+      <ScreenHeaderExtrasContext.Provider value={null}>
+        <div className={cx('cth-ws-screen-body', fill && 'cth-ws-screen-body--fill', bodyClassName)}>{children}</div>
+      </ScreenHeaderExtrasContext.Provider>
     </section>
   );
 }
