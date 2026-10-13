@@ -154,7 +154,7 @@ export function Puck() {
     } else if (res.error === 'limit') {
       setNotice({ tone: 'warn', text: t('stapler.errors.limit') });
     } else {
-      setNotice({ tone: 'danger', text: t('stapler.errors.captureFailed', { detail: res.detail ?? '' }) });
+      setNotice({ tone: 'danger', text: t('stapler.errors.screenFailed', { detail: res.detail ?? '' }) });
     }
     void go('panel', 'compose');
   };

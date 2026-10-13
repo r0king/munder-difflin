@@ -33,7 +33,7 @@
   flex-direction: column;
   gap: var(--cth-space-3);
 }
-@media (max-width: 860px) {
+@media (max-width: 1100px) {
   .cth-ws-inbox-list { width: 216px; }
   .cth-ws-inbox-pane { padding: var(--cth-space-3) var(--cth-space-4) var(--cth-space-5); }
 }
@@ -428,3 +428,11 @@
   padding: var(--cth-space-2) var(--cth-space-3);
   border-top: 1px solid var(--cth-ink-100);
 }
+
+/* Agent-written one-liners (subjects, previews) in an Arabic UI: let each take
+   its direction from its own text, so an English subject keeps its "?" at the
+   end. Gated on the app language like everything RTL (useRtl). */
+[dir='rtl'] .cth-ws-inbox-subject,
+[dir='rtl'] .cth-ws-inbox-row-sub,
+[dir='rtl'] .cth-ws-inbox-feed-subject,
+[dir='rtl'] .cth-ws-inbox-linkbtn { unicode-bidi: plaintext; }

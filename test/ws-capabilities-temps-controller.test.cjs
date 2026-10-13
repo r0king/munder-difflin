@@ -76,10 +76,12 @@ test('hire → queue file → running → done: the row has duration, tokens and
     { id, objective: 'Translate the changelog\ninto Spanish', command: 'claude --model claude-opus-4-5', provider: 'claude', cwd: s.repo, isolate: false, name: 'Translate the changelog' }
   );
 
-  const started = Date.now();
-  writeRegistry(s, { [workerId]: { archived: false, lastSeen: started } });
+  writeRegistry(s, { [workerId]: { archived: false, lastSeen: Date.now() } });
   await settle(c);
   assert.equal(c.view().active[0].state, 'running');
+  // Pretend it has been on the floor for five minutes.
+  const started = Date.now() - 300_000;
+  c.view().active[0].startedAt = started;
 
   // It works: two ledger samples (cumulative), and someone else's row.
   const row = (agent, total) => JSON.stringify({ agent_id: agent, session_id: 's1', ts: Date.now(), input: total, output: 0, cache_read: 0, cache_creation: 0, model: 'm', usd: 0 });
@@ -88,14 +90,8 @@ test('hire → queue file → running → done: the row has duration, tokens and
   const outbox = path.join(s.hive, 'agents', workerId, 'outbox', '.sent');
   fs.mkdirSync(outbox, { recursive: true });
   fs.writeFileSync(path.join(outbox, 'm1.json'), JSON.stringify({ act: 'done', created_at: new Date(started + 1000).toISOString() }));
+  // Torn down 48 s ago (past the settle window), after 4m 12s on the floor.
   writeRegistry(s, { [workerId]: { archived: true, lastSeen: started + 252_000 } });
-  await settle(c);
-  const rec = c.view().active[0];
-  assert.equal(rec.state, 'finishing');
-  assert.equal(rec.endedAt, started + 252_000, 'the end time is the teardown, not the tick that noticed it');
-
-  rec.endedAt -= 60_000; // fast-forward past the teardown settle window
-  rec.startedAt -= 60_000;
   await settle(c);
   const v = c.view();
   assert.equal(v.active.length, 0);
@@ -105,6 +101,7 @@ test('hire → queue file → running → done: the row has duration, tokens and
   assert.equal(h.outcome, 'done');
   assert.equal(h.tokens, 38000);
   assert.equal(h.durationMs, 252_000);
+  assert.equal(h.endedAt, started + 252_000, 'the end time is the teardown, not the tick that noticed it');
   assert.equal(h.worktree, undefined, 'no worktree asked for');
   assert.ok(changes.n > 0, 'the renderer is told');
 

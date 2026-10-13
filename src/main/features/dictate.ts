@@ -261,7 +261,12 @@ function chooseTarget(): RunTarget {
   const focused = BrowserWindow.getFocusedWindow();
   const wc = focused && !focused.isDestroyed() ? focused.webContents : null;
   if (!wc || host?.isHost(wc)) return { kind: 'external', ourWcId: null };
-  return insertReady.has(wc.id) ? { kind: 'app', wcId: wc.id } : { kind: 'external', ourWcId: wc.id };
+  if (insertReady.has(wc.id)) return { kind: 'app', wcId: wc.id };
+  // An app window without the insert hook still takes a native paste. A
+  // Stapler window (the puck) has no text box: the paste would vanish into
+  // it, so a dictation started there counts as "ours in front" at the end.
+  const isAppWindow = !!ctx?.appWindows().some((w) => w.webContents.id === wc.id);
+  return { kind: 'external', ourWcId: isAppWindow ? wc.id : null };
 }
 
 async function start(now: number, fromShortcut: boolean): Promise<void> {

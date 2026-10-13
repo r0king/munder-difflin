@@ -34,7 +34,6 @@ import { mcpCatalogEntry } from '../../shared/mcpCatalog';
 import {
   applyBundleToGrant,
   bundleGrantDiff,
-  hasGrant,
   isAgentId,
   isCapabilityItemId,
   isCapabilityKind,
@@ -192,7 +191,6 @@ function setGrant(raw: unknown): GrantResult {
   if (kind === 'connection' && on && !getRecord(id)) return { ok: false, error: 'unknown connection' };
   if (!hiveRoot()) return { ok: false, error: 'noHive' };
 
-  const before = readGrants(dataDir()).agents[agentId];
   const grant = updateGrant(dataDir(), agentId, (g) => setGrantItem(g, kind, id, on, Date.now()));
   if (kind === 'skill') {
     const root = hiveRoot()!;
@@ -208,7 +206,10 @@ function setGrant(raw: unknown): GrantResult {
         materializeInBackground(agentId, [id]);
       }
     }
-    else if (hasGrant(before, 'skill', id)) {
+    else {
+      // Taking a skill away removes it from the agent's own folder even when the
+      // record had lost track of it (a folder left by an earlier grant): that
+      // folder only ever holds what was given to this one agent.
       const res = removeAgentSkill(root, agentId, id, new Set(builtinSkillNames()));
       if (!res.ok && res.error !== 'built-in') console.warn('[capabilities] could not remove skill folder:', res.error);
       skillErrors.delete(`${agentId}/${id}`);

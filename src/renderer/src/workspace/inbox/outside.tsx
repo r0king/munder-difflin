@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore, type QueuedMessage } from '@/store/store';
 import type { HarnessConfig } from '@/store/config';
+import { useRtl } from '@/i18n/useDirection';
 import type { TriggerHistoryEntry } from '@shared/triggers';
 import {
   buildExchanges,
@@ -36,6 +37,7 @@ const CLAMP = 600;
  *  never as markdown, clamped at rest. */
 function PlainBody({ text }: { text: string }) {
   const { t } = useTranslation();
+  const rtl = useRtl();
   const [open, setOpen] = useState(false);
   const body = text ?? '';
   if (!body.trim()) return <div className="cth-ws-inbox-plain cth-ws-muted">{t('wsInbox.message.empty')}</div>;
@@ -43,7 +45,7 @@ function PlainBody({ text }: { text: string }) {
   const shown = long && !open ? `${body.slice(0, CLAMP).split('\n').slice(0, 10).join('\n').trimEnd()}…` : body;
   return (
     <>
-      <div className="cth-ws-inbox-plain" dir="auto">{shown}</div>
+      <div className="cth-ws-inbox-plain" dir={rtl ? 'auto' : undefined}>{shown}</div>
       {long && (
         <button type="button" className="cth-ws-inbox-more" onClick={() => setOpen((v) => !v)}>
           {open ? t('wsInbox.message.showLess') : t('wsInbox.message.showAll')}

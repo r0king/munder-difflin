@@ -61,7 +61,9 @@ export function targetName(t: TFunction, target: StaplerTarget, roster: readonly
  *  (it came from the OS or an engine and is already words). */
 export function errorText(t: TFunction, code: string | undefined | null): string {
   if (!code) return t('stapler.errors.generic');
-  const key = `stapler.errors.${code}`;
+  // Codes are short words: 'unknown-agent', 'transcription failed' → unknownAgent.
+  if (!/^[a-z][a-z -]{0,40}$/i.test(code)) return code;
+  const key = `stapler.errors.${code.replace(/[-\s]+(\w)/g, (_m, c: string) => c.toUpperCase())}`;
   const out = t(key);
   return out === key ? code : out;
 }

@@ -33,8 +33,9 @@ export interface VoicedSpanOptions {
   padMs?: number;
   /** Voiced runs closer than this are joined (default 1500 ms). */
   joinGapMs?: number;
-  /** Runs shorter than this (after padding) are dropped as clicks (default 250 ms). */
-  minSpanMs?: number;
+  /** Voiced runs shorter than this, before padding, are clicks and taps, not
+   *  words (default 120 ms; a short "yes" is ~200 ms of voicing). */
+  minVoicedMs?: number;
 }
 
 /** The gate a frame must beat: the larger of the absolute floor and the
@@ -78,7 +79,7 @@ export function voicedSpansFromLevels(
   const gate = energyGate(levels, opts.minRms ?? 0.0018, opts.floorFactor ?? 2.5);
   const pad = Math.round(((opts.padMs ?? 400) * sampleRate) / 1000);
   const joinGap = Math.round(((opts.joinGapMs ?? 1500) * sampleRate) / 1000);
-  const minSpan = Math.round(((opts.minSpanMs ?? 250) * sampleRate) / 1000);
+  const minVoiced = Math.round(((opts.minVoicedMs ?? 120) * sampleRate) / 1000);
 
   const raw: Span[] = [];
   let runStart = -1;
@@ -86,7 +87,8 @@ export function voicedSpansFromLevels(
     const voiced = i < levels.length && levels[i] > gate;
     if (voiced && runStart < 0) runStart = i;
     if (!voiced && runStart >= 0) {
-      raw.push({ startSample: runStart * frame, endSample: Math.min(totalSamples, i * frame) });
+      const run = { startSample: runStart * frame, endSample: Math.min(totalSamples, i * frame) };
+      if (run.endSample - run.startSample >= minVoiced) raw.push(run);
       runStart = -1;
     }
   }
@@ -97,7 +99,7 @@ export function voicedSpansFromLevels(
     if (last && padded.startSample - last.endSample <= joinGap) last.endSample = Math.max(last.endSample, padded.endSample);
     else out.push(padded);
   }
-  return { spans: out.filter((s) => s.endSample - s.startSample >= minSpan), gate };
+  return { spans: out, gate };
 }
 
 /** RMS over [startMs, endMs) from per-frame levels (energy-averaged). */
