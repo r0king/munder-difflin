@@ -30,7 +30,8 @@ import {
   type StaplerTarget
 } from '@shared/features/stapler';
 import { useStaplerState } from '@/workspace/useStaplerState';
-import { effectiveTarget, errorText, stapler, targetName, useDictateState, useFeatureRoster } from './bridge';
+import { effectiveTarget, errorText, stapler, targetName, useFeatureRoster } from './bridge';
+import { toggleDictation, useDictateState } from './dictate/useDictateState';
 import { elapsedMs, isBusy, isCapturing } from './flow';
 import { useRecorder } from './useRecorder';
 import { PuckFace, type PuckMood } from './PuckFace';
@@ -178,7 +179,7 @@ export function Puck() {
 
   const messageCapturing = isCapturing(message.flow);
   const meetingCapturing = isCapturing(meeting.flow);
-  const dictating = dictate?.phase === 'recording' || dictate?.phase === 'starting';
+  const dictating = dictate.phase === 'recording' || dictate.phase === 'starting';
   const dictateApi = window.cth.features.dictate as Partial<typeof window.cth.features.dictate> | undefined;
 
   const onFaceClick = () => {
@@ -192,7 +193,7 @@ export function Puck() {
     if (messageCapturing || meetingCapturing) return 'listening';
     if (dictating) return 'listening';
     if (message.flow.phase === 'error' || meeting.flow.phase === 'error') return 'error';
-    if (isBusy(message.flow) || isBusy(meeting.flow) || dictate?.phase === 'transcribing' || dictate?.phase === 'inserting') return 'busy';
+    if (isBusy(message.flow) || isBusy(meeting.flow) || dictate.phase === 'transcribing' || dictate.phase === 'inserting') return 'busy';
     if (message.flow.phase === 'done') return 'happy';
     return 'idle';
   })();
@@ -338,15 +339,15 @@ export function Puck() {
       {
         id: 'dictate', icon: 'dictate',
         label: !dictateApi?.toggle ? t('stapler.ring.dictateUnavailable')
-          : dictate && !dictate.enabled ? t('stapler.ring.dictateOff')
+          : !dictate.enabled ? t('stapler.ring.dictateOff')
           : dictating ? t('stapler.ring.dictateLive') : t('stapler.ring.dictate'),
         pressed: dictating,
         disabled: !dictateApi?.toggle || messageCapturing || meetingCapturing,
         onClick: () => {
-          if (dictate && !dictate.enabled) { void go('panel', 'settings'); return; }
+          if (!dictate.enabled) { void go('panel', 'settings'); return; }
           // Fold (which hands focus back) BEFORE dictation starts: the words
           // are pasted into whatever app is in front when it does.
-          void go('puck').then(() => dictateApi?.toggle?.());
+          void go('puck').then(() => toggleDictation()).catch(() => { /* its state says why */ });
         }
       },
       {

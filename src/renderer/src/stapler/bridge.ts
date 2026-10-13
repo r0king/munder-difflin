@@ -1,12 +1,12 @@
 /**
  * The Stapler window's view of the app. This window has NO hive store (see
  * stapler/main.tsx): agents come from the roster main caches, state from
- * feat:stapler:state, dictation from the dictate unit's own API.
+ * feat:stapler:state (workspace/useStaplerState), dictation from the dictate
+ * unit's own hook (dictate/useDictateState).
  */
 import { useEffect, useState } from 'react';
 import type { TFunction } from 'i18next';
 import type { RosterEntry } from '@shared/features/roster';
-import type { DictateState } from '@shared/features/dictate';
 import { ORCHESTRATOR_TARGET, type StaplerTarget } from '@shared/features/stapler';
 
 export const stapler = () => window.cth.features.stapler;
@@ -21,21 +21,6 @@ export function useFeatureRoster(): RosterEntry[] {
     return () => { alive = false; off(); };
   }, []);
   return list;
-}
-
-/** Dictation state from the dictate unit (null until it answers, or when
- *  this build has no dictation). */
-export function useDictateState(): DictateState | null {
-  const [state, setState] = useState<DictateState | null>(null);
-  useEffect(() => {
-    const api = window.cth.features.dictate as Partial<typeof window.cth.features.dictate> | undefined;
-    if (!api?.onState || !api.getState) return;
-    let alive = true;
-    const off = api.onState((s) => { if (alive) setState(s); });
-    api.getState().then((s) => { if (alive) setState(s); }, () => { /* not registered */ });
-    return () => { alive = false; off(); };
-  }, []);
-  return state;
 }
 
 /**
