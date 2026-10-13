@@ -246,7 +246,15 @@ export function createCthTree(fx, host) {
         search: memorySearch('exact'),
         meaning: memorySearch('meaning')
       },
-      capabilities: {},
+      // ── Capabilities (grants, bundles, temps) ──
+      capabilities: {
+        state: (agentIds) => {
+          const st = clone(fx.capabilitiesState) || { hive: true, grants: {}, builtinSkills: [], machineSkills: [], agentSkills: {}, mcpKeys: {}, appliedAt: {}, installing: {}, skillErrors: {} };
+          for (const id of Array.isArray(agentIds) ? agentIds : []) if (!st.agentSkills[id]) st.agentSkills[id] = [];
+          return Promise.resolve(st);
+        },
+        onChanged: on('features.capabilities.onChanged')
+      },
 
       // ── Feature bridge (foundation-owned) ──
       onDeliver: on('features.onDeliver'),
@@ -339,8 +347,8 @@ export function createCthTree(fx, host) {
     toolsStatus: () => res(fx.tools),
     heroPayload: () => res({ hero: fx.hero, fetchedAt: now(), stale: false }),
     modelCatalog: () => res({ catalog: null, fetchedAt: now(), stale: false }),
-    skillsLocal: () => res([]),
-    skillsCatalog: () => res({ skills: [], fetchedAt: now(), stale: false }),
+    skillsLocal: () => res(fx.skillsLocal || []),
+    skillsCatalog: () => res({ skills: fx.skillsCatalog || [], fetchedAt: now(), stale: false }),
     skillsInstall: () => Promise.resolve({ ok: false, error: 'not available in the screenshot harness', unsupported: true }),
     skillsUninstall: () => ok(),
     skillsReveal: () => ok(),

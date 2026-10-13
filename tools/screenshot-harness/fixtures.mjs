@@ -10,7 +10,6 @@
  * lands, add its fixture under `features.<unit>` (see README "Adding fixtures").
  */
 
-const BASE_TS = Date.UTC(2026, 9, 12, 9, 30, 0); // 2026-10-12T09:30:00Z — stable timestamps
 
 function joinPath(platform, ...parts) {
   const sep = platform === 'win32' ? '\\' : '/';
@@ -32,6 +31,10 @@ function homeDir(platform) {
  * @param {boolean} [opts.staplerEnabled]
  */
 export function buildFixtures(opts = {}) {
+  // Every fixture time is relative to "now", floored to the minute: the UI's
+  // relative ages ("12 min ago", "stale · 2h") then read the same on every
+  // run, and nothing looks a day old just because the fixture file is.
+  const BASE_TS = opts.now ?? Math.floor(Date.now() / 60_000) * 60_000;
   const platform = opts.platform ?? 'darwin';
   const mode = opts.mode ?? 'classic';
   const theme = opts.theme ?? 'light';
@@ -572,8 +575,49 @@ export function buildFixtures(opts = {}) {
       // query) and return the top-level `memoryAnswer` below.
       readNote: { ok: true, title: 'Token meter excludes cache reads', text: memory.angela }
     },
-    capabilities: {}
+    capabilities: {
+      // `state(agentIds)` is implemented in mock-cth.mjs on top of this.
+      temps: {
+        version: 1, maxConcurrent: 3, running: 1, hive: true,
+        active: [
+          { id: 'tmp-1', workerId: 'worker-tmp-1', job: 'Triage the 14 open GitHub issues and label them', provider: 'claude', model: 'claude-fable-5',
+            cwd: repo, isolate: true, state: 'running', createdAt: ts(-9), submittedAt: ts(-9), startedAt: ts(-8), baseBranch: 'main' }
+        ],
+        history: [
+          { id: 'tmp-0', job: 'Bump electron-builder and re-run the mac build', provider: 'claude', model: 'claude-fable-5', cwd: repo,
+            outcome: 'done', createdAt: ts(-200), startedAt: ts(-199), endedAt: ts(-170), durationMs: 29 * 60_000, tokens: 182_000 }
+        ]
+      }
+    }
   };
+
+  /** features.capabilities.state(agentIds) — CapabilitiesState. */
+  const capabilitiesState = {
+    hive: true,
+    grants: {
+      dwight: { skills: ['docx'], mcp: ['github-token', 'git'], connections: [], bundle: 'software-engineer', role: 'Software Engineer', updatedAt: ts(-300) },
+      jim: { skills: [], mcp: ['context7'], connections: [], updatedAt: ts(-400) }
+    },
+    builtinSkills: ['hive-protocol', 'handoff'],
+    machineSkills: ['docx', 'pdf'],
+    agentSkills: {},
+    mcpKeys: { 'github-token': true },
+    appliedAt: { dwight: ts(-300) },
+    installing: {},
+    skillErrors: {}
+  };
+
+  /** window.cth.skillsCatalog() / skillsLocal(). */
+  const skillsCatalog = [
+    { name: 'docx', description: 'Create, edit and review Word documents.', url: 'https://github.com/anthropics/skills/tree/main/docx', category: 'Documents', owner: 'anthropics' },
+    { name: 'pdf', description: 'Read, fill and merge PDFs.', url: 'https://github.com/anthropics/skills/tree/main/pdf', category: 'Documents', owner: 'anthropics' },
+    { name: 'webapp-testing', description: 'Drive a local web app with Playwright and report what broke.', url: 'https://github.com/anthropics/skills/tree/main/webapp-testing', category: 'Development', owner: 'anthropics' },
+    { name: 'stripe-best-practices', description: 'Integrate Stripe the way Stripe recommends.', url: 'https://github.com/stripe/ai/tree/main/skills/stripe-best-practices', category: 'Payments', owner: 'stripe' }
+  ];
+  const skillsLocal = [
+    { id: 'claude:user:docx', name: 'docx', description: 'Create, edit and review Word documents.', provider: 'claude', scope: 'user', path: joinPath(platform, home, '.claude', 'skills', 'docx') },
+    { id: 'claude:user:pdf', name: 'pdf', description: 'Read, fill and merge PDFs.', provider: 'claude', scope: 'user', path: joinPath(platform, home, '.claude', 'skills', 'pdf') }
+  ];
 
   /** features.agents.conversation(agentId) — ConversationSources per agent. */
   const conversations = {
@@ -712,7 +756,7 @@ export function buildFixtures(opts = {}) {
     version, platform, harnessHome, repo,
     config, agents, rosterSnapshot, registry, directory, ptys, tasks, inbox, messages, log, board, memory,
     telemetry, context: contextFor, control, missions, tools, memoryStatus, kg, git, history,
-    stapler, roster, features, memoryAnswer, conversations, activity, ptyOutput, events, hero, changelog
+    stapler, roster, features, memoryAnswer, capabilitiesState, skillsCatalog, skillsLocal, conversations, activity, ptyOutput, events, hero, changelog
   };
 }
 

@@ -317,11 +317,15 @@ export async function shoot(harness, options = {}) {
       pageErrors.push({ navigation: nav, message: err.message, at, stack: stack.split('\n').slice(0, 25).join('\n') });
     }));
   });
+  // Chromium asks every page for /favicon.ico; stapler.html sets no icon and
+  // Electron never makes that request, so its 404 is harness noise.
+  const isFaviconNoise = (url) => /\/favicon\.ico(\?|$)/.test(url || '');
   page.on('console', (msg) => {
     const type = msg.type();
     if (type !== 'error' && type !== 'warning') return;
     const nav = navigation;
     const loc = msg.location() || {};
+    if (isFaviconNoise(loc.url)) return;
     const job = (async () => {
       const where = await harness.mapper.map(loc.url, (loc.lineNumber ?? 0) + 1, loc.columnNumber ?? 0);
       // An Error passed to console.error carries the stack that matters.
@@ -351,7 +355,7 @@ export async function shoot(harness, options = {}) {
     failedRequests.push({ navigation, url: req.url(), failure });
   });
   page.on('response', (res) => {
-    if (res.status() >= 400) failedRequests.push({ navigation, url: res.url(), status: res.status() });
+    if (res.status() >= 400 && !isFaviconNoise(res.url())) failedRequests.push({ navigation, url: res.url(), status: res.status() });
   });
 
   // ── Load ──
