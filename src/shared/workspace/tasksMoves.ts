@@ -210,3 +210,30 @@ export function buildMoveMessage(
     'If a change does not fit what you know (the work is not actually finished, say, or the new owner is busy), leave that card as it is and tell me why.'
   ].join('\n');
 }
+
+/**
+ * The note the New task form sends the orchestrator after it adds a card to the
+ * ledger. The card is written directly (that is what New task is for), but the
+ * orchestrator still has to HEAR about it: he dispatches the work, and a card
+ * he never heard of is one nobody picks up.
+ */
+export function buildNewTaskMessage(
+  card: { id: string; title: string; description?: string; assignee?: string },
+  ownerName: (agentId: string) => string | undefined = () => undefined
+): string {
+  const owner = card.assignee
+    ? (() => {
+      const name = ownerName(card.assignee);
+      return name && name !== card.assignee ? `${name} (assignee "${card.assignee}")` : `assignee "${card.assignee}"`;
+    })()
+    : null;
+  const lines = [
+    `New task from the human, added to tasks.json from the Tasks screen: ${card.id} "${oneLine(card.title, 160)}" (status "todo", ${owner ? `owner ${owner}` : 'unassigned'}).`
+  ];
+  const desc = (card.description ?? '').trim();
+  if (desc) lines.push('', 'Description:', desc.length > 2000 ? `${desc.slice(0, 1999)}…` : desc);
+  lines.push('', owner
+    ? `Please dispatch it to ${owner.replace(/ \(assignee "[^"]*"\)$/, '')} and keep the card's status current.`
+    : 'Please pick an owner, dispatch it, and keep the card\'s status current.');
+  return lines.join('\n');
+}

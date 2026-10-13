@@ -308,6 +308,13 @@ interface State {
   releaseQueuedMessage: (agentId: string, messageId: string) => void;
   /** Clear an agent's entire pending queue. */
   clearQueue: (agentId: string) => void;
+  /** Move one queued message to `toIndex` (clamped) — the Workspace room's
+   *  reorder. Keeps the message's id and flags; persists like every queue edit. */
+  moveQueuedMessage: (agentId: string, messageId: string, toIndex: number) => void;
+  /** Replace a queued message's text in place (the room's edit). An empty text
+   *  is refused; a message carrying a separate PTY `instruction` (Slack origin)
+   *  is not editable, since the visible text is not what would be typed. */
+  editQueuedMessage: (agentId: string, messageId: string, text: string) => void;
   setAddAgentOpen: (open: boolean) => void;
   /** Validated manifests waiting for one-at-a-time human review. */
   hireQueue: HireReviewQueue;
@@ -957,6 +964,34 @@ export const useStore = create<State>((set, get) => ({
     set((s) => {
       if (!s.messageQueues[agentId]?.length) return s;
       const messageQueues = { ...s.messageQueues, [agentId]: [] };
+      persistQueues(messageQueues);
+      return { messageQueues };
+    }),
+  // Workspace room (wsAgents): reorder and edit what is still waiting. The drain
+  // reads the queue head at delivery time, so a reorder simply changes what it
+  // finds there next; neither touches `manual`, so the floor pause still holds.
+  moveQueuedMessage: (agentId, messageId, toIndex) =>
+    set((s) => {
+      const current = s.messageQueues[agentId];
+      const from = current?.findIndex((m) => m.id === messageId) ?? -1;
+      if (!current || from < 0) return s;
+      const to = Math.max(0, Math.min(current.length - 1, Math.round(toIndex)));
+      if (to === from) return s;
+      const next = [...current];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      const messageQueues = { ...s.messageQueues, [agentId]: next };
+      persistQueues(messageQueues);
+      return { messageQueues };
+    }),
+  editQueuedMessage: (agentId, messageId, text) =>
+    set((s) => {
+      const trimmed = text.trim();
+      const current = s.messageQueues[agentId];
+      const target = current?.find((m) => m.id === messageId);
+      if (!current || !target || !trimmed || target.instruction || target.text === trimmed) return s;
+      const next = current.map((m) => (m.id === messageId ? { ...m, text: trimmed } : m));
+      const messageQueues = { ...s.messageQueues, [agentId]: next };
       persistQueues(messageQueues);
       return { messageQueues };
     }),

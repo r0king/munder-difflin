@@ -449,3 +449,97 @@ export function searchMessages(messages: InboxMessage[], query: string, nameOf?:
   if (isEmptySearch(q)) return messages;
   return messages.filter((m) => matchesSearch(m, q, nameOf));
 }
+
+// ─── What goes over the wire ────────────────────────────────────────────────
+
+/**
+ * The slice of the floor's mail main sends: the newest `limit` messages, plus
+ * every message between the human and an agent (newest `humanLimit` of them)
+ * even when it is older than that window — an agent's row and the "needs a
+ * reply" state must not depend on how chatty the rest of the floor has been.
+ * Input and output are newest first.
+ */
+export function selectForWire(all: InboxMessage[], limit: number, humanLimit: number): InboxMessage[] {
+  const head = all.slice(0, Math.max(0, limit));
+  if (all.length <= head.length) return head;
+  const ids = new Set(head.map((m) => m.id));
+  const extra: InboxMessage[] = [];
+  let human = head.filter((m) => isFromHuman(m) || isToHuman(m)).length;
+  for (let i = head.length; i < all.length && human < humanLimit; i++) {
+    const m = all[i];
+    if (ids.has(m.id) || !(isFromHuman(m) || isToHuman(m))) continue;
+    extra.push(m);
+    human += 1;
+  }
+  return extra.length ? [...head, ...extra] : head;
+}
+
+// ─── The agent rows of the left list ────────────────────────────────────────
+
+export interface AgentRow {
+  agentId: string;
+  summary: AgentInboxSummary | null;
+  /** Open Ask me questions on cards this agent owns. */
+  asks: number;
+  /** Something here waits on the human: an open ask or a request to answer. */
+  needsYou: boolean;
+  /** Newest activity (epoch ms), mail or ask; -Infinity when none. */
+  latestAt: number;
+}
+
+/**
+ * One row per agent: everyone on the roster (in roster order, the
+ * orchestrator first as the roster already has him) plus anyone else who has
+ * mail with the human (an archived agent, a finished worker).
+ *
+ * Order: rows that need you, then rows with unread mail, then any activity,
+ * newest first; then the quiet roster in roster order. The eye reads down
+ * from what is waiting to who is merely present.
+ */
+export function buildAgentRows(
+  roster: string[],
+  summaries: AgentInboxSummary[],
+  asks: ReadonlyMap<string, { count: number; latestAt: number }>
+): AgentRow[] {
+  const bySummary = new Map(summaries.map((s) => [s.agentId, s]));
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const push = (id: string) => { if (!seen.has(id)) { seen.add(id); ids.push(id); } };
+  roster.forEach(push);
+  summaries.forEach((s) => push(s.agentId));
+  asks.forEach((_v, id) => push(id));
+
+  const rows = ids.map<AgentRow & { rosterIndex: number }>((agentId) => {
+    const summary = bySummary.get(agentId) ?? null;
+    const ask = asks.get(agentId);
+    const mailAt = summary?.latest ? Date.parse(summary.latest.createdAt) : Number.NaN;
+    const latestAt = Math.max(
+      Number.isNaN(mailAt) ? Number.NEGATIVE_INFINITY : mailAt,
+      ask && Number.isFinite(ask.latestAt) ? ask.latestAt : Number.NEGATIVE_INFINITY
+    );
+    return {
+      agentId,
+      summary,
+      asks: ask?.count ?? 0,
+      needsYou: (ask?.count ?? 0) > 0 || (summary?.needsReply ?? 0) > 0,
+      latestAt,
+      rosterIndex: roster.indexOf(agentId)
+    };
+  });
+
+  const tier = (r: AgentRow): number => {
+    if (r.needsYou) return 0;
+    if ((r.summary?.unread ?? 0) > 0) return 1;
+    if (r.summary || r.asks) return 2;
+    return 3;
+  };
+  rows.sort((a, b) => {
+    const ta = tier(a);
+    const tb = tier(b);
+    if (ta !== tb) return ta - tb;
+    if (ta === 3) return a.rosterIndex - b.rosterIndex;
+    if (a.latestAt !== b.latestAt) return b.latestAt - a.latestAt;
+    return a.rosterIndex - b.rosterIndex;
+  });
+  return rows.map(({ rosterIndex: _rosterIndex, ...row }) => row);
+}

@@ -138,7 +138,11 @@ interface AgentBreakerState {
 export class CircuitBreaker {
   private agents = new Map<string, AgentBreakerState>();
 
-  constructor(private getConfig: () => CircuitBreakerConfig & { costCapUsd?: number; costCapTokens?: number; agentTokenCaps?: Record<string, number> }) {}
+  constructor(private getConfig: () => CircuitBreakerConfig & {
+    costCapUsd?: number; costCapTokens?: number; agentTokenCaps?: Record<string, number>;
+    /** Cap for an agent with no entry in agentTokenCaps (Workspace budget). */
+    defaultAgentTokenCap?: number;
+  }) {}
 
   private cfg() {
     const c = this.getConfig() ?? {};
@@ -150,7 +154,8 @@ export class CircuitBreaker {
       tokenVelocityPerMin: c.tokenVelocityPerMin ?? DEFAULTS.tokenVelocityPerMin,
       costCapUsd: c.costCapUsd,
       costCapTokens: c.costCapTokens,
-      agentTokenCaps: c.agentTokenCaps
+      agentTokenCaps: c.agentTokenCaps,
+      defaultAgentTokenCap: c.defaultAgentTokenCap
     };
   }
 
@@ -349,7 +354,9 @@ export class CircuitBreaker {
     // dominates it — and an agent stopped four minutes in for re-reads it does not
     // control learns to distrust the breaker. The reason names both figures so an
     // operator can see what tripped and what the agent cost.
-    const perAgentCap = cfg.agentTokenCaps?.[input.agentId];
+    // An agent's own cap wins; the floor's default (unset unless the user set
+    // one in the Workspace's Budget tab) covers every agent without one.
+    const perAgentCap = cfg.agentTokenCaps?.[input.agentId] ?? cfg.defaultAgentTokenCap;
     if (typeof perAgentCap === 'number' && perAgentCap > 0) {
       const work = workTokensOf(input.sample);
       if (work > perAgentCap) {

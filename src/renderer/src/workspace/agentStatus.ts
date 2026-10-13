@@ -17,10 +17,12 @@ import {
 
 export {
   WS_AGENT_STATUSES,
+  LIVE_LINE_KINDS,
   agentLiveLine,
   deriveAgentStatus,
   isActiveStatus,
   liveLine,
+  liveLineTakesDetail,
   statusColorToken,
   statusColorVar,
   statusKey

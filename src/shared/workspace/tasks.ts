@@ -219,6 +219,24 @@ export interface CardActivity {
 
 export type ActivityMap = Record<string, CardActivity>;
 
+/** `window.cth.features.tasks.activity()` — `feat:tasks:activity`. */
+export type TasksActivityReply =
+  | {
+    ok: true;
+    /** Opaque id of the open hive (a hash of its path). Staged moves are kept
+     *  per ledger, so switching hives never sends one hive's moves to another. */
+    ledgerId: string;
+    activity: ActivityMap;
+    /** Ticket key derived from the hive's folder name (`MUN`), used for a
+     *  new card's id when the ledger has no keyed ids to follow yet. */
+    folderKey: string;
+    /** When main last read the ledger (epoch ms; 0 if it never could). */
+    observedAt: number;
+    /** Set when the latest read failed; `activity` is then the last good one. */
+    warning?: string;
+  }
+  | { ok: false; error: string };
+
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;

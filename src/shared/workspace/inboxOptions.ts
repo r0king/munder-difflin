@@ -25,9 +25,15 @@ export const MAX_LABEL = 80;
 // "- x", "* x", "+ x", "• x", "1. x", "1) x", "a) x", "(a) x", "A. x"
 const LIST_ITEM = /^\s{0,3}(?:[-*+•]|\d{1,2}[.)]|\(?[A-Za-z][.)])\s+(.+?)\s*$/;
 
-/** Words that make the text around a list a CHOICE rather than a procedure.
- *  English, Chinese and Arabic, since agents answer in the user's language. */
-const CHOICE_CUE = /\?|？|؟|\b(?:which|choose|choice|pick|prefer|preferred|select|option|options|either|or|should i|do you want|would you like|decide|approve)\b|还是|哪|选|أو|أي|اختر|اختيار|تفضل/i;
+/**
+ * Words that make the text around a list a CHOICE rather than a procedure.
+ * English, Chinese and Arabic, since agents write in the user's language.
+ *
+ * A question mark alone is NOT one: "**Can you create the account?**" over a
+ * numbered list is the protocol's shape for a to-do with steps, and those
+ * steps are not answers.
+ */
+const CHOICE_CUE = /\b(?:which|choose|choice|pick|prefer|preferred|select|option|options|either|or)\b|还是|哪|选|أو|أي|اختر|اختيار|تفضل/i;
 
 /** Strip inline markdown down to readable text. */
 function plain(text: string): string {
@@ -106,8 +112,7 @@ function fromLists(text: string): string[] {
     const block = blocks[k];
     // The lead-in: up to three non-empty lines right above the list.
     const lead = lines.slice(Math.max(0, block.start - 3), block.start).join('\n');
-    const labelled = block.items.every((item) => /^\s*(?:option\s+)?[A-Za-z0-9][.):]\s/i.test(item) || /^(?:\*\*|__|`)/.test(item.trim()));
-    if (!CHOICE_CUE.test(lead) && !/^\s*option\b/i.test(block.items[0]) && !(labelled && /\?|？|؟/.test(text))) continue;
+    if (!CHOICE_CUE.test(lead) && !/^\s*(?:\*\*)?option\b/i.test(block.items[0])) continue;
     const labels = block.items.map(optionLabel);
     if (labels.some((l) => !l || l.length > MAX_LABEL)) return [];
     const unique = dedupe(labels);

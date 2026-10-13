@@ -73,7 +73,13 @@ export default defineConfig({
     root: resolve(__dirname, 'src/renderer'),
     build: {
       rollupOptions: {
-        input: { index: resolve(__dirname, 'src/renderer/index.html') }
+        // Two HTML entries: the app, and the Stapler's own windows (the puck
+        // and the screenshot overlay), which load stapler.html#<view> through
+        // ctx.loadRendererEntry (src/main/features). Both emit to out/renderer.
+        input: {
+          index: resolve(__dirname, 'src/renderer/index.html'),
+          stapler: resolve(__dirname, 'src/renderer/stapler.html')
+        }
       }
     },
     plugins: [react()],

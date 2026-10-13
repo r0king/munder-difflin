@@ -147,6 +147,9 @@ export interface MemorySearchResult {
   /** Free text from MemPalace worth showing (e.g. its "vector search
    *  disabled, run mempalace repair" notice). */
   notice?: string;
+  /** MemPalace printed something this build cannot parse: its text, capped,
+   *  shown as is rather than dropped. */
+  raw?: string;
   error?: string;
   tookMs: number;
 }
@@ -177,6 +180,14 @@ export interface MemoryNoteText {
   truncated?: boolean;
   error?: string;
 }
+
+/** `feat:memory:<action>` — declared once, used by main and the preload. */
+export const MEMORY_CHANNELS = {
+  search: 'feat:memory:search',
+  meaning: 'feat:memory:meaning',
+  stats: 'feat:memory:stats',
+  readNote: 'feat:memory:readNote'
+} as const;
 
 /** Hard caps shared by both sides of the bridge. */
 export const MEMORY_QUERY_MAX = 200;

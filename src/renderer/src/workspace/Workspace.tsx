@@ -19,7 +19,7 @@ import { useRestoreTeam } from '@/hooks/useRestoreTeam';
 import { useResolvedGodName } from '@/hooks/useResolvedGodName';
 import { useRtl } from '@/i18n/useDirection';
 import { useWorkspace, WS_SIDEBAR_DEFAULT, WS_SIDEBAR_MIN, type WorkspaceRoute } from './store';
-import { Button, EmptyState, IconButton, Spinner, WsIcon } from './ui';
+import { Button, EmptyState, IconButton, ScreenHeaderExtrasContext, Spinner, WsIcon } from './ui';
 import { WorkspaceSidebar } from './sidebar/Sidebar';
 import { AgentsScreen } from './screens/AgentsScreen';
 import { AgentRoom } from './screens/AgentRoom';
@@ -47,6 +47,11 @@ export function Workspace({ config }: { config: HarnessConfig }) {
   const toggleSidebar = useWorkspace((s) => s.toggleSidebar);
   const { t } = useTranslation();
 
+  // Controls every screen header carries, after the screen's own actions
+  // (ui.tsx ScreenHeaderExtrasContext). The wsInbox unit mounts its Ask me
+  // bell here.
+  const headerExtras = null;
+
   return (
     <div className="cth-ws-root">
       {collapsed ? (
@@ -64,9 +69,11 @@ export function Workspace({ config }: { config: HarnessConfig }) {
         </>
       )}
       <main className="cth-ws-main">
-        <ScreenBoundary resetKey={JSON.stringify(route)}>
-          <RouteScreen route={route} config={config} />
-        </ScreenBoundary>
+        <ScreenHeaderExtrasContext.Provider value={headerExtras}>
+          <ScreenBoundary resetKey={JSON.stringify(route)}>
+            <RouteScreen route={route} config={config} />
+          </ScreenBoundary>
+        </ScreenHeaderExtrasContext.Provider>
       </main>
     </div>
   );

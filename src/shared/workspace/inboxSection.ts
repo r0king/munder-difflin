@@ -86,3 +86,63 @@ export function isReadMarkKey(key: unknown): key is string {
   if (key.startsWith('agent:')) return AGENT_ID.test(key.slice('agent:'.length));
   return key === 'everyone' || key === 'webhooks' || key === 'slack' || key === 'org' || key === 'askme';
 }
+
+/** Most read marks kept per hive; the oldest are dropped past it (agents come
+ *  and go, and a mark for a long-gone worker is dead weight). */
+export const MAX_READ_MARKS = 400;
+
+/**
+ * Move one read watermark FORWARD (never back) and return the new map, or
+ * null when nothing changed or the input is invalid. A watermark in the future
+ * is clamped to `nowIso` so a skewed agent timestamp cannot mark tomorrow's
+ * mail as already read.
+ */
+export function applyReadMark(
+  marks: Record<string, string>,
+  key: unknown,
+  at: unknown,
+  nowIso: string
+): Record<string, string> | null {
+  if (!isReadMarkKey(key) || typeof at !== 'string') return null;
+  const want = Date.parse(at);
+  const now = Date.parse(nowIso);
+  if (Number.isNaN(want) || Number.isNaN(now)) return null;
+  const next = new Date(Math.min(want, now)).toISOString();
+  const prev = Date.parse(marks[key] ?? '');
+  if (!Number.isNaN(prev) && prev >= Date.parse(next)) return null;
+  const out: Record<string, string> = { ...marks, [key]: next };
+  const keys = Object.keys(out).filter((k) => k !== '*');
+  if (keys.length > MAX_READ_MARKS) {
+    keys
+      .sort((a, b) => (Date.parse(out[a]) || 0) - (Date.parse(out[b]) || 0))
+      .slice(0, keys.length - MAX_READ_MARKS)
+      .forEach((k) => { delete out[k]; });
+  }
+  return out;
+}
+
+/** Keep only well-formed marks from a settings file someone may have edited. */
+export function sanitizeReadMarks(value: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (isReadMarkKey(k) && typeof v === 'string' && !Number.isNaN(Date.parse(v))) out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * Union of two mark maps, the LATER time winning per key. Marks only ever move
+ * forward, so this is how a local optimistic mark and a read from main that
+ * raced it are reconciled without one undoing the other.
+ */
+export function mergeReadMarks(a: Record<string, string>, b: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = { ...a };
+  for (const [k, v] of Object.entries(b)) {
+    const prev = Date.parse(out[k] ?? '');
+    const next = Date.parse(v);
+    if (Number.isNaN(next)) continue;
+    if (Number.isNaN(prev) || next > prev) out[k] = v;
+  }
+  return out;
+}

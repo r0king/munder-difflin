@@ -1,0 +1,316 @@
+/* Automations screen (wsAutomations unit). Every value is a `--cth-*` token,
+ * nothing is rounded, and inline layout uses logical properties so the Arabic
+ * interface mirrors without a single [dir] rule. */
+
+/* ─── Header extras ──────────────────────────────────────────────────────── */
+
+.cth-ws-automations-intro {
+  margin: 0 0 var(--cth-space-3);
+  max-width: 720px;
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+  color: var(--cth-ink-500);
+}
+
+.cth-ws-automations-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--cth-space-3);
+}
+
+.cth-ws-automations-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  margin-bottom: var(--cth-space-3);
+  padding: var(--cth-space-2) var(--cth-space-3);
+  background: var(--cth-lemon-light);
+  box-shadow: inset 0 0 0 1px var(--cth-lemon);
+  color: var(--cth-ink-900);
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+}
+.cth-ws-automations-banner > span { flex: 1; min-width: 0; }
+
+/* ─── New automation menu ────────────────────────────────────────────────── */
+
+.cth-ws-automations-menuwrap { position: relative; display: inline-flex; }
+.cth-ws-automations-menu {
+  position: absolute;
+  top: calc(100% + var(--cth-space-1));
+  inset-inline-end: 0;
+  z-index: 20;
+  min-width: 240px;
+  padding: var(--cth-space-1) 0;
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-300), var(--cth-shadow-hard);
+}
+.cth-ws-automations-menuitem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cth-space-2);
+  width: 100%;
+  padding: var(--cth-space-2) var(--cth-space-3);
+  border: none;
+  background: transparent;
+  color: var(--cth-ink-900);
+  font-family: inherit;
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+  text-align: start;
+  cursor: pointer;
+}
+.cth-ws-automations-menuitem:hover,
+.cth-ws-automations-menuitem:focus-visible { background: var(--cth-cream-200); outline: none; }
+.cth-ws-automations-menuitem > span { display: flex; flex-direction: column; min-width: 0; }
+.cth-ws-automations-menuitem small { font-size: 12px; line-height: 16px; color: var(--cth-ink-500); }
+
+/* ─── The list ───────────────────────────────────────────────────────────── */
+
+.cth-ws-automations-list {
+  display: flex;
+  flex-direction: column;
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+}
+.cth-ws-automations-row + .cth-ws-automations-row { border-top: 1px solid var(--cth-ink-100); }
+.cth-ws-automations-row[data-open='true'] { background: var(--cth-cream-50); }
+
+.cth-ws-automations-rowhead {
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-3);
+  min-height: 52px;
+  padding: var(--cth-space-2) var(--cth-space-3) var(--cth-space-2) var(--cth-space-4);
+}
+.cth-ws-automations-rowmain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-3);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.cth-ws-automations-rowmain:focus-visible { outline: 2px solid var(--cth-ink-700); outline-offset: 2px; }
+.cth-ws-automations-kind { flex-shrink: 0; display: inline-flex; color: var(--cth-ink-500); }
+.cth-ws-automations-row[data-on='true'] .cth-ws-automations-kind { color: var(--cth-ink-900); }
+.cth-ws-automations-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cth-ws-automations-name {
+  font-size: var(--cth-text-body-md);
+  line-height: var(--cth-lh-body-md);
+  font-weight: 600;
+  color: var(--cth-ink-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cth-ws-automations-row[data-on='false'] .cth-ws-automations-name { color: var(--cth-ink-700); }
+.cth-ws-automations-desc {
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+  color: var(--cth-ink-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cth-ws-automations-meta {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cth-ink-500);
+  white-space: nowrap;
+}
+.cth-ws-automations-caret { flex-shrink: 0; display: inline-flex; color: var(--cth-ink-500); }
+
+/* ─── Expanded editor ────────────────────────────────────────────────────── */
+
+.cth-ws-automations-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-3);
+  padding: var(--cth-space-1) var(--cth-space-4) var(--cth-space-4) calc(var(--cth-space-4) + 16px + var(--cth-space-3));
+}
+.cth-ws-automations-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--cth-space-3) var(--cth-space-4);
+}
+@media (max-width: 760px) {
+  .cth-ws-automations-grid { grid-template-columns: minmax(0, 1fr); }
+  .cth-ws-automations-body { padding-inline-start: var(--cth-space-4); }
+}
+.cth-ws-automations-field { display: flex; flex-direction: column; gap: var(--cth-space-1); min-width: 0; }
+.cth-ws-automations-field--wide { grid-column: 1 / -1; }
+.cth-ws-automations-label {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--cth-ink-500);
+}
+.cth-ws-automations-hint { margin: 0; font-size: 12px; line-height: 16px; color: var(--cth-ink-500); }
+.cth-ws-automations-fielderr { margin: 0; font-size: 12px; line-height: 16px; color: var(--cth-coral); }
+
+.cth-ws-automations-input,
+.cth-ws-automations-textarea,
+.cth-ws-automations-select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: none;
+  outline: none;
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  color: var(--cth-ink-900);
+  font-family: inherit;
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+}
+.cth-ws-automations-input { height: 28px; padding: 0 var(--cth-space-2); }
+.cth-ws-automations-select { height: 28px; padding: 0 var(--cth-space-1); cursor: pointer; }
+.cth-ws-automations-textarea {
+  padding: var(--cth-space-2);
+  resize: vertical;
+  min-height: 76px;
+}
+.cth-ws-automations-input:hover,
+.cth-ws-automations-textarea:hover,
+.cth-ws-automations-select:hover { box-shadow: inset 0 0 0 1px var(--cth-ink-300); }
+.cth-ws-automations-input:focus,
+.cth-ws-automations-textarea:focus,
+.cth-ws-automations-select:focus { box-shadow: inset 0 0 0 2px var(--cth-ink-700); }
+.cth-ws-automations-input[aria-invalid='true'],
+.cth-ws-automations-textarea[aria-invalid='true'] { box-shadow: inset 0 0 0 2px var(--cth-coral); }
+.cth-ws-automations-input::placeholder,
+.cth-ws-automations-textarea::placeholder { color: var(--cth-ink-300); }
+.cth-ws-automations-input--num { width: 72px; font-family: var(--cth-font-mono); }
+.cth-ws-automations-input--time { width: 104px; font-family: var(--cth-font-mono); }
+.cth-ws-automations-mono { font-family: var(--cth-font-mono); font-size: var(--cth-text-mono-sm); }
+.cth-ws-automations-textarea.cth-ws-automations-mono { line-height: var(--cth-lh-mono); }
+
+.cth-ws-automations-inline { display: flex; align-items: center; gap: var(--cth-space-2); flex-wrap: wrap; min-width: 0; }
+
+/* Seven day toggles. Square, on the 4px grid, the state in fill AND weight so
+   it does not rely on colour alone. */
+.cth-ws-automations-days { display: inline-flex; gap: 2px; }
+.cth-ws-automations-day {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: var(--cth-paper-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  color: var(--cth-ink-500);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.cth-ws-automations-day:hover { box-shadow: inset 0 0 0 1px var(--cth-ink-300); color: var(--cth-ink-900); }
+.cth-ws-automations-day[aria-pressed='true'] {
+  background: var(--cth-mint-light);
+  box-shadow: inset 0 0 0 1px var(--cth-mint);
+  color: var(--cth-ink-900);
+  font-weight: 600;
+}
+
+.cth-ws-automations-urlbox {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 var(--cth-space-2);
+  display: flex;
+  align-items: center;
+  background: var(--cth-cream-100);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+  color: var(--cth-ink-900);
+  font-family: var(--cth-font-mono);
+  font-size: var(--cth-text-mono-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cth-ws-automations-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  flex-wrap: wrap;
+  padding-top: var(--cth-space-1);
+}
+.cth-ws-automations-footer > .cth-ws-automations-grow { flex: 1; min-width: 0; }
+
+.cth-ws-automations-savestate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cth-space-1);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cth-ink-500);
+}
+.cth-ws-automations-savestate[data-state='error'] { color: var(--cth-coral); }
+
+.cth-ws-automations-callout {
+  margin: 0;
+  padding: var(--cth-space-2) var(--cth-space-3);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cth-ink-900);
+  background: var(--cth-cream-200);
+  box-shadow: inset 0 0 0 1px var(--cth-ink-100);
+}
+.cth-ws-automations-callout[data-tone='warn'] { background: var(--cth-coral-light); box-shadow: inset 0 0 0 1px var(--cth-coral); }
+
+/* ─── Webhook deliveries ─────────────────────────────────────────────────── */
+
+.cth-ws-automations-deliveries { display: flex; flex-direction: column; box-shadow: inset 0 0 0 1px var(--cth-ink-100); background: var(--cth-paper-100); }
+.cth-ws-automations-delivery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cth-space-1);
+  padding: var(--cth-space-2) var(--cth-space-3);
+  min-width: 0;
+}
+.cth-ws-automations-delivery + .cth-ws-automations-delivery { border-top: 1px solid var(--cth-ink-100); }
+.cth-ws-automations-delivery[data-held='true'] { background: var(--cth-lemon-light); }
+.cth-ws-automations-deliveryhead {
+  display: flex;
+  align-items: center;
+  gap: var(--cth-space-2);
+  min-width: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--cth-ink-500);
+}
+.cth-ws-automations-deliverytitle {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--cth-text-body-sm);
+  line-height: var(--cth-lh-body-sm);
+  color: var(--cth-ink-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cth-ws-automations-deliverybody {
+  margin: 0;
+  font-family: var(--cth-font-mono);
+  font-size: var(--cth-text-mono-sm);
+  line-height: var(--cth-lh-mono);
+  color: var(--cth-ink-700);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

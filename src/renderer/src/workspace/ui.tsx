@@ -17,6 +17,8 @@ import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
+  createContext,
+  useContext,
   useId,
   useState
 } from 'react';
@@ -39,9 +41,18 @@ export interface ScreenHeaderProps {
   children?: ReactNode;
 }
 
+/**
+ * Shell-wide controls that belong on EVERY screen's header (the Ask me bell),
+ * provided once by Workspace.tsx and rendered after each screen's own actions.
+ * A screen does nothing to get them; outside the shell (the Stapler window)
+ * the context is empty.
+ */
+export const ScreenHeaderExtrasContext = createContext<ReactNode>(null);
+
 /** The top of every Workspace screen. Pair with `.cth-ws-screen` +
  *  `.cth-ws-screen-body` (see Screen below). */
 export function ScreenHeader({ title, subtitle, actions, leading, children }: ScreenHeaderProps) {
+  const extras = useContext(ScreenHeaderExtrasContext);
   return (
     <header className="cth-ws-header">
       <div className="cth-ws-header-row">
@@ -52,7 +63,7 @@ export function ScreenHeader({ title, subtitle, actions, leading, children }: Sc
             <span className="cth-ws-header-subtitle">{subtitle}</span>
           )}
         </div>
-        {actions && <div className="cth-ws-header-actions">{actions}</div>}
+        {(actions || extras) && <div className="cth-ws-header-actions">{actions}{extras}</div>}
       </div>
       {children}
     </header>

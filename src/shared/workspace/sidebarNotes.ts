@@ -255,6 +255,86 @@ export function rankNotes(notes: readonly SearchableNote[], query: string, limit
   return hits.slice(0, Math.max(0, limit));
 }
 
+// ─── IPC shapes ─────────────────────────────────────────────────────────────
+
+/** Why a notes call failed. `no-hive`: no hive is open, so there is no folder
+ *  to keep notes in. `not-found`: the note is gone (deleted by hand or by an
+ *  agent). `conflict`: the file changed since the editor loaded it. `invalid`:
+ *  the request failed validation. `io`: the disk said no. */
+export type NoteErrorCode = 'no-hive' | 'not-found' | 'conflict' | 'invalid' | 'io';
+
+export interface NoteMeta {
+  slug: string;
+  title: string;
+  /** File mtime, ms. Doubles as the version the editor sends back. */
+  updatedAt: number;
+  /** First meaningful body line. */
+  excerpt: string;
+}
+
+export interface NoteDoc extends NoteMeta {
+  body: string;
+  /** Absolute path of the file — what an agent is told to read. */
+  path: string;
+}
+
+export type NotesListResult =
+  | { ok: true; notes: NoteMeta[]; dir: string; truncated: boolean }
+  | { ok: false; error: NoteErrorCode; message?: string };
+
+export type NoteReadResult =
+  | { ok: true; note: NoteDoc }
+  | { ok: false; error: NoteErrorCode; message?: string };
+
+/** A write that lost a race carries the version now on disk, so the editor can
+ *  offer "load theirs" without a second round trip. */
+export type NoteWriteResult =
+  | { ok: true; note: NoteDoc }
+  | { ok: false; error: NoteErrorCode; message?: string; current?: NoteDoc };
+
+export type NoteDeleteResult = { ok: true } | { ok: false; error: NoteErrorCode; message?: string };
+
+export type NotesSearchResult =
+  | { ok: true; hits: NoteSearchHit[] }
+  | { ok: false; error: NoteErrorCode; message?: string };
+
+/** Which office this window is, for the sidebar's header. */
+export interface FloorInfo {
+  /** 1-based; the primary window is 1. */
+  number: number;
+  /** App windows open right now. The number is shown only when > 1. */
+  count: number;
+}
+
+/** Above this many characters a note travels as an attached file rather than
+ *  inline text, so a long note cannot crowd an agent's prompt. */
+export const NOTE_INLINE_SEND_MAX = 24_000;
+
+/**
+ * What an agent receives for "Send to…": the note inline (with its path, so it
+ * can be re-read later), or for a long note a pointer to the file plus its
+ * opening lines. Agent-facing prompt text, so it is plain English like the
+ * rest of the hive protocol; the note itself is passed through verbatim.
+ */
+export function noteDeliveryText(note: Pick<NoteDoc, 'title' | 'body' | 'path'>, prompt?: string): {
+  text: string;
+  attachments: string[];
+} {
+  const ask = (prompt ?? '').trim();
+  const lead = ask ? `${ask}\n\n` : '';
+  const body = (note.body ?? '').trim();
+  if (body.length <= NOTE_INLINE_SEND_MAX) {
+    return {
+      text: `${lead}My note "${note.title}" (saved at ${note.path}):\n\n${body || '(empty note)'}`,
+      attachments: []
+    };
+  }
+  return {
+    text: `${lead}My note "${note.title}" is long, so it is attached as a file. Read it before you act on it.`,
+    attachments: [note.path]
+  };
+}
+
 // ─── IPC payload validation (main side) ─────────────────────────────────────
 
 export interface NoteWriteRequest {

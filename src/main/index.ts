@@ -74,6 +74,12 @@ import {
   applyEarlyFeatureSwitches, createFeatureContext, registerFeatures, featureMicLive,
   notifyAppWindowsClosed, disposeFeatures
 } from './features';
+import { withContextRules } from './features/automations';
+// Workspace "Deliveries paused" (floor-wide queue hold) and the breaker's default
+// per-agent token cap — both owned by the orchestrator feature, mirrored below.
+import {
+  floorDeliveriesPaused, liftFloorDeliveryPause, orchestratorDefaultAgentTokenCap
+} from './features/orchestrator';
 import {
   argsWithAutoModeFlag,
   inferAgentProvider,
@@ -281,7 +287,11 @@ const grokLedgerGate = new CumulativeSampleGate();
 // enforces its decisions. Config read live so a settings change applies next beat.
 const breaker = new CircuitBreaker(() => {
   const c = readConfig();
-  return { ...(c.circuitBreaker ?? {}), costCapUsd: c.costCapUsd, costCapTokens: c.costCapTokens, agentTokenCaps: c.agentTokenCaps };
+  return {
+    ...(c.circuitBreaker ?? {}), costCapUsd: c.costCapUsd, costCapTokens: c.costCapTokens, agentTokenCaps: c.agentTokenCaps,
+    // Workspace → Orchestrator → Budget: the cap for any agent without its own.
+    defaultAgentTokenCap: orchestratorDefaultAgentTokenCap()
+  };
 });
 // Always-on beats (decoupled from the optional heartbeat): the live fleet snapshot
 // Michael reads + the breaker beat, so guardrails + monitoring work even when the
@@ -318,7 +328,9 @@ const hookServer = new HookServer(
   () => readConfig(),
   control,
   breaker,
-  standingGoalFromRoster,
+  // Workspace → Automations "context rules" (house style and the like) ride the
+  // standing-goal channel: SessionStart, then again whenever the text changes.
+  (agentId) => withContextRules(standingGoalFromRoster(agentId)),
   (agentId, event, message) => workerWake.noteHook(agentId, event, message)
 );
 const memory = new MemoryManager(
@@ -3994,7 +4006,11 @@ ipcMain.handle('control:autoDelivery', (_evt, agentId: unknown, paused: unknown)
   const current = new Set(readConfig().autoDeliveryPausedAgents ?? []);
   if (on) current.add(agentId); else current.delete(agentId);
   writeConfig({ autoDeliveryPausedAgents: Array.from(current).sort() });
-  return control.snapshot(agentId);
+  // The Workspace's floor-wide hold shows up in every snapshot (below), so the
+  // Classic floor switch reads it as "paused"; resuming from there must lift it
+  // too, or that switch would flip to "auto" while nothing moved.
+  if (!on) liftFloorDeliveryPause();
+  return controlSnapshotWithFloorHold(agentId);
 });
 ipcMain.handle('control:resume', (_evt, agentId: unknown) => {
   if (typeof agentId !== 'string') return null;
@@ -4020,8 +4036,16 @@ ipcMain.handle('control:halt', (_evt, agentId: unknown) => {
   control.halt(agentId);
   return control.snapshot(agentId);
 });
+/** An agent's control snapshot with the Workspace's floor-wide delivery hold
+ *  (features/orchestrator.ts) ORed into `autoDeliveryPaused`. The renderer's
+ *  queue drain (useHive) and every composer read this one flag, so the hold
+ *  needs no second gate: queued work waits, "send now" and steer still pass. */
+function controlSnapshotWithFloorHold(agentId: string) {
+  const snap = control.snapshot(agentId);
+  return floorDeliveriesPaused() ? { ...snap, autoDeliveryPaused: true } : snap;
+}
 ipcMain.handle('control:snapshot', (_evt, agentId: unknown) =>
-  typeof agentId === 'string' ? control.snapshot(agentId) : null);
+  typeof agentId === 'string' ? controlSnapshotWithFloorHold(agentId) : null);
 
 // ─── IPC: scheduled missions (recurring auto-dispatch) ──────────────────────
 ipcMain.handle('missions:list', () => readConfig().missions ?? []);
@@ -5252,7 +5276,8 @@ function runWorkerWakeBeat(): void {
       ptyId,
       lastOutputAt: ptyManager.lastOutputAt(ptyId) ?? 0,
       inboxIds: mail.map((message) => message.id).filter(Boolean),
-      autoDeliveryPaused: snap.autoDeliveryPaused,
+      // The floor-wide hold (Workspace "Deliveries paused") holds wakes too.
+      autoDeliveryPaused: snap.autoDeliveryPaused || floorDeliveriesPaused(),
       paused: snap.paused,
       halted: snap.halted,
       // A turn the CLI demonstrably took: a tool span, or a usage sample WITH

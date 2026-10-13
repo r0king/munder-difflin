@@ -257,6 +257,21 @@ export function parseCapInput(text: string): number | null | 'invalid' {
   return n;
 }
 
+/**
+ * Parse a token count as typed: `500000`, `500k`, `1.5M`, `2b`, `1,000,000`.
+ * An empty field clears the cap (null). Zero, negatives, junk and anything
+ * above `max` are 'invalid'.
+ */
+export function parseTokenInput(text: string, max: number): number | null | 'invalid' {
+  const s = text.trim().replace(/,/g, '').toLowerCase();
+  if (!s) return null;
+  const m = /^(\d+(?:\.\d+)?)\s*([kmb])?$/.exec(s);
+  if (!m) return 'invalid';
+  const mult = m[2] === 'k' ? 1e3 : m[2] === 'm' ? 1e6 : m[2] === 'b' ? 1e9 : 1;
+  const n = Math.round(Number(m[1]) * mult);
+  return Number.isFinite(n) && n > 0 && n <= max ? n : 'invalid';
+}
+
 /** Validate a cap that crossed IPC: a finite positive number within bounds
  *  (rounded to cents), or null to clear. Anything else → undefined (reject). */
 export function sanitizeCap(value: unknown): number | null | undefined {

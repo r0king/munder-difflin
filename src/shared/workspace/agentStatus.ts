@@ -184,6 +184,14 @@ const EN: Record<LiveLineKind, [string, string?]> = {
   tool: ['Using a tool', 'Using {{detail}}']
 };
 
+/** Every live-line kind (each is a `ws.live.<kind>` key in every language). */
+export const LIVE_LINE_KINDS: readonly LiveLineKind[] = Object.keys(EN) as LiveLineKind[];
+
+/** Whether `ws.live.<kind>Detail` exists for this kind. */
+export function liveLineTakesDetail(kind: LiveLineKind): boolean {
+  return DETAIL_KINDS.has(kind);
+}
+
 /** Build a LiveLine, dropping a detail the kind has no slot for. */
 export function liveLine(kind: LiveLineKind, detail?: string): LiveLine {
   const d = detail?.replace(/\s+/g, ' ').trim();

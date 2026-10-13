@@ -83,3 +83,33 @@ export function answerMail(task: { id: string; title: string }, question: string
     ].join('\n')
   };
 }
+
+/** Structural card shape for the cascade count (raw ledger cards qualify). */
+interface CardLike {
+  id: string;
+  status?: string;
+  dependsOn?: unknown;
+}
+
+/**
+ * How many unfinished cards wait, directly or through others, on card `id` —
+ * "what is stuck behind this answer", the cascade AskMeTab draws. Cycle-safe,
+ * and tolerant of raw cards with no `dependsOn`.
+ */
+export function countBlockedBehind(id: string, all: CardLike[]): number {
+  const seen = new Set<string>([id]);
+  const queue = [id];
+  let count = 0;
+  while (queue.length) {
+    const current = queue.shift() as string;
+    for (const t of all) {
+      if (!t || seen.has(t.id) || t.status === 'done') continue;
+      if (Array.isArray(t.dependsOn) && t.dependsOn.includes(current)) {
+        seen.add(t.id);
+        queue.push(t.id);
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
