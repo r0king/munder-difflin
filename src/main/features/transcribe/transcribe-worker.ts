@@ -80,7 +80,9 @@ interface Loaded {
   processor: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   tokenizer: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   timePrecision: number;
-  logitsProcessor: unknown;
+  /** A fresh LogitsProcessorList (holding the token suppressor) per
+   *  generate() call — see suppressor(). */
+  newProcessors: () => unknown;
 }
 let loaded: Loaded | null = null;
 
@@ -112,9 +114,9 @@ async function load(ref: WorkerModelRef): Promise<Loaded> {
     processor: pipe.processor,
     tokenizer: pipe.tokenizer,
     timePrecision: fe.chunk_length / pipe.model.config.max_source_positions,
-    logitsProcessor: null
+    newProcessors: () => null
   };
-  next.logitsProcessor = suppressor(next);
+  next.newProcessors = suppressor(next);
   loaded = next;
   return next;
 }
@@ -142,8 +144,16 @@ function promptIds(m: Loaded, lead: string, vocabulary: string[], budget: number
  * stops after one token, and silence turns into ♪ and bracket tags. This
  * restores that suppression: every special token between end-of-text and the
  * first timestamp, plus the config's own list.
+ *
+ * Returns a factory, not a list: Whisper's generate() pushes its own
+ * timestamp and begin-suppress processors onto the list it is given, so a
+ * list shared across calls grows by two per 30 s window. That made every
+ * window slower than the last (quadratic over a long meeting) and left a
+ * stale timestamp processor, built for an earlier prompt length, cutting
+ * later windows short. Each call gets a new list around the one suppressor
+ * (docs/perf/whisper-logits-processor.md).
  */
-function suppressor(m: Loaded): unknown {
+function suppressor(m: Loaded): () => unknown {
   const t = transformers();
   const gc = m.model.generation_config ?? {};
   const eos: number = Array.isArray(gc.eos_token_id) ? gc.eos_token_id[0] : gc.eos_token_id;
@@ -164,19 +174,29 @@ function suppressor(m: Loaded): unknown {
       return logits;
     }
   }
-  const processors = new t.LogitsProcessorList();
-  processors.push(new SuppressTokens() as never);
-  return processors;
+  const suppress = new SuppressTokens();
+  return () => {
+    const processors = new t.LogitsProcessorList();
+    processors.push(suppress as never);
+    return processors;
+  };
 }
 
 /** Whisper's start tokens for an English-only model with timestamps. */
-function initTokens(m: Loaded): number[] {
+function initTokens(m: Pick<Loaded, 'model'>): number[] {
   const gc = m.model.generation_config ?? {};
   const start = gc.decoder_start_token_id ?? m.model.config.decoder_start_token_id;
   return [start].filter((x) => typeof x === 'number');
 }
 
-async function transcribeSpan(m: Loaded, src: PcmSource, span: Span, prompt: number[]): Promise<TranscriptSegment[]> {
+/** One voiced span, 30 s windows with 5 s strides. Exported for
+ *  test/transcribe-worker.test.cjs. */
+export async function transcribeSpan(
+  m: Pick<Loaded, 'model' | 'processor' | 'tokenizer' | 'timePrecision' | 'newProcessors'>,
+  src: Pick<PcmSource, 'read'>,
+  span: Span,
+  prompt: number[]
+): Promise<TranscriptSegment[]> {
   const chunks: Array<{ tokens: unknown[]; stride: number[]; is_last: boolean }> = [];
   const jump = WINDOW - 2 * STRIDE;
   const decoderPrefix = prompt.length ? [...prompt, ...initTokens(m)] : null;
@@ -190,7 +210,7 @@ async function transcribeSpan(m: Loaded, src: PcmSource, span: Span, prompt: num
     const generated = await m.model.generate({
       inputs: features.input_features,
       return_timestamps: true,
-      logits_processor: m.logitsProcessor,
+      logits_processor: m.newProcessors(),
       num_frames: Math.floor(audio.length / m.processor.feature_extractor.config.hop_length),
       ...(decoderPrefix ? { decoder_input_ids: decoderPrefix } : {})
     });
