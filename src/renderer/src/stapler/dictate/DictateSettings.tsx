@@ -86,8 +86,9 @@ function shortcutChip(t: (k: string) => string, s: DictateShortcutStatus, enable
   if (s.registered) return focusedOnly
     ? { tone: 'warn', text: t('dictate.settings.shortcutFocusedOnly') }
     : { tone: 'ok', text: t('dictate.settings.shortcutOn') };
+  // Wayland: a failed grab is the display server's rule, not another app.
+  if (focusedOnly || s.error === 'unavailable') return { tone: 'danger', text: t('dictate.settings.shortcutUnavailable') };
   if (s.error === 'taken') return { tone: 'danger', text: t('dictate.settings.shortcutTaken') };
-  if (s.error === 'unavailable') return { tone: 'danger', text: t('dictate.settings.shortcutUnavailable') };
   return { tone: 'danger', text: t('dictate.settings.shortcutInvalid') };
 }
 

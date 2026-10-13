@@ -143,7 +143,9 @@ export function Popover({
       style={pos ? { left: pos.left, top: pos.top } : { left: -9999, top: -9999, visibility: 'hidden' }}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
-      onContextMenu={(e) => e.preventDefault()}
+      // React events bubble through the portal to the component that rendered
+      // it — a right-click on a ticket card must not open its row's menu.
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
     >
       {children}
     </div>,

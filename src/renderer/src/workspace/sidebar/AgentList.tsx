@@ -212,7 +212,7 @@ export function AgentList({ config, hiveKey }: { config: HarnessConfig; hiveKey:
   const multipleGroups = groups.length > 1 || (groups.length === 1 && !!groups[0].name);
 
   return (
-    <div data-sb-list="" role="list" aria-label={t('wsSidebar.agents.title')}>
+    <div data-sb-list="">
       {god && (
         <AgentRow
           agent={god}
@@ -385,7 +385,6 @@ function AgentRow({
   return (
     <div
       className="cth-ws-sidebar-agent"
-      role="listitem"
       data-status={status}
       data-current={current ? 'true' : undefined}
       data-reorderable={reorderable ? 'true' : undefined}

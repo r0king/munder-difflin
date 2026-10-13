@@ -39,12 +39,25 @@ function parse(raw: unknown): HiveTask[] {
     !!t && typeof t === 'object' && typeof (t as HiveTask).id === 'string');
 }
 
+/** How long to wait before re-reading a ledger that suddenly came back empty. */
+const EMPTY_CONFIRM_MS = 300;
+
 /** Re-read the ledger now. Concurrent calls share one read. */
 export function refreshHiveTasks(): Promise<void> {
   if (inFlight) return inFlight;
   inFlight = (async () => {
     try {
-      const tasks = parse(await window.cth.hiveTasks());
+      let tasks = parse(await window.cth.hiveTasks());
+      // An empty read right after a non-empty one is usually a torn read, not a
+      // cleared board: main answers `{tasks: []}` when JSON.parse fails, and
+      // tasks.json is rewritten in place (by the harness and by agents), so a
+      // poll that lands mid-write sees half a file. Accepting that would blank
+      // every board, card and "Asked you" chip for a whole poll. Confirm with
+      // one more read before believing the board was emptied.
+      if (tasks.length === 0 && snapshot.loaded && snapshot.tasks.length > 0) {
+        await new Promise((r) => setTimeout(r, EMPTY_CONFIRM_MS));
+        tasks = parse(await window.cth.hiveTasks());
+      }
       // Keep identity when nothing changed, so subscribers do not re-render
       // every five seconds for a ledger nobody touched.
       if (!snapshot.loaded || JSON.stringify(tasks) !== JSON.stringify(snapshot.tasks)) {

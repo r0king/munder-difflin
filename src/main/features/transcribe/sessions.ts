@@ -64,6 +64,9 @@ interface SessionMeta extends SessionRecord {
 export class SessionStore {
   readonly root: string;
   private open = new Map<string, OpenSession>();
+  /** Who recorded each session closed during this run, so that renderer can
+   *  still discard its own recording after stopping it (review → cancel). */
+  private closedOwners = new Map<string, number>();
   private onChange: () => void;
 
   constructor(root: string, onChange: () => void = () => {}) {
@@ -156,6 +159,7 @@ export class SessionStore {
       return { ok: false, sessionId: id, durationMs: 0, error: 'not your session' };
     }
     this.open.delete(id);
+    this.rememberOwner(id, s.ownerId);
     let maxBytes = 0;
     const out: FinalizeResult = { ok: true, sessionId: id, durationMs: 0 };
     for (const track of TRACKS) {
@@ -196,13 +200,23 @@ export class SessionStore {
         if (w) try { closeSync(w.fd); } catch { /* closed */ }
       }
       this.onChange();
-    } else if (ownerId !== undefined) {
-      // A renderer may only delete what it still holds open; closed sessions
-      // are main's (retention) to delete.
+    } else if (ownerId !== undefined && this.closedOwners.get(id) !== ownerId) {
+      // A renderer may only delete its own recordings; anything else is
+      // main's (retention) to delete.
       return false;
     }
+    this.closedOwners.delete(id);
     this.removeDir(id);
     return true;
+  }
+
+  private rememberOwner(id: string, ownerId: number): void {
+    this.closedOwners.set(id, ownerId);
+    // Bounded: only recent recordings need it.
+    if (this.closedOwners.size > 200) {
+      const oldest = this.closedOwners.keys().next().value;
+      if (oldest !== undefined) this.closedOwners.delete(oldest);
+    }
   }
 
   /** What a closed session left on disk. */

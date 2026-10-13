@@ -48,7 +48,9 @@ export function MemoryScreen({ config, query }: MemoryScreenProps) {
   const search = useMemorySearch();
   const [input, setInput] = useState(query ?? search.submitted);
   const [view, setView] = useState<View>(() => loadWsPref<View>('memory.view', 'results', isView));
-  const [selected, setSelected] = useState<Map<string, SelectedResult>>(() => new Map());
+  // Ticked results, with the search each came from: a selection can gather
+  // results across several searches before it is sent.
+  const [selected, setSelected] = useState<Map<string, { item: SelectedResult; query: string }>>(() => new Map());
   const [openNote, setOpenNote] = useState<NoteHit | null>(null);
   const lastRun = useRef<string | null>(null);
 
@@ -88,10 +90,10 @@ export function MemoryScreen({ config, query }: MemoryScreenProps) {
     has: (key) => selected.has(key),
     toggle: (key, item) => setSelected((prev) => {
       const next = new Map(prev);
-      if (next.has(key)) next.delete(key); else next.set(key, item);
+      if (next.has(key)) next.delete(key); else next.set(key, { item, query: search.submitted });
       return next;
     })
-  }), [selected]);
+  }), [selected, search.submitted]);
 
   const openAgent = useCallback((id: string) => {
     navigate(names.isGod(id) ? { kind: 'orchestrator' } : { kind: 'agent', agentId: id });
@@ -128,7 +130,12 @@ export function MemoryScreen({ config, query }: MemoryScreenProps) {
     />
   );
 
-  const selectedList = useMemo(() => [...selected.values()], [selected]);
+  const selectedList = useMemo(() => [...selected.values()].map((s) => s.item), [selected]);
+  // Name the search in the context block only when every result came from it.
+  const selectedQuery = useMemo(() => {
+    const qs = new Set([...selected.values()].map((s) => s.query));
+    return qs.size === 1 ? [...qs][0] : '';
+  }, [selected]);
   const noteKey = openNote ? resultKey(openNote) : null;
   const searched = !!search.submitted;
 
@@ -196,7 +203,7 @@ export function MemoryScreen({ config, query }: MemoryScreenProps) {
 
           <SendBar
             selected={selectedList}
-            query={search.submitted}
+            query={selectedQuery}
             names={names}
             onClear={() => setSelected(new Map())}
           />

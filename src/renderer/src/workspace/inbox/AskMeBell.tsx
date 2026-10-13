@@ -62,7 +62,8 @@ export function AskMeBell() {
       <button
         ref={bell}
         type="button"
-        className="cth-ws-inbox-bell cth-tip"
+        // The styled tip only while closed: an open popover says it already.
+        className={open ? 'cth-ws-inbox-bell' : 'cth-ws-inbox-bell cth-tip'}
         data-tip={open ? undefined : t('wsInbox.bell.tip', { count })}
         aria-label={t('wsInbox.bell.aria', { count })}
         aria-haspopup="dialog"

@@ -113,8 +113,9 @@ export function useConnections(): { records: IntegrationRecordView[] | null; rel
 
 type WorkersData = Awaited<ReturnType<typeof window.cth.listWorkers>>;
 
-/** Temps, plus the live worker list for running temps' token counters. */
-export function useTemps(): {
+/** Temps, plus (with `withWorkers`) the live worker list for running temps'
+ *  token counters. */
+export function useTemps(withWorkers = true): {
   temps: TempsState | null;
   workers: WorkersData | null;
   error: boolean;
@@ -128,7 +129,7 @@ export function useTemps(): {
   }, []);
   useEffect(() => { reload(); }, [reload]);
   useChanged(['temps'], reload);
-  const live = (temps?.active ?? []).some((t) => t.state === 'running' || t.state === 'starting');
+  const live = withWorkers && (temps?.active ?? []).some((t) => t.state === 'running' || t.state === 'starting');
   useEffect(() => {
     if (!live) return;
     const poll = () => { window.cth.listWorkers().then(setWorkers).catch(() => { /* main busy */ }); };

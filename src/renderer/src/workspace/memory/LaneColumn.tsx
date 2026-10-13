@@ -5,7 +5,7 @@
  */
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Chip, Section, Spinner } from '../ui';
+import { Button, Section, Spinner } from '../ui';
 import { needlesOf, parseQuery } from '@shared/workspace/memoryQuery';
 import type { AnswerAgent, AnswerTicket, MemoryLane, NoteHit } from '@shared/workspace/memoryTypes';
 import type { SelectedResult } from '@shared/workspace/memoryContext';
@@ -134,7 +134,7 @@ export function LaneColumn(props: LaneColumnProps) {
     const key = (r: AnswerTicket | AnswerAgent | NoteHit) => resultKey(r);
     body = (
       <>
-        {result?.partial && <Chip tone="warn">{t('wsMemory.exact.partial')}</Chip>}
+        {result?.partial && <div className="cth-ws-memory-sub" role="note">{t('wsMemory.exact.partial')}</div>}
         {result?.notice && <div className="cth-ws-memory-sub" dir="auto">{result.notice}</div>}
         {result?.raw && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cth-space-1)' }}>

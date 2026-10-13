@@ -38,9 +38,10 @@ function api() {
   return window.cth?.features?.sidebar;
 }
 
+/** Stable for a language (it sits in useCallback deps below). */
 function useErrorText(): (code: NoteErrorCode | string, message?: string) => string {
   const { t } = useTranslation();
-  return (code, message) => {
+  return useCallback((code: NoteErrorCode | string, message?: string) => {
     switch (code) {
       case 'no-hive': return t('wsSidebar.notes.errors.noHive');
       case 'not-found': return t('wsSidebar.notes.errors.notFound');
@@ -48,7 +49,7 @@ function useErrorText(): (code: NoteErrorCode | string, message?: string) => str
       case 'invalid': return t('wsSidebar.notes.errors.invalid');
       default: return t('wsSidebar.notes.errors.io', { message: message ?? code });
     }
-  };
+  }, [t]);
 }
 
 /** The snippet with its match marked. */
@@ -177,9 +178,12 @@ function NoteEditor({ slug, focus, onClose, onSlugChange, onFlash }: {
   /** Write the body now. `force` overwrites whatever is on disk (Keep mine). */
   const save = useCallback(async (force = false): Promise<void> => {
     if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
-    const current = docRef.current;
-    if (!current || (!dirtyRef.current && !force)) return;
+    if (!docRef.current || (!dirtyRef.current && !force)) return;
+    // One write at a time; the next one is versioned against what the last
+    // one produced, so it is read only after waiting.
     if (saving.current) { await saving.current; if (!dirtyRef.current && !force) return; }
+    const current = docRef.current;
+    if (!current) return;
     const text = bodyRef.current;
     setState('saving');
     const run = (async () => {
@@ -211,8 +215,11 @@ function NoteEditor({ slug, focus, onClose, onSlugChange, onFlash }: {
     try { await run; } finally { if (saving.current === run) saving.current = null; }
   }, [errorText]);
 
-  // Flush on close/unmount (switching notes, collapsing the sidebar).
-  useEffect(() => () => { if (dirtyRef.current) void save(); }, [save]);
+  // Flush on close/unmount (switching notes, collapsing the sidebar) — once,
+  // through a ref, so a re-render never counts as an unmount.
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(() => () => { if (dirtyRef.current) void saveRef.current(); }, []);
 
   const onBody = (v: string) => {
     bodyRef.current = v;
@@ -583,12 +590,11 @@ export function NotesSection({ harnessHome }: { harnessHome: string | null }) {
       ) : hits && hits.length === 0 ? (
         <div className="cth-ws-sidebar-quiet">{t('wsSidebar.notes.noMatch', { query: query.trim() })}</div>
       ) : (
-        <div role="list">
+        <div>
           {rows.filter((r) => r.slug !== open?.slug).map((r) => (
             <button
               key={r.slug}
               type="button"
-              role="listitem"
               className="cth-ws-navrow cth-ws-sidebar-note"
               title={`${r.title} — ${new Date(r.updatedAt).toLocaleString(i18n.language)}`}
               onClick={() => setOpen({ slug: r.slug, focus: 'body' })}

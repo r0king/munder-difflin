@@ -137,7 +137,7 @@ export function WorkspaceSidebar({ config }: WorkspaceSidebarProps) {
       </div>
 
       {!agentsNotesOnly && (
-        <div className="cth-ws-sidebar-nav" role="list">
+        <div className="cth-ws-sidebar-nav">
           {NAV.map((item) => {
             const b = badge(item.kind);
             const label = t(`ws.nav.${item.kind}`);
@@ -145,7 +145,6 @@ export function WorkspaceSidebar({ config }: WorkspaceSidebarProps) {
               <button
                 key={item.kind}
                 type="button"
-                role="listitem"
                 className="cth-ws-navrow"
                 aria-current={route.kind === item.kind ? 'page' : undefined}
                 aria-label={b ? `${label}, ${b.tip}` : label}
