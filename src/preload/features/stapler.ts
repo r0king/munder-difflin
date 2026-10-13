@@ -100,7 +100,10 @@ export const staplerApi = {
   send: (req: StaplerSendRequest): Promise<StaplerResult> => invoke('send', req),
 
   // ─── Meetings ──────────────────────────────────────────────────────────────
-  meetingStart: (): Promise<{ ok: boolean; id?: string; startedAt?: string; error?: string }> => invoke('meetingStart'),
+  /** `sessionId`: the capture session the audio goes into (kept on the
+   *  meeting, so an interrupted one can be transcribed later). */
+  meetingStart: (sessionId?: string): Promise<{ ok: boolean; id?: string; startedAt?: string; error?: string }> =>
+    invoke('meetingStart', sessionId),
   meetingAbort: (id: string): Promise<StaplerResult> => invoke('meetingAbort', id),
   meetingTranscribing: (id: string, req: MeetingTranscribingRequest): Promise<StaplerResult> =>
     invoke('meetingTranscribing', id, req),

@@ -170,12 +170,16 @@ test('cancel always lands in idle and keeps typed text; discard clears it', () =
   assert.equal(d.phase, 'idle');
 });
 
-test('a second start while busy is ignored; stop during starting goes to stopping', () => {
-  let s = run([{ type: 'start', kind: 'message', sessionId: SID, now: 0 }]);
-  const again = f.flowReducer(s, { type: 'start', kind: 'message', sessionId: 'stapler-msg-new-000002', now: 1 });
+test('a second start while busy is ignored; stop during starting cancels (nothing recorded yet)', () => {
+  let s = run([{ type: 'start', kind: 'meeting', sessionId: SID, now: 0 }]);
+  const again = f.flowReducer(s, { type: 'start', kind: 'meeting', sessionId: 'stapler-mtg-new-000002', now: 1 });
   assert.equal(again.sessionId, SID);
+  // A double press of the meeting shortcut must not leave a junk meeting.
   s = f.flowReducer(s, { type: 'stop', now: 1 });
-  assert.equal(s.phase, 'stopping');
+  assert.equal(s.phase, 'idle');
+  assert.equal(s.sessionId, null);
+  // The late 'started' of the cancelled session moves nothing.
+  assert.equal(f.flowReducer(s, { type: 'started', sessionId: SID, now: 2 }).phase, 'idle');
 });
 
 test('canSend needs text or attachments, and an idle phase', () => {

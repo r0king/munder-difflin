@@ -45,6 +45,9 @@ function writeAtomic(file: string, body: string): void {
 export interface MeetingStart {
   startedAt: Date;
   title?: string;
+  /** The capture session the audio goes into, so a meeting cut off while
+   *  recording (quit, crash) can still be transcribed from the library. */
+  sessionId?: string;
 }
 
 export interface MeetingFinish {
@@ -161,6 +164,7 @@ export class MeetingStore {
       segments: [],
       updatedAt: start.startedAt.toISOString()
     };
+    if (start.sessionId) rec.sessionId = start.sessionId;
     return this.save(rec);
   }
 

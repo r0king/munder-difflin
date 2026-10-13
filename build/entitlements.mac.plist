@@ -21,10 +21,11 @@
   <!-- Persist user-granted file access (the "Documents folder" grant). -->
   <key>com.apple.security.files.user-selected.read-write</key>
   <true/>
-  <!-- The mic is captured via getUserMedia by two opt-in voice features: Free
+  <!-- The mic is captured via getUserMedia by the opt-in voice features: the
+       Stapler's Record message / Record meeting, Dictate into any app, Free
        Flow dictation and Realtime Michael (live voice chat). Under the hardened
        runtime this resource-access entitlement is required for mic capture; it
-       is inert unless the user turns one of those features on. -->
+       is inert unless the user records with one of them. -->
   <key>com.apple.security.device.audio-input</key>
   <true/>
   <!-- Dictate into any app (opt-in) asks System Events to press Command-V in

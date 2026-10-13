@@ -79,14 +79,16 @@ export function useRecorder(kind: FlowKind, opts: { onSend?: (text: string) => P
 
   /** Drop the live capture. `discard`: the user cancelled (throw the audio
    *  and an empty meeting folder away); otherwise it failed (keep the folder,
-   *  marked failed). */
+   *  marked failed). A failed meeting's audio is finalized, not deleted: the
+   *  meeting already names its session, so the library can transcribe it. */
   const release = useCallback((discard: boolean, error?: string) => {
     const live = capture.current;
     capture.current = null;
     if (live) {
       live.unsubscribe?.();
       setLevels(ZERO);
-      void live.handle.then((h) => h?.cancel()).catch(() => { /* already gone */ });
+      const keep = !discard && kind === 'meeting';
+      void live.handle.then(async (h) => { if (keep) await h?.stop(); else await h?.cancel(); }).catch(() => { /* already gone */ });
       void stapler().setRecording(null).catch(() => { /* main gone */ });
       const id = meetingId.current;
       if (kind === 'meeting' && id) {
@@ -106,8 +108,15 @@ export function useRecorder(kind: FlowKind, opts: { onSend?: (text: string) => P
       // Main first: the permission gate and "invisible while recording".
       await stapler().setRecording(kind);
       if (kind === 'meeting') {
-        const r = await stapler().meetingStart();
+        const r = await stapler().meetingStart(sessionId);
         if (!r.ok || !r.id) throw new Error(r.error || 'meeting-start');
+        if (capture.current !== live) {
+          // Cancelled (or stopped) before main answered: release() could not
+          // name this meeting yet, so drop its empty folder here.
+          resolve(null);
+          void stapler().meetingAbort(r.id).catch(() => { /* best-effort */ });
+          return;
+        }
         meetingId.current = r.id;
       }
       let micDeviceId: string | undefined;

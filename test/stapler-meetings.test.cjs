@@ -130,8 +130,14 @@ test('MeetingStore: create, finish, edit, search, delete — on disk', () => {
   assert.ok(fs.existsSync(path.join(dir, 'transcript.md')));
 
   // A second meeting in the same minute gets its own folder.
-  const second = store.create({ startedAt: new Date(2026, 9, 12, 14, 30) });
+  const second = store.create({ startedAt: new Date(2026, 9, 12, 14, 30), sessionId: 'stapler-mtg-xyz-654321' });
   assert.equal(second.id, '2026-10-12 1430 meeting 2');
+  // The capture session is known from the start, so a meeting cut off while
+  // recording can still be transcribed from the library.
+  assert.equal(store.get(second.id).sessionId, 'stapler-mtg-xyz-654321');
+  store.markInterrupted();
+  assert.equal(store.get(second.id).status, 'interrupted');
+  assert.equal(store.get(second.id).sessionId, 'stapler-mtg-xyz-654321');
 
   store.markTranscribing(created.id, 90_000, 'stapler-mtg-abc-123456');
   assert.equal(store.get(created.id).status, 'transcribing');

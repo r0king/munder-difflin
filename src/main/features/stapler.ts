@@ -620,9 +620,9 @@ function registerIpc(): void {
   puckOnly('send', (_e, req) => send(req));
 
   // ── Recording ──
-  puckOnly('meetingStart', () => {
+  puckOnly('meetingStart', (_e, sessionId) => {
     if (activeMeeting) return { ok: false, error: 'busy' };
-    const rec = store.create({ startedAt: new Date() });
+    const rec = store.create({ startedAt: new Date(), ...(isSessionId(sessionId) ? { sessionId } : {}) });
     activeMeeting = { id: rec.id, startedAt: rec.startedAt };
     publish();
     broadcastMeetings();

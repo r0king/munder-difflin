@@ -165,9 +165,11 @@ export function flowReducer(s: FlowState, e: FlowEvent): FlowState {
       if (s.phase !== 'starting' || e.sessionId !== s.sessionId) return s;
       return enter(s, 'recording', e.now, { startedAt: e.now });
     case 'stop':
-      // Stopping while the mic is still opening is a cancel of nothing yet:
-      // go straight to stopping and let the driver tear the capture down.
-      if (s.phase !== 'recording' && s.phase !== 'starting') return s;
+      // Stopping while the mic is still opening is a cancel of nothing yet
+      // (a double press of the meeting shortcut): back to idle, so the driver
+      // discards the capture and the empty meeting instead of transcribing it.
+      if (s.phase === 'starting') return flowReducer(s, { type: 'cancel', now: e.now });
+      if (s.phase !== 'recording') return s;
       return enter(s, 'stopping', e.now);
     case 'stopped':
       if (s.phase !== 'stopping' || e.sessionId !== s.sessionId) return s;
