@@ -10,6 +10,7 @@ const loadTs = require('./load-ts.cjs');
 
 const {
   isValidNoteSlug,
+  noteSlugFromFileName,
   slugifyNoteTitle,
   uniqueSlug,
   cleanNoteTitle,
@@ -37,6 +38,19 @@ test('slug validation refuses every traversal and separator trick', () => {
   for (const good of ['a', 'standup-notes', 'q3-plan-2026', 'x'.repeat(NOTE_SLUG_MAX), 'con-notes']) {
     assert.equal(isValidNoteSlug(good), true, `rejected ${good}`);
   }
+});
+
+test('noteSlugFromFileName: only `<valid slug>.md` is a sidebar note', () => {
+  assert.equal(noteSlugFromFileName('standup-notes.md'), 'standup-notes');
+  assert.equal(noteSlugFromFileName('a1.md'), 'a1');
+  for (const other of [
+    'Standup.md', 'draft 2.md', 'todo.txt', 'notes.markdown', '.md', 'x.MD', 'con.md',
+    '../evil.md', 'sub/dir.md', 'a--b.md', '-a.md', 'a.md.txt', '', 42, null, undefined
+  ]) {
+    assert.equal(noteSlugFromFileName(other), null, `took ${JSON.stringify(other)}`);
+  }
+  assert.equal(noteSlugFromFileName(`${'a'.repeat(NOTE_SLUG_MAX)}.md`), 'a'.repeat(NOTE_SLUG_MAX));
+  assert.equal(noteSlugFromFileName(`${'a'.repeat(NOTE_SLUG_MAX + 1)}.md`), null);
 });
 
 test('slugify folds accents and punctuation, and never yields an invalid slug', () => {

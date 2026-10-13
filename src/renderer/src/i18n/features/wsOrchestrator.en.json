@@ -191,7 +191,8 @@
     "continued": "Restarted. The conversation carried over.",
     "err": {
       "noTerminal": "He has no terminal to restart.",
-      "crossProvider": "A conversation cannot move to a different engine.",
+      "busy": "A restart of his terminal is already running.",
+      "crossEngine": "A conversation cannot move to a different engine.",
       "noSession": "No session is recorded for him yet, so there is nothing to continue. His terminal was left running.",
       "noTranscript": "His session transcript was not found, so it cannot continue. His terminal was left running.",
       "killFailed": "His terminal would not stop.",

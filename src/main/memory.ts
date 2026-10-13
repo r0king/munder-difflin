@@ -15,7 +15,7 @@
  */
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
+import { execFile, spawn, spawnSync } from 'node:child_process';
 import { ensureKilled } from './procKill';
 import { quarantineDirsToReap, quarantineStampMs, nextMineDelayMs } from './palaceReap';
 
@@ -110,8 +110,50 @@ export function mempalaceDevice(
 }
 const MEMPALACE_DEVICE = mempalaceDevice(process.platform, process.env.MEMPALACE_EMBEDDING_DEVICE);
 
+/** How long the PATH lookup for the CLI may take (an interactive login shell
+ *  sources the user's rc files, which can be slow). */
+const BIN_LOOKUP_TIMEOUT_MS = 3000;
+
+/** The PATH resolver to ask. Windows has no POSIX shell and uses `where` (and
+ *  a `.exe` suffix); everything else goes through the login shell, so a CLI a
+ *  user's rc files put on PATH is found even when the app was launched from
+ *  the dock with launchd's bare PATH. */
+function binLookupCommand(): [string, string[]] {
+  return process.platform === 'win32'
+    ? ['where', ['mempalace']]
+    : [process.env.SHELL ?? '/bin/zsh', ['-ilc', 'which mempalace']];
+}
+
+/** The resolver's answer as an existing path, or null. `where` lists every
+ *  match first-wins; a login shell may print rc-file noise before `which`'s
+ *  line, so its LAST line is the answer. */
+function binFromLookupOutput(stdout: string | null | undefined): string | null {
+  const out = (stdout ?? '').trim();
+  const p = process.platform === 'win32' ? out.split(/\r?\n/)[0]?.trim() : out.split('\n').pop();
+  return p && existsSync(p) ? p : null;
+}
+
+/** Common install locations (uv tool / homebrew / pip), when PATH had nothing. */
+function binFromInstallSpots(): string | null {
+  const home = process.env.HOME ?? process.env.USERPROFILE ?? '';
+  const candidates = process.platform === 'win32'
+    ? [
+        join(home, '.local', 'bin', 'mempalace.exe'),
+        join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Python', 'Scripts', 'mempalace.exe')
+      ]
+    : [
+        `${home}/.local/bin/mempalace`,
+        '/opt/homebrew/bin/mempalace',
+        '/usr/local/bin/mempalace'
+      ];
+  for (const c of candidates) if (c && existsSync(c)) return c;
+  return null;
+}
+
 export class MemoryManager {
   private binCache: string | null | undefined;
+  /** The asynchronous CLI lookup in flight (resolveBin), shared by callers. */
+  private binLookup: Promise<string | null> | null = null;
   private mineTimer: NodeJS.Timeout | null = null;
   private mineStopped = false;
   /** Current gap between mine passes. Widens while the palace is quarantining. */
@@ -135,46 +177,68 @@ export class MemoryManager {
     return h ? join(h, 'palace') : null;
   }
 
-  /** Resolve the mempalace CLI against the user's PATH + common uv/pip spots. */
+  /** Resolve the mempalace CLI against the user's PATH + common uv/pip spots.
+   *  Synchronous and cached: the first call (and the first after
+   *  resetBinCache) blocks the calling thread for the lookup — up to
+   *  BIN_LOOKUP_TIMEOUT_MS in a slow login shell. Code that can wait, and
+   *  anything on an IPC path, should `await resolveBin()` first. */
   bin(): string | null {
     if (this.binCache !== undefined) return this.binCache;
     let found: string | null = null;
-    const isWin = process.platform === 'win32';
-    // 1) Ask the shell/PATH resolver. Windows has no POSIX shell + uses `where`
-    //    and a `.exe` suffix; everything else goes through the login shell.
+    // 1) Ask the shell/PATH resolver.
     try {
-      if (isWin) {
-        const res = spawnSync('where', ['mempalace'], { encoding: 'utf8', timeout: 3000 });
-        const p = res.stdout.trim().split(/\r?\n/)[0]?.trim();
-        if (p && existsSync(p)) found = p;
-      } else {
-        const res = spawnSync(process.env.SHELL ?? '/bin/zsh', ['-ilc', 'which mempalace'], {
-          encoding: 'utf8', timeout: 3000
-        });
-        const p = res.stdout.trim().split('\n').pop();
-        if (p && existsSync(p)) found = p;
-      }
+      const [cmd, args] = binLookupCommand();
+      found = binFromLookupOutput(spawnSync(cmd, args, { encoding: 'utf8', timeout: BIN_LOOKUP_TIMEOUT_MS }).stdout);
     } catch { /* fall through */ }
     // 2) Probe common install locations (uv tool / homebrew / pip).
-    if (!found) {
-      const home = process.env.HOME ?? process.env.USERPROFILE ?? '';
-      const candidates = isWin
-        ? [
-            join(home, '.local', 'bin', 'mempalace.exe'),
-            join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Python', 'Scripts', 'mempalace.exe')
-          ]
-        : [
-            `${home}/.local/bin/mempalace`,
-            '/opt/homebrew/bin/mempalace',
-            '/usr/local/bin/mempalace'
-          ];
-      for (const c of candidates) if (c && existsSync(c)) { found = c; break; }
-    }
+    if (!found) found = binFromInstallSpots();
     this.binCache = found;
     return found;
   }
   /** Force re-resolution (e.g. after the user installs mempalace). */
   resetBinCache(): void { this.binCache = undefined; }
+
+  /**
+   * bin() without blocking: the same lookup through an asynchronous child,
+   * landing in the same cache (so bin(), status() and every CLI call after it
+   * answer from the cache). Concurrent callers share one lookup.
+   *
+   * A found CLI is kept; a cached "not installed" is looked for again, so an
+   * install while the app runs is noticed without a restart. `fresh` looks
+   * again even for a found one (refreshAsync). While a lookup runs, the
+   * previous answer keeps serving bin(), so nothing meanwhile falls back to
+   * the synchronous lookup.
+   */
+  resolveBin(opts: { fresh?: boolean } = {}): Promise<string | null> {
+    if (!opts.fresh && typeof this.binCache === 'string') return Promise.resolve(this.binCache);
+    if (this.binLookup) return this.binLookup;
+    const lookup: Promise<string | null> = this.lookupBinAsync()
+      .catch(() => null)
+      .then((found) => {
+        this.binCache = found;
+        return found;
+      })
+      .finally(() => { if (this.binLookup === lookup) this.binLookup = null; });
+    this.binLookup = lookup;
+    return lookup;
+  }
+
+  /** The asynchronous half of bin()'s lookup. */
+  private lookupBinAsync(): Promise<string | null> {
+    return new Promise((resolve) => {
+      const [cmd, args] = binLookupCommand();
+      try {
+        // stdout is read whatever the exit status, exactly as the synchronous
+        // lookup reads spawnSync's: `which` exits 1 for "not found", and a
+        // timed-out shell may still have printed the path.
+        execFile(cmd, args, { encoding: 'utf8', timeout: BIN_LOOKUP_TIMEOUT_MS, windowsHide: true }, (_err, stdout) => {
+          resolve(binFromLookupOutput(stdout) ?? binFromInstallSpots());
+        });
+      } catch {
+        resolve(binFromInstallSpots());
+      }
+    });
+  }
 
   available(): boolean { return this.bin() !== null; }
   enabled(): boolean { return this.getSettings().enabled; }
@@ -257,6 +321,15 @@ export class MemoryManager {
    */
   refresh(): MemoryStatus {
     this.resetBinCache();
+    this.start();
+    return this.status();
+  }
+
+  /** refresh() with the CLI lookup off the calling thread: the same fresh look,
+   *  re-arm and report. What the status IPC uses, so a poll never holds the
+   *  main process for a login shell's startup. */
+  async refreshAsync(): Promise<MemoryStatus> {
+    await this.resolveBin({ fresh: true });
     this.start();
     return this.status();
   }

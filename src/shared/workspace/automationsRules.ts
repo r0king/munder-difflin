@@ -19,6 +19,11 @@
  * edited mid-session reaches a running agent on its next prompt without a
  * restart. It is deliberately NOT the spawn-time system prompt, which must stay
  * volatile-free for prompt caching (see hive.ts injectedPrompt).
+ *
+ * Engines with no hook channel (Cursor, Crush, …) get their standing goal from
+ * the renderer instead, typed ahead of each queued message (useHive.ts
+ * withStandingGoal); `prependStandingGoal` folds the same rules into that
+ * preamble, so every engine reads one text and none reads it twice.
  */
 
 export interface HouseRule {
@@ -161,4 +166,25 @@ export function withHouseRules(goal: string | null, rules: readonly HouseRule[])
   const g = goal?.trim() ? goal.trim() : null;
   if (!block) return g;
   return g ? `${g}\n\n${block}` : block;
+}
+
+/**
+ * The `<goal>` preamble the renderer types ahead of a queued message for an
+ * engine that has no hook channel: the standing goal and the house rules,
+ * composed exactly as the hook server composes them (`withHouseRules`), so a
+ * Cursor agent reads the same briefing a Claude agent does.
+ *
+ * With no rules on, the output is byte-for-byte what it was before rules
+ * existed: the trimmed goal in a `<goal>` block, or the text untouched. Text
+ * that already carries a `<goal>` block is never wrapped twice.
+ *
+ * Like the goal, the rules ride on every delivery rather than once per
+ * session: without hooks there is no session start or compaction to key a
+ * one-time delivery on, and a briefing the agent has lost is worse than one it
+ * reads again.
+ */
+export function prependStandingGoal(goal: string | null | undefined, rules: readonly HouseRule[], text: string): string {
+  const briefing = withHouseRules(typeof goal === 'string' ? goal : null, rules);
+  if (!briefing || text.includes('<goal>')) return text;
+  return `<goal>\n${briefing}\n</goal>\n\n${text}`;
 }

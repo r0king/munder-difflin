@@ -12,6 +12,8 @@
  *
  * Saving follows the Workspace rule — no Save button: the body saves a moment
  * after you stop typing and when you leave it; a title saves on Enter or blur.
+ *
+ * Other screens open a note here with `openSidebarNote(slug)` (./openNote.ts).
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -30,6 +32,7 @@ import { deliverToAgent } from '../deliver';
 import { Button, IconButton, SearchInput, Spinner, WsIcon } from '../ui';
 import { MenuList, Popover, type MenuEntry, type PopoverAnchor } from './Popover';
 import { relativeTime } from './format';
+import { useSidebarNoteRequest } from './openNote';
 
 const SAVE_DEBOUNCE_MS = 800;
 const SEARCH_DEBOUNCE_MS = 180;
@@ -415,6 +418,27 @@ export function NotesSection({ harnessHome }: { harnessHome: string | null }) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ text: string; error?: boolean } | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+
+  // A note another screen asked for (Memory's "Edit in sidebar"): open it,
+  // and bring the editor into view — Notes sits below the agents, often out
+  // of sight. An open editor on another note flushes its own save on unmount.
+  const request = useSidebarNoteRequest((s) => s.pending);
+  const reveal = useRef(false);
+  useEffect(() => {
+    if (!request) return;
+    useSidebarNoteRequest.getState().take(request.seq);
+    setCreating(false);
+    setMenu(null);
+    reveal.current = true;
+    setOpen({ slug: request.slug, focus: 'body' });
+  }, [request]);
+  // After the commit that put the editor in the DOM.
+  useEffect(() => {
+    if (!open || !reveal.current) return;
+    reveal.current = false;
+    sectionRef.current?.querySelector('.cth-ws-sidebar-editor')?.scrollIntoView({ block: 'nearest' });
+  }, [open]);
 
   const showFlash = useCallback((msg: { text: string; error?: boolean }) => {
     setFlash(msg);
@@ -527,7 +551,7 @@ export function NotesSection({ harnessHome }: { harnessHome: string | null }) {
   ] : [];
 
   return (
-    <section className="cth-ws-sidebar-section" aria-label={t('wsSidebar.notes.title')}>
+    <section ref={sectionRef} className="cth-ws-sidebar-section" aria-label={t('wsSidebar.notes.title')}>
       <div className="cth-ws-sidebar-section-head">
         <h2 className="cth-ws-sidebar-section-title">
           {t('wsSidebar.notes.title')}

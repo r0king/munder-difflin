@@ -22,6 +22,8 @@ import { inboxNudgeText } from '../../../shared/hiveNudge';
 import { resolveGodName } from '../../../shared/godIdentity';
 import { acquireTerminal, resetTerminal, isTerminalAutomationSafe } from '@/components/terminalPool';
 import { canDeliverToAgent, deliverWithAcknowledgement, checkPrecondition } from './queueDelivery';
+import { prependStandingGoal } from '../../../shared/workspace/automationsRules';
+import { currentHouseRules, startHouseRulesFeed } from '@/workspace/automations/houseRulesFeed';
 import { OFFICE_CAST, DEFAULT_CHARACTER } from '@/scene/office/cast';
 
 const GOD_ID = 'god';
@@ -62,12 +64,13 @@ function usesHookStandingGoal(agent: Agent): boolean {
 }
 
 /** Prepend `<goal>…</goal>` for engines that cannot inject via hooks. Reads the
- *  live store field, so a just-saved goal is picked up on the next queue flush. */
+ *  live store field, so a just-saved goal is picked up on the next queue flush.
+ *  The Automations screen's house rules ride in the same block, composed as the
+ *  hook server composes them for everyone else; with no rule on, the text is
+ *  exactly the goal-only preamble. */
 function withStandingGoal(agent: Agent, text: string): string {
-  const goal = agent.goal?.trim();
-  if (!goal || usesHookStandingGoal(agent)) return text;
-  if (text.includes('<goal>')) return text;
-  return `<goal>\n${goal}\n</goal>\n\n${text}`;
+  if (usesHookStandingGoal(agent)) return text;
+  return prependStandingGoal(agent.goal, currentHouseRules(), text);
 }
 
 // The first thing Michael (god) is told on a fresh spawn — orient him and put
@@ -728,6 +731,10 @@ export function useHive(config: HarnessConfig | null): void {
     }, 4000);
     return () => clearInterval(iv);
   }, [config?.onboardingComplete]);
+
+  // The house rules withStandingGoal folds in: fetched now, so the first
+  // delivery after launch already has them.
+  useEffect(() => { startHouseRulesFeed(); }, []);
 
   // 3b) Seed a fresh "type-into-tui" worker (Crush) with the hive protocol. Its
   //     bare TUI rejects a positional seed (Cobra reads it as a subcommand →

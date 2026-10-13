@@ -50,6 +50,19 @@ export function isValidNoteSlug(value: unknown): value is string {
 }
 
 /**
+ * The slug of a file in the notes folder, or null when the file is not one of
+ * the sidebar's notes: exactly `<slug>.md` with a valid slug, as main lists
+ * them. Anything else in the folder (`Draft 2.md`, `todo.txt`, `CON.md`) is
+ * searchable from Memory but cannot be opened in the sidebar's editor, which
+ * names notes by slug only.
+ */
+export function noteSlugFromFileName(file: unknown): string | null {
+  if (typeof file !== 'string' || !file.endsWith('.md')) return null;
+  const slug = file.slice(0, -'.md'.length);
+  return isValidNoteSlug(slug) ? slug : null;
+}
+
+/**
  * A title → a slug candidate. Accents fold to their base letter (`Café` →
  * `cafe`); anything else outside [a-z0-9] becomes a hyphen. A title with no
  * Latin letters at all (Chinese, Arabic) slugs to `note` — the title itself is

@@ -13,7 +13,7 @@ const loadTs = require('./load-ts.cjs');
 
 const {
   newHouseRule, newHouseRuleId, isHouseRuleId, sanitizeHouseRule, sanitizeHouseRules,
-  houseRulesBlock, withHouseRules,
+  houseRulesBlock, withHouseRules, prependStandingGoal,
   HOUSE_RULE_NAME_MAX, HOUSE_RULE_TEXT_MAX, HOUSE_RULES_MAX, HOUSE_RULES_INJECT_MAX
 } = loadTs('src/shared/workspace/automationsRules.ts');
 
@@ -99,4 +99,33 @@ test('withHouseRules folds into the standing goal, either half optional', () => 
   assert.ok(both.startsWith('Ship the login page.\n\n<context-rules>'));
   // The hook server re-delivers only when the text changes: same input, same text.
   assert.equal(withHouseRules('Ship the login page.', rules), both);
+});
+
+test('prependStandingGoal: with no rules on, the no-hook preamble is exactly what it always was', () => {
+  // The renderer's withStandingGoal before house rules existed, kept here as
+  // the reference: Classic must not change for anyone who never writes a rule.
+  const legacy = (goal, text) => {
+    const g = goal?.trim();
+    if (!g) return text;
+    if (text.includes('<goal>')) return text;
+    return `<goal>\n${g}\n</goal>\n\n${text}`;
+  };
+  const off = [rule({ enabled: false })];
+  for (const goal of [undefined, null, '', '   ', 'Ship the login page.', '  Ship it.\n']) {
+    for (const text of ['Fix the bug.', '', '<goal>\nold\n</goal>\n\nhi']) {
+      assert.equal(prependStandingGoal(goal, [], text), legacy(goal, text), `${JSON.stringify(goal)} / ${JSON.stringify(text)}`);
+      assert.equal(prependStandingGoal(goal, off, text), legacy(goal, text));
+    }
+  }
+});
+
+test('prependStandingGoal: rules ride in the same <goal> block the hook server sends', () => {
+  const rules = [rule({})];
+  const withGoal = prependStandingGoal('Ship the login page.', rules, 'Fix the bug.');
+  assert.equal(withGoal, `<goal>\n${withHouseRules('Ship the login page.', rules)}\n</goal>\n\nFix the bug.`);
+  assert.ok(withGoal.includes('<context-rules>') && withGoal.endsWith('\n\nFix the bug.'));
+  // No goal: the rules alone still reach the agent.
+  assert.equal(prependStandingGoal(undefined, rules, 'Hi'), `<goal>\n${houseRulesBlock(rules)}\n</goal>\n\nHi`);
+  // Already briefed (a re-queued message): never wrapped twice.
+  assert.equal(prependStandingGoal('G', rules, withGoal), withGoal);
 });

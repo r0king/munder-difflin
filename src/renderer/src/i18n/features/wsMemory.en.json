@@ -121,6 +121,8 @@
     "selected": "Selected",
     "copyPath": "Copy path",
     "copied": "Copied",
+    "editInSidebar": "Edit in sidebar",
+    "editInSidebarTip": "Open this note in the sidebar's notes editor.",
     "truncated": "This file is long; showing the first part.",
     "moved": "That section has changed since the search; showing the whole file."
   },

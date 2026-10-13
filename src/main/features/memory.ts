@@ -94,10 +94,13 @@ async function searchByMeaning(ctx: FeatureContext, raw: unknown): Promise<Memor
   if (!root) return base({ query: q.raw, state: 'no-hive' });
 
   const mm = palaceFor(ctx);
-  // status() resolves the CLI once and caches it. A user who installed
-  // mempalace after this instance first looked gets one fresh look here.
-  let st = mm.status();
-  if (!st.available) { mm.resetBinCache(); st = mm.status(); }
+  // Find the CLI off the main thread. bin() would look synchronously through a
+  // login shell — seconds of a frozen window on the first search, and on every
+  // search while mempalace is missing. resolveBin() caches a found CLI and
+  // looks again for a missing one (installed since), and status() below then
+  // answers from that cache.
+  await mm.resolveBin();
+  const st = mm.status();
   if (!st.available) return base({ query: q.raw, state: 'not-installed' });
   if (!st.enabled) return base({ query: q.raw, state: 'disabled' });
   if (!st.initialized) return base({ query: q.raw, state: 'not-ready' });

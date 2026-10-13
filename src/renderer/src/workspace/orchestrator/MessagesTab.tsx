@@ -8,12 +8,14 @@
  * The composer is the existing MessageQueueComposer — Send queues the message
  * until he is free, with the queue's reorder / edit / send-now controls. Steer
  * is added beside it through deliverToAgent's 'steer' mode: it takes the same
- * draft (the store keeps drafts per agent) and lands it on his next turn.
+ * draft (the store keeps drafts per agent) and the same staged files (held
+ * here and handed to the composer, so both buttons see one set) and lands
+ * them on his next turn.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore, type Agent } from '@/store/store';
-import { MessageQueueComposer } from '@/components/MessageQueueComposer';
+import { MessageQueueComposer, type ComposerAttachment } from '@/components/MessageQueueComposer';
 import { deliverToAgent } from '../deliver';
 import { Button, Chip, EmptyState, SegmentedControl, Spinner } from '../ui';
 import {
@@ -39,6 +41,11 @@ export function MessagesTab({ god }: { god: Agent }) {
   const [items, setItems] = useState<ConversationItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [scope, setScope] = useState<ConversationScope>('all');
+  // The composer's staged files, held here so Steer sends them as Send does.
+  // Cleared when the orchestrator changes (the composer's own would be, by its
+  // remount).
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+  useEffect(() => { setAttachments([]); }, [god.id]);
 
   const load = useCallback(async () => {
     try {
@@ -127,8 +134,8 @@ export function MessagesTab({ god }: { god: Agent }) {
           })
         )}
       </div>
-      <SteerBar god={god} />
-      <MessageQueueComposer agent={god} />
+      <SteerBar god={god} attachments={attachments} onSent={() => setAttachments([])} />
+      <MessageQueueComposer agent={god} attachments={attachments} onAttachmentsChange={setAttachments} />
     </>
   );
 }
@@ -172,8 +179,9 @@ function MessageItem({ item, label, lang }: { item: ConversationItem; label: (id
   );
 }
 
-/** Steer: the composer's draft, landed on his next turn instead of queued. */
-function SteerBar({ god }: { god: Agent }) {
+/** Steer: the composer's draft and files, landed on his next turn instead of
+ *  queued. */
+function SteerBar({ god, attachments, onSent }: { god: Agent; attachments: ComposerAttachment[]; onSent: () => void }) {
   const { t } = useTranslation();
   const draft = useStore((s) => s.drafts[god.id] ?? '');
   const setDraft = useStore((s) => s.setDraft);
@@ -184,14 +192,23 @@ function SteerBar({ god }: { god: Agent }) {
     const id = setTimeout(() => setNote(null), 4000);
     return () => clearTimeout(id);
   }, [note]);
+  // Files alone are a message too, as they are for Send.
+  const canSteer = !!draft.trim() || attachments.length > 0;
   const steer = async () => {
-    const text = draft.trim();
-    if (!text) return;
+    if (!canSteer) return;
     setBusy(true);
     try {
-      const res = await deliverToAgent({ target: { kind: 'orchestrator' }, text, mode: 'steer', source: 'orchestrator-screen' });
+      const res = await deliverToAgent({
+        target: { kind: 'orchestrator' },
+        text: draft.trim(),
+        // Paths: deliverToAgent writes the composer's "Attached files:" block.
+        attachments: attachments.map((a) => a.path),
+        mode: 'steer',
+        source: 'orchestrator-screen'
+      });
       if (res.ok) {
         setDraft(god.id, '');
+        onSent();
         setNote({ ok: true, text: t('wsOrchestrator.messages.steered', { godName: god.name }) });
       } else {
         setNote({ ok: false, text: t('wsOrchestrator.messages.steerFailed', { error: res.error ?? '' }) });
@@ -205,7 +222,7 @@ function SteerBar({ god }: { god: Agent }) {
       <span className={note && !note.ok ? 'cth-ws-orch-error' : 'cth-ws-orch-steer-hint'}>
         {note ? note.text : t('wsOrchestrator.messages.steerHint', { godName: god.name })}
       </span>
-      <Button size="sm" variant="secondary" disabled={busy || !draft.trim()} onClick={() => { void steer(); }}
+      <Button size="sm" variant="secondary" disabled={busy || !canSteer} onClick={() => { void steer(); }}
         title={t('wsOrchestrator.messages.steerTip')}>
         {t('wsOrchestrator.messages.steer')}
       </Button>

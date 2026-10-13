@@ -24,8 +24,8 @@ import {
 import { canReceiveInbox } from '@shared/agentProvider';
 import { isDurableRole } from '@shared/agentRole';
 import { Button, Section, Toggle } from '../ui';
+import { canResume as engineCanResume, restartAgentProcess, restartErrorText, useRestartState, type RestartResult } from '../agents/restartAgent';
 import { CommitInput } from './CommitInput';
-import { OrchestratorRestartError, restartOrchestrator } from './restart';
 
 const sameModel = (a: string | undefined, b: string | undefined): boolean => (a ?? '') === (b ?? '');
 
@@ -50,6 +50,9 @@ function EngineSection({ god }: { god: Agent }) {
   const [model, setModel] = useState<string | undefined>(god.model);
   const [busy, setBusy] = useState<'apply' | 'continue' | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  // A restart of him started elsewhere (the sidebar's menu) holds these
+  // buttons too: the restart module refuses a second one anyway.
+  const restartingElsewhere = useRestartState((s) => !!s.restarting[god.id]);
 
   // Follow a change made elsewhere (Classic's floor tab, a restore) while the
   // picker is untouched.
@@ -58,13 +61,14 @@ function EngineSection({ god }: { god: Agent }) {
   const engines = AGENT_PROVIDER_PRESETS.filter((p) => canReceiveInbox(p.id));
   const models = modelsForProvider(provider);
   const changed = provider !== running || !sameModel(model, god.model);
-  const preset = providerPreset(running);
-  const canResume = running === 'claude' || !!preset.resumeFlag || !!preset.resumeSubcommand;
+  const canResume = engineCanResume(god);
+  const held = !!busy || restartingElsewhere;
 
-  const explain = (e: unknown): string => {
-    if (e instanceof OrchestratorRestartError) return t(`wsOrchestrator.config.err.${e.code}`);
-    return e instanceof Error ? e.message : String(e);
-  };
+  // The restart itself is the Agents unit's (the one Workspace restart path);
+  // its refusals are worded here in his voice ("He has no terminal…"). An
+  // unexpected failure has no step code and shows main's message.
+  const explain = (res: RestartResult): string =>
+    res.code ? t(`wsOrchestrator.config.err.${res.code}`) : restartErrorText(t, res.error ?? '');
 
   const apply = async () => {
     if (provider !== running && !window.confirm(t('wsOrchestrator.config.confirmEngine', { godName: god.name, engine: providerPreset(provider).label }))) return;
@@ -74,7 +78,7 @@ function EngineSection({ god }: { god: Agent }) {
       // Persist first: god is respawned from these on every boot, so a change
       // that only reached the live terminal would revert at the next launch.
       await window.cth.updateConfig({ godProvider: provider, godModel: model });
-      const { resumed } = await restartOrchestrator(god, {
+      const res = await restartAgentProcess(god.id, {
         provider,
         model,
         // A model change on the same engine keeps the conversation (the point
@@ -82,9 +86,11 @@ function EngineSection({ god }: { god: Agent }) {
         resume: provider === running,
         resumeOptional: true
       });
-      setMessage({ ok: true, text: resumed ? t('wsOrchestrator.config.appliedResumed') : t('wsOrchestrator.config.appliedFresh') });
+      if (!res.ok) setMessage({ ok: false, text: explain(res) });
+      else setMessage({ ok: true, text: res.resumed ? t('wsOrchestrator.config.appliedResumed') : t('wsOrchestrator.config.appliedFresh') });
     } catch (e) {
-      setMessage({ ok: false, text: explain(e) });
+      // Only the config write above can throw; the restart answers instead.
+      setMessage({ ok: false, text: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(null);
     }
@@ -94,10 +100,8 @@ function EngineSection({ god }: { god: Agent }) {
     setBusy('continue');
     setMessage(null);
     try {
-      await restartOrchestrator(god, { resume: true });
-      setMessage({ ok: true, text: t('wsOrchestrator.config.continued') });
-    } catch (e) {
-      setMessage({ ok: false, text: explain(e) });
+      const res = await restartAgentProcess(god.id, { resume: true });
+      setMessage(res.ok ? { ok: true, text: t('wsOrchestrator.config.continued') } : { ok: false, text: explain(res) });
     } finally {
       setBusy(null);
     }
@@ -112,7 +116,7 @@ function EngineSection({ god }: { god: Agent }) {
             <select
               className="cth-ws-orch-select"
               value={provider}
-              disabled={!!busy}
+              disabled={held}
               aria-label={t('wsOrchestrator.config.engine')}
               onChange={(e) => {
                 const next = e.target.value as AgentProvider;
@@ -127,7 +131,7 @@ function EngineSection({ god }: { god: Agent }) {
             <select
               className="cth-ws-orch-select"
               value={model ?? ''}
-              disabled={!!busy}
+              disabled={held}
               aria-label={t('wsOrchestrator.config.model')}
               onChange={(e) => setModel(e.target.value || undefined)}
             >
@@ -143,11 +147,11 @@ function EngineSection({ god }: { god: Agent }) {
         </div>
       </div>
       <div className="cth-ws-orch-field-line">
-        <Button variant="primary" size="sm" disabled={!changed || !!busy || !god.ptyId} onClick={() => { void apply(); }}>
+        <Button variant="primary" size="sm" disabled={!changed || held || !god.ptyId} onClick={() => { void apply(); }}>
           {busy === 'apply' ? t('wsOrchestrator.config.restarting') : t('wsOrchestrator.config.apply')}
         </Button>
         {canResume && (
-          <Button size="sm" disabled={!!busy || !god.ptyId} onClick={() => { void restartContinue(); }} title={t('wsOrchestrator.config.continueTip')}>
+          <Button size="sm" disabled={held || !god.ptyId} onClick={() => { void restartContinue(); }} title={t('wsOrchestrator.config.continueTip')}>
             {busy === 'continue' ? t('wsOrchestrator.config.restarting') : t('wsOrchestrator.config.continue')}
           </Button>
         )}

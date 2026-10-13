@@ -191,7 +191,8 @@
     "continued": "已重启，对话已保留。",
     "err": {
       "noTerminal": "他没有可重启的终端。",
-      "crossProvider": "对话无法迁移到其他引擎。",
+      "busy": "他的终端已在重启中。",
+      "crossEngine": "对话无法迁移到其他引擎。",
       "noSession": "还没有记录他的会话，所以无法继续。他的终端保持运行。",
       "noTranscript": "找不到他的会话记录，所以无法继续。他的终端保持运行。",
       "killFailed": "无法停止他的终端。",

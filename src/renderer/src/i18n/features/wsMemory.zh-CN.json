@@ -121,6 +121,8 @@
     "selected": "已选中",
     "copyPath": "复制路径",
     "copied": "已复制",
+    "editInSidebar": "在侧边栏中编辑",
+    "editInSidebarTip": "在侧边栏的笔记编辑器中打开此笔记。",
     "truncated": "这个文件很长，只显示开头部分。",
     "moved": "搜索之后这一段已经改动，现显示整个文件。"
   },
