@@ -1,3 +1,145 @@
 {
-  "title": "记忆"
+  "title": "记忆",
+  "header": {
+    "topics": "{{count}} 个主题",
+    "topicsOne": "1 个主题",
+    "stats": "{{tickets}} 张工单 · {{agents}} 位有笔记的智能体 · {{notes}} 条你的笔记",
+    "documents": "{{count}} 份文档",
+    "statsTip": "主题是你的智能体、看板和你的笔记里写下的不同标题和关键词。",
+    "partial": "这一层规模很大：计数只覆盖几秒内能读完的部分。"
+  },
+  "view": {
+    "label": "视图",
+    "results": "结果",
+    "graph": "图谱"
+  },
+  "search": {
+    "placeholder": "问问这一层：关键词、工单编号、智能体……",
+    "aria": "搜索这一层的记忆",
+    "button": "搜索"
+  },
+  "intro": {
+    "title": "问问这一层都知道些什么",
+    "body": "智能体学到的一切都会成为一张由智能体、工单和笔记组成的图谱，保存在你的电脑上。可以按原词搜索，也可以按含义搜索。",
+    "hint": "把精确短语放进引号里，例如 \"login test\"。勾选结果，即可连同提示一起发给某个智能体。"
+  },
+  "lane": {
+    "exact": "精确匹配",
+    "meaning": "按含义",
+    "exactHint": "按你输入的原词，在智能体的记忆、工单、看板和你的笔记中查找",
+    "meaningHint": "即使用词不同也能找到相关笔记，来自 MemPalace 索引",
+    "count": "{{count}} 条结果",
+    "countOne": "1 条结果"
+  },
+  "exact": {
+    "searching": "正在搜索……",
+    "none": "没有与“{{query}}”精确匹配的内容。",
+    "noneHint": "试试少用几个词、去掉引号，或看看按含义能找到什么。",
+    "partial": "扫描达到了时间上限，因此这些结果并不完整。",
+    "error": "精确搜索失败：{{error}}",
+    "noHive": "请先打开一个蜂巢，再搜索它的记忆。"
+  },
+  "meaning": {
+    "checking": "正在检查 MemPalace……",
+    "searching": "正在按含义搜索……",
+    "slow": "第一次搜索需要加载语言模型，可能要一分钟左右。",
+    "none": "索引中暂时没有与“{{query}}”相关的内容。",
+    "notInstalledTitle": "按含义搜索尚未设置",
+    "notInstalledBody": "它需要这台电脑上安装 MemPalace。精确匹配不依赖它，照常可用。",
+    "setUp": "在“前置条件”中设置",
+    "checkAgain": "重新检查",
+    "disabledTitle": "按含义搜索已关闭",
+    "disabledBody": "打开后，可以按笔记的含义查找，而不仅仅是按它们用到的词。",
+    "turnOn": "打开",
+    "notReadyTitle": "索引仍在建立中",
+    "notReadyBody": "智能体的笔记会在后台建立索引，写下后十分钟内即可搜索。精确匹配现在就能用。",
+    "error": "按含义搜索失败：{{error}}",
+    "retry": "重试",
+    "unparsed": "MemPalace 返回的格式此版本无法读取。以下是它的原始输出："
+  },
+  "shapes": {
+    "tickets": "工单",
+    "agents": "智能体",
+    "notes": "笔记",
+    "showAll": "显示全部 {{count}} 条",
+    "showFewer": "收起"
+  },
+  "chip": {
+    "ticket": "工单",
+    "agent": "智能体",
+    "note": "笔记"
+  },
+  "ticket": {
+    "mentioned": "在笔记中被提到",
+    "nobody": "还没有人负责",
+    "open": "打开工单 {{id}}",
+    "status": {
+      "todo": "待办",
+      "doing": "进行中",
+      "blocked": "受阻",
+      "done": "已完成"
+    }
+  },
+  "agent": {
+    "tickets": "{{count}} 张工单",
+    "ticketsOne": "1 张工单",
+    "notes": "{{count}} 条笔记",
+    "notesOne": "1 条笔记",
+    "byName": "名称或职责匹配",
+    "left": "已离开这一层",
+    "orchestrator": "协调者",
+    "open": "打开 {{name}}"
+  },
+  "note": {
+    "from": "来自 {{name}}",
+    "fromWhen": "来自 {{name}}，{{when}}",
+    "fromYou": "来自你",
+    "fromYouWhen": "来自你，{{when}}",
+    "document": "文档",
+    "documentWhen": "文档，{{when}}",
+    "unknown": "一位已不在这一层的智能体",
+    "today": "今天",
+    "yesterday": "昨天",
+    "open": "打开笔记 {{title}}",
+    "source": {
+      "memory": "记忆",
+      "board": "看板",
+      "notes": "你的笔记",
+      "knowledge": "知识图谱",
+      "palace": "按含义"
+    }
+  },
+  "select": {
+    "aria": "选择 {{title}}"
+  },
+  "drawer": {
+    "aria": "笔记",
+    "close": "关闭",
+    "loading": "正在打开……",
+    "error": "无法打开这条笔记：{{error}}",
+    "select": "选中以发送",
+    "selected": "已选中",
+    "copyPath": "复制路径",
+    "copied": "已复制",
+    "truncated": "这个文件很长，只显示开头部分。",
+    "moved": "搜索之后这一段已经改动，现显示整个文件。"
+  },
+  "send": {
+    "selected": "已选 {{count}} 项",
+    "selectedOne": "已选 1 项",
+    "clear": "清除",
+    "to": "发送给",
+    "orchestrator": "{{godName}}（协调者）",
+    "archivedNote": "只有在这一层的智能体才能收到消息。",
+    "prompt": "要他们拿这些做什么？",
+    "promptAria": "随结果一起发送的提示",
+    "preview": "预览对方收到的内容",
+    "hidePreview": "隐藏预览",
+    "send": "发送",
+    "sending": "正在发送……",
+    "sendHint": "发送",
+    "sent": "已排队发给 {{name}}，对方一空闲就会收到。",
+    "open": "打开",
+    "failed": "无法发送：{{error}}"
+  }
 }

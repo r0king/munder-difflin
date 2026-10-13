@@ -74,6 +74,9 @@ export interface NoteHit {
   ticketRefs: string[];
   score: number;
   snippet: MemorySnippet;
+  /** The whole text, when there is no file to read it back from (a MemPalace
+   *  drawer is its own record). Capped by the parser. */
+  text?: string;
 }
 
 /** An agent matched directly, by name, id or role. */

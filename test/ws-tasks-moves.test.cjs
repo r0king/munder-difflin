@@ -74,6 +74,8 @@ test('reconcile drops vanished and already-applied moves and refreshes origins',
   assert.equal(r[0].title, 'Fix the flaky login test (renamed)');
   // Nothing to change → the same array instance (lets the store skip a write).
   assert.equal(mv.reconcileMoves(r, ledger), r);
+  // An empty ledger is a torn read (hive.tasks() falls back to []), not a wipe.
+  assert.equal(mv.reconcileMoves(s, []), s);
 });
 
 test('sent moves stay until the ledger acts on them, or they expire', () => {
@@ -82,7 +84,8 @@ test('sent moves stay until the ledger acts on them, or they expire', () => {
   const waiting = [{ id: 'bmt-12', title: 't', column: 'doing', assignee: 'dwight' }];
   assert.equal(mv.reconcileSent(sent, waiting, 6000), sent);
   assert.deepEqual(mv.reconcileSent(sent, [{ id: 'bmt-12', title: 't', column: 'done', assignee: 'dwight' }], 6000), []);
-  assert.deepEqual(mv.reconcileSent(sent, [], 6000), []);
+  assert.equal(mv.reconcileSent(sent, [], 6000), sent, 'torn read changes nothing');
+  assert.deepEqual(mv.reconcileSent(sent, [{ id: 'other', title: 'x', column: 'todo' }], 6000), []);
   assert.deepEqual(mv.reconcileSent(sent, waiting, 5000 + mv.SENT_MOVE_TTL_MS), []);
   // Re-sending a card replaces its older sent entry.
   const again = mv.markSent(sent, [{ ...s[0], toColumn: 'blocked' }], 7000);

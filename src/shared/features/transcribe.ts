@@ -49,6 +49,9 @@ export interface TranscribeResult {
   error?: string;
   /** Length of the audio that was transcribed. */
   durationMs?: number;
+  /** Something the user may want to know although it worked (e.g. Groq failed
+   *  and the local model was used instead). */
+  warning?: string;
 }
 
 export interface TranscribeOptions {
@@ -102,8 +105,9 @@ export interface TranscribeSessionOptions {
 }
 
 /** Session ids name a directory on disk, so they are strictly shaped: no dots,
- *  no separators, nothing a path could be built from. */
-const SESSION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{7,63}$/;
+ *  no separators, nothing a path could be built from. (Same shape the stapler
+ *  checks; `newSessionId` makes one.) */
+const SESSION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$/;
 
 export function isValidSessionId(id: unknown): id is string {
   return typeof id === 'string' && SESSION_ID_RE.test(id);
@@ -237,6 +241,9 @@ export interface TranscribeStatus {
   systemAudio: SystemAudioMode;
   /** How many built-in vocabulary terms ship with the app. */
   builtinVocabularyCount: number;
+  /** macOS only: Screen & System Audio Recording permission, which system
+   *  audio capture needs. */
+  screenAccess?: 'granted' | 'denied' | 'not-determined' | 'restricted' | 'unknown';
 }
 
 // ─── Channels ───────────────────────────────────────────────────────────────

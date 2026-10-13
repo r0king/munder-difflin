@@ -70,7 +70,8 @@ function usableTerm(t: string): boolean {
 /** Parse what the user typed. Null when there is nothing searchable in it. */
 export function parseQuery(input: string): ParsedQuery | null {
   if (typeof input !== 'string') return null;
-  const raw = input.replace(/\s+/g, ' ').trim().slice(0, MEMORY_QUERY_MAX).trim();
+  // Cut BEFORE the regex work: the string can arrive over IPC at any size.
+  const raw = input.slice(0, MEMORY_QUERY_MAX * 4).replace(/\s+/g, ' ').trim().slice(0, MEMORY_QUERY_MAX).trim();
   if (!raw) return null;
   const phrases: string[] = [];
   const rest = raw.replace(QUOTED, (_m, inner: string) => {

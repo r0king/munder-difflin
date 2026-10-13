@@ -51,7 +51,8 @@ export const MAX_NOTE_FILES = 2000;
 export const SCAN_BYTE_BUDGET = 96 * 1024 * 1024;
 /** Characters the cache may hold (text + folded copy count twice). */
 const CACHE_CHAR_CEILING = 160 * 1024 * 1024;
-const NOTE_EXTS = ['.md', '.markdown', '.txt'];
+/** What counts as a note file in `<hive>/notes` (the sidebar writes `.md`). */
+export const NOTE_EXTS = ['.md', '.markdown', '.txt'];
 
 // ─── Low-level reads ────────────────────────────────────────────────────────
 

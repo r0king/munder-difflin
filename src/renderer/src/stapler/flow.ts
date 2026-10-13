@@ -45,13 +45,15 @@ export interface FlowState {
   failedIn: FlowPhase | null;
   /** The recording hit its maximum length and was stopped automatically. */
   autoStopped: boolean;
+  /** Length of the last capture, once it is written. */
+  recordedMs: number;
 }
 
 export type FlowEvent =
   | { type: 'start'; kind: FlowKind; sessionId: string; now: number }
   | { type: 'started'; sessionId: string; now: number }
   | { type: 'stop'; now: number }
-  | { type: 'stopped'; sessionId: string; now: number }
+  | { type: 'stopped'; sessionId: string; durationMs: number; now: number }
   | { type: 'transcribed'; sessionId: string; text: string; now: number }
   | { type: 'edit'; text: string }
   | { type: 'send'; now: number }
@@ -82,6 +84,17 @@ export const DONE_LINGER_MS = 2_500;
 
 export const TIMEOUT_ERROR = 'timeout';
 
+/**
+ * The deadline for the current phase. Transcription scales with what was
+ * recorded — a two-hour meeting on the local model can honestly take longer
+ * than ten minutes — at twice real time, never less than the fixed floor.
+ */
+export function phaseTimeout(s: FlowState): number | undefined {
+  const base = PHASE_TIMEOUT_MS[s.phase];
+  if (s.phase === 'transcribing' && base !== undefined) return Math.max(base, 2 * s.recordedMs);
+  return base;
+}
+
 export const initialFlow = (now = 0): FlowState => ({
   phase: 'idle',
   kind: null,
@@ -91,7 +104,8 @@ export const initialFlow = (now = 0): FlowState => ({
   text: '',
   error: null,
   failedIn: null,
-  autoStopped: false
+  autoStopped: false,
+  recordedMs: 0
 });
 
 const BUSY: readonly FlowPhase[] = ['starting', 'recording', 'stopping', 'transcribing', 'sending'];
@@ -142,6 +156,7 @@ export function flowReducer(s: FlowState, e: FlowEvent): FlowState {
         error: null,
         failedIn: null,
         autoStopped: false,
+        recordedMs: 0,
         // A meeting's transcript lives in its folder, not in the note.
         text: e.kind === 'meeting' ? '' : s.text
       });
@@ -156,7 +171,7 @@ export function flowReducer(s: FlowState, e: FlowEvent): FlowState {
       return enter(s, 'stopping', e.now);
     case 'stopped':
       if (s.phase !== 'stopping' || e.sessionId !== s.sessionId) return s;
-      return enter(s, 'transcribing', e.now);
+      return enter(s, 'transcribing', e.now, { recordedMs: Math.max(0, e.durationMs) });
     case 'transcribed': {
       if (s.phase !== 'transcribing' || e.sessionId !== s.sessionId) return s;
       if (s.kind === 'meeting') return enter(s, 'done', e.now, { error: null, failedIn: null });
@@ -197,7 +212,7 @@ export function flowReducer(s: FlowState, e: FlowEvent): FlowState {
     case 'discard':
       return { ...initialFlow(e.now) };
     case 'tick': {
-      const limit = PHASE_TIMEOUT_MS[s.phase];
+      const limit = phaseTimeout(s);
       if (limit !== undefined && e.now - s.since > limit) {
         if (s.phase === 'sending') return enter(s, 'review', e.now, { error: TIMEOUT_ERROR, failedIn: 'sending' });
         return fail(s, TIMEOUT_ERROR, e.now);

@@ -124,3 +124,8 @@ test('mergeMarks and findMarks merge overlaps and sort', () => {
   assert.deepEqual(mergeMarks([[5, 8], [0, 2], [1, 3], [8, 9]]), [[0, 3], [5, 9]]);
   assert.deepEqual(findMarks('the login log', ['log', 'login']), [[4, 9], [10, 13]]);
 });
+
+test('parseQuery cuts an oversized input before doing any work on it', () => {
+  const q = parseQuery(`${'word '.repeat(2_000_000)}`);
+  assert.ok(q.raw.length <= 200);
+});

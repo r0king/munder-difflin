@@ -25,7 +25,7 @@ import type { HouseRule } from '@shared/workspace/automationsRules';
  *  keep identical key trees (Arabic alone has six plural forms). */
 export function intervalWords(t: TFunction, p: IntervalPhrase): string {
   const one = p.count === 1;
-  return t(`wsAutomations.every.${p.unit}${one ? 'One' : 'Many'}`, { count: p.count });
+  return t(`wsAutomations.every.${p.unit}${one ? 'One' : 'Many'}`, { n: p.count });
 }
 
 /** Short weekday names in the UI language, Sunday first like Date.getDay(). */

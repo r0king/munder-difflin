@@ -52,7 +52,6 @@ export interface MeetingFinish {
   segments: MeetingSegment[];
   engine?: string;
   error?: string;
-  audio?: { micWav?: string; systemWav?: string };
 }
 
 export class MeetingStore {
@@ -165,11 +164,15 @@ export class MeetingStore {
     return this.save(rec);
   }
 
-  /** Mark a recording meeting as being transcribed. */
-  markTranscribing(id: string, durationMs: number, audio?: MeetingFinish['audio']): MeetingRecord | null {
+  /** Mark a meeting as being transcribed (after the capture stopped, or on a
+   *  retry), remembering the capture session for the next retry. */
+  markTranscribing(id: string, durationMs: number, sessionId?: string): MeetingRecord | null {
     const rec = this.get(id);
     if (!rec) return null;
-    return this.save({ ...rec, status: 'transcribing', durationMs: Math.max(0, Math.round(durationMs)), ...(audio ? { audio } : {}) });
+    const next: MeetingRecord = { ...rec, status: 'transcribing', durationMs: Math.max(rec.durationMs, Math.round(durationMs)) };
+    if (sessionId) next.sessionId = sessionId;
+    delete next.error;
+    return this.save(next);
   }
 
   /** The transcript is in (or failed). */
@@ -185,7 +188,6 @@ export class MeetingStore {
     };
     if (f.engine) next.engine = f.engine;
     if (ok) delete next.error; else next.error = f.error;
-    if (f.audio) next.audio = f.audio;
     return this.save(next);
   }
 

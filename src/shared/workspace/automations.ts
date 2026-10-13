@@ -187,7 +187,8 @@ export interface AutomationSources {
  * automation" menu just put it. Sorting by on/off or by held deliveries would
  * move a row out from under the pointer the moment its switch is flipped or a
  * delivery arrives — held deliveries are surfaced in the screen header instead.
- * Ties (two built-ins) break by kind, then by name.
+ * Ties break by kind; built-ins then keep their gathered order, anything else
+ * goes by name.
  *
  * `compact-maintenance` (kind 'compact') is retired into the context trigger by
  * main on boot; if one survives in an old config it is not listed twice.
@@ -250,9 +251,14 @@ export function assembleAutomations(src: AutomationSources, now: number = Date.n
     });
   }
 
+  // Built-ins (age 0) keep the order they were gathered in — config order for
+  // the seeded schedules, then compact before clear — rather than an alphabet
+  // that would put the off-by-default, destructive auto-clear first.
+  const seq = new Map(items.map((item, i) => [item.key, i] as const));
   return items.sort((a, b) =>
     a.createdAt - b.createdAt
     || KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
+    || (a.createdAt === 0 ? (seq.get(a.key) ?? 0) - (seq.get(b.key) ?? 0) : 0)
     || a.name.localeCompare(b.name)
     || a.key.localeCompare(b.key));
 }

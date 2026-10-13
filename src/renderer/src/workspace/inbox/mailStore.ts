@@ -17,19 +17,21 @@ import {
   type InboxMessage,
   type ReadMarks
 } from '@shared/workspace/inboxMessages';
-import { applyReadMark } from '@shared/workspace/inboxSection';
+import { applyReadMark, mergeReadMarks } from '@shared/workspace/inboxSection';
 import type { ReadMarkEntry } from '@shared/workspace/inboxChannels';
 
 const POLL_MS = 15_000;
 /** Routed messages arrive in bursts (a broadcast, a router pass); one re-read
  *  per burst is plenty. */
-const EVENT_DEBOUNCE_MS = 400;
+const EVENT_DEBOUNCE_MS = 1000;
 
 export interface MailSnapshot {
   /** False until the first read lands. */
   loaded: boolean;
   /** False before onboarding: there is no hive folder to read. */
   hive: boolean;
+  /** The hive folder the mail came from; a change drops what was held. */
+  hiveId: string | null;
   /** Newest first. */
   messages: InboxMessage[];
   total: number;
@@ -39,9 +41,10 @@ export interface MailSnapshot {
   marks: ReadMarks;
 }
 
-let snapshot: MailSnapshot = {
-  loaded: false, hive: true, messages: [], total: 0, truncated: false, error: false, marks: {}
+const EMPTY: MailSnapshot = {
+  loaded: false, hive: true, hiveId: null, messages: [], total: 0, truncated: false, error: false, marks: {}
 };
+let snapshot: MailSnapshot = EMPTY;
 const listeners = new Set<() => void>();
 let timer: ReturnType<typeof setInterval> | null = null;
 let debounce: ReturnType<typeof setTimeout> | null = null;
@@ -71,30 +74,40 @@ export function refreshInboxMail(): Promise<void> {
   if (inFlight) return inFlight;
   inFlight = (async () => {
     const inbox = api();
-    if (!inbox) return;
+    if (!inbox) {
+      if (!snapshot.loaded) emit({ ...snapshot, loaded: true, error: true });
+      return;
+    }
     try {
-      const [reply, marks] = await Promise.all([
-        inbox.messages(),
-        snapshot.loaded ? Promise.resolve(null) : inbox.readMarks().catch(() => null)
-      ]);
+      // Marks are re-read with the mail: the settings file is tiny, and it is
+      // how a hive switch (or a first open that stamps the baseline) arrives.
+      const [reply, marksReply] = await Promise.all([inbox.messages(), inbox.readMarks().catch(() => null)]);
+      const switched = snapshot.loaded && snapshot.hiveId !== reply.hiveId;
+      if (switched) pendingLocal = [];
+      const base = switched ? EMPTY : snapshot;
       const ids = new Set(reply.messages.map((m) => m.id));
       // A message we sent shows until the read that includes it.
       pendingLocal = pendingLocal.filter((m) => !ids.has(m.id));
       const messages = pendingLocal.length ? [...pendingLocal, ...reply.messages] : reply.messages;
-      const same = snapshot.loaded
-        && signature(messages, reply.total) === signature(snapshot.messages, snapshot.total)
-        && snapshot.hive === reply.hive
-        && snapshot.error === !!reply.error;
-      if (same && !marks) return;
+      const sameMail = base.loaded
+        && signature(messages, reply.total) === signature(base.messages, base.total)
+        && base.hive === reply.hive
+        && base.error === !!reply.error;
+      // Watermarks only move forward, so a read that raced a local mark is
+      // merged (later wins) rather than allowed to undo it.
+      const remote = marksReply && marksReply.hiveId === reply.hiveId ? marksReply.marks : null;
+      const marks = remote ? mergeReadMarks(base.marks, remote) : base.marks;
+      const sameMarks = JSON.stringify(marks) === JSON.stringify(base.marks);
+      if (sameMail && sameMarks && !switched) return;
       emit({
-        ...snapshot,
         loaded: true,
         hive: reply.hive,
-        messages: same ? snapshot.messages : messages,
+        hiveId: reply.hiveId,
+        messages: sameMail ? base.messages : messages,
         total: reply.total,
         truncated: reply.truncated,
         error: !!reply.error,
-        marks: marks?.marks ?? snapshot.marks
+        marks: sameMarks ? base.marks : marks
       });
     } catch {
       if (!snapshot.loaded || !snapshot.error) emit({ ...snapshot, loaded: true, error: true });
@@ -114,7 +127,8 @@ function start(): void {
   try { offMessage = window.cth.onHiveMessage(onRouted); } catch { offMessage = null; }
   try {
     offMarks = api()?.onReadMarks((reply) => {
-      if (reply && reply.marks && typeof reply.marks === 'object') emit({ ...snapshot, marks: reply.marks });
+      if (!reply || !reply.marks || typeof reply.marks !== 'object' || reply.hiveId !== snapshot.hiveId) return;
+      emit({ ...snapshot, marks: mergeReadMarks(snapshot.marks, reply.marks) });
     }) ?? null;
   } catch { offMarks = null; }
 }
@@ -154,7 +168,11 @@ export function markInboxRead(entries: ReadMarkEntry[]): void {
   if (marks === snapshot.marks) return;
   emit({ ...snapshot, marks });
   void api()?.markRead(entries)
-    .then((reply) => { if (reply?.ok && reply.marks) emit({ ...snapshot, marks: reply.marks }); })
+    .then((reply) => {
+      if (reply?.ok && reply.marks && reply.hiveId === snapshot.hiveId) {
+        emit({ ...snapshot, marks: mergeReadMarks(snapshot.marks, reply.marks) });
+      }
+    })
     .catch(() => { /* the local mark stands until the next read */ });
 }
 

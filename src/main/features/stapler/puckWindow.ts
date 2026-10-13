@@ -59,7 +59,8 @@ const MAX_DRAG_MS = 60_000;
 const DRAG_TICK_MS = 16;
 
 export interface PuckHost {
-  ctx: FeatureContext;
+  /** Resolved lazily: the controllers exist before register() runs. */
+  ctx(): FeatureContext;
   placement(): SavedPlacement;
   savePlacement(next: SavedPlacement): void;
   /** Content protection wanted right now. */
@@ -113,7 +114,7 @@ export class PuckWindow {
     this.mode = 'puck';
     this.panel = undefined;
     this.closing = false;
-    const { ctx } = this.host;
+    const ctx = this.host.ctx();
     const win = new BrowserWindow({
       ...init.rect,
       show: false,

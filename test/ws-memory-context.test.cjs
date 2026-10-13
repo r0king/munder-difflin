@@ -105,3 +105,26 @@ test('snippetRuns splits text into plain and marked runs', () => {
   assert.deepEqual(snippetRuns('abc', [[0, 99]]), [{ text: 'abc', mark: true }]);
   assert.deepEqual(snippetRuns('abc', []), [{ text: 'abc', mark: false }]);
 });
+
+test('toContextItems turns ticked results into items with display names and local dates', () => {
+  const { toContextItems } = loadTs('src/shared/workspace/memoryContext.ts');
+  const names = {
+    name: (id) => ({ 'dwight-1': 'Dwight', god: 'Michael' }[id] ?? id),
+    role: (id) => (id === 'dwight-1' ? 'owns the auth tests' : undefined)
+  };
+  const out = toContextItems([
+    { kind: 'ticket', id: 'bmt-12', title: 'Fix it', status: 'doing', agentIds: ['dwight-1', 'god'], score: 1, mentioned: false,
+      snippet: { text: '… Safari only …', marks: [] } },
+    { kind: 'agent', id: 'dwight-1', direct: true, tickets: 1, notes: 2, score: 1 },
+    { kind: 'note', key: 'k', source: 'palace', title: 'Cookies', authorId: 'dwight-1', at: '2026-10-06', score: 1,
+      ref: { kind: 'palace', wing: 'dwight_1', room: 'auth', source: 'memory.md' }, ticketRefs: [],
+      snippet: { text: 'short', marks: [] }, text: 'the whole drawer' },
+    { kind: 'note', key: 'd', source: 'knowledge', title: 'Spec', score: 1, ref: { kind: 'knowledge', docId: 'd' }, ticketRefs: [],
+      snippet: { text: 'doc text', marks: [] } }
+  ], names);
+  assert.deepEqual(out[0], { kind: 'ticket', id: 'bmt-12', title: 'Fix it', status: 'doing', people: ['Dwight', 'Michael'], excerpt: '… Safari only …' });
+  assert.deepEqual(out[1], { kind: 'agent', id: 'dwight-1', name: 'Dwight', role: 'owns the auth tests', tickets: 1, notes: 2 });
+  assert.deepEqual(out[2], { kind: 'note', title: 'Cookies', source: 'palace', excerpt: 'the whole drawer', author: 'Dwight', date: '2026-10-06' });
+  const text = buildContextBlock({ prompt: '', items: [out[3]] });
+  assert.match(text, /^- Spec \(document\)$/m, 'a document has no author line');
+});

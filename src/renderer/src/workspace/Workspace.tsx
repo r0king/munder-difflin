@@ -30,6 +30,7 @@ import { AutomationsScreen } from './screens/AutomationsScreen';
 import { MemoryScreen } from './screens/MemoryScreen';
 import { CapabilitiesScreen } from './screens/CapabilitiesScreen';
 import { StaplerScreen } from './screens/StaplerScreen';
+import { AskMeBell } from './inbox/AskMeBell';
 
 /** The main area never gets narrower than this while dragging the sidebar. */
 const MIN_MAIN_WIDTH = 480;
@@ -50,7 +51,7 @@ export function Workspace({ config }: { config: HarnessConfig }) {
   // Controls every screen header carries, after the screen's own actions
   // (ui.tsx ScreenHeaderExtrasContext). The wsInbox unit mounts its Ask me
   // bell here.
-  const headerExtras = null;
+  const headerExtras = <AskMeBell />;
 
   return (
     <div className="cth-ws-root">

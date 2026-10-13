@@ -215,6 +215,12 @@ export function asksYou(task: WsTask): boolean {
 export interface CardActivity {
   changedAt: number;
   statusSince: number;
+  /** False when `changedAt` is only the tracker's first-look upper bound
+   *  ("no later than the file's mtime") rather than a change it saw or a stamp
+   *  the card carries. Staleness may use a bound — it leans toward "not
+   *  stale" — but the date filters must not: on a first look every card would
+   *  otherwise count as touched today. Missing means observed. */
+  observed?: boolean;
 }
 
 export type ActivityMap = Record<string, CardActivity>;
@@ -259,7 +265,8 @@ export function lastChangeMs(task: WsTask, act: CardActivity | undefined): numbe
 /** The latest moment the card is known to have been touched (created or
  *  changed). Drives the date filters and the List's "updated" column. */
 export function lastActivityMs(task: WsTask, act: CardActivity | undefined): number | null {
-  const candidates = [act?.changedAt, task.updatedAtMs, task.createdAtMs].filter(
+  const observed = act && act.observed !== false ? act.changedAt : undefined;
+  const candidates = [observed, task.updatedAtMs, task.createdAtMs].filter(
     (v): v is number => typeof v === 'number' && Number.isFinite(v)
   );
   return candidates.length ? Math.max(...candidates) : null;

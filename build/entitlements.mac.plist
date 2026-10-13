@@ -27,6 +27,11 @@
        is inert unless the user turns one of those features on. -->
   <key>com.apple.security.device.audio-input</key>
   <true/>
+  <!-- Dictate into any app (opt-in) asks System Events to press Command-V in
+       the app in front. Under the hardened runtime sending Apple Events needs
+       this entitlement; macOS still asks the user once (NSAppleEventsUsageDescription). -->
+  <key>com.apple.security.automation.apple-events</key>
+  <true/>
   <!-- Child processes inherit the parent's sandbox/TCC context (no-op outside
        the sandbox, harmless to include for inherited child entitlements). -->
   <key>com.apple.security.inherit</key>

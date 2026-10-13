@@ -121,12 +121,16 @@ button.cth-ws-orch-tile--warn:hover { box-shadow: inset 0 0 0 2px var(--cth-lemo
 .cth-ws-orch-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .cth-ws-orch-banner-title { font-weight: 600; }
 .cth-ws-orch-banner-actions { display: flex; gap: var(--cth-space-2); flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+/* Two bars, drawn in the text colour so it reads on the dark primary button
+   and on the banner alike. */
 .cth-ws-orch-pausemark {
   display: inline-block;
   flex-shrink: 0;
   width: 8px;
   height: 8px;
-  background: var(--cth-ink-900);
+  border-inline-start: 3px solid currentColor;
+  border-inline-end: 3px solid currentColor;
+  box-sizing: border-box;
 }
 
 /* ─── Terminal tab ───────────────────────────────────────────────────────── */

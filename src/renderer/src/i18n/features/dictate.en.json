@@ -1,3 +1,128 @@
 {
-  "title": "Dictation"
+  "title": "Dictation",
+  "phase": {
+    "off": "Off",
+    "idle": "Ready",
+    "starting": "Opening the microphone…",
+    "recording": "Listening",
+    "recordingFor": "Listening · {{seconds}} s",
+    "transcribing": "Transcribing…",
+    "inserting": "Typing…",
+    "error": "Didn't work"
+  },
+  "notify": {
+    "failed": "Dictation didn't work",
+    "copied": "Dictation copied to the clipboard"
+  },
+  "error": {
+    "mic-denied": "Munder Difflin may not use the microphone. Allow it in System Settings → Privacy & Security → Microphone on a Mac, or Settings → Privacy → Microphone on Windows.",
+    "mic-unavailable": "The microphone could not be opened. Check that one is connected and not held by another app.",
+    "host-failed": "The recorder did not start. Try again; if it keeps failing, restart Munder Difflin.",
+    "capture-failed": "The recording could not be saved.",
+    "capture-timeout": "The recorder stopped answering, so the dictation was dropped.",
+    "transcribe-failed": "Transcription failed: {{detail}}",
+    "transcribe-timeout": "Transcription took too long and was stopped.",
+    "nothing-heard": "No words were heard.",
+    "insert-failed": "The words could not be typed."
+  },
+  "notice": {
+    "user-choice": "You chose to paste them yourself.",
+    "accessibility": "To have them typed for you, allow Munder Difflin in System Settings → Privacy & Security → Accessibility.",
+    "automation": "To have them typed for you, allow Munder Difflin to control System Events in System Settings → Privacy & Security → Automation.",
+    "wayland": "Wayland doesn't let one app type into another. With wtype installed (Sway, Hyprland and other wlroots desktops) it can; otherwise press Ctrl+V yourself.",
+    "wtype-failed": "This desktop refused wtype (GNOME and KDE don't offer the virtual keyboard it needs). Press Ctrl+V yourself.",
+    "no-xdotool": "Install xdotool to have them typed for you, for example: sudo apt install xdotool",
+    "no-display": "No X11 or Wayland display was found to type into.",
+    "no-powershell": "Windows PowerShell wasn't found, so the paste key could not be pressed.",
+    "paste-failed": "Pressing the paste key didn't work. Paste them yourself.",
+    "focus-ours": "Munder Difflin had come to the front, so they were not pasted into the other app.",
+    "no-field": "No text box had focus in Munder Difflin.",
+    "unsupported-platform": "Typing into other apps isn't supported on this system."
+  },
+  "strategy": {
+    "in-app": "Your words go straight into the focused text box.",
+    "osascript": "In other apps your words are pasted for you with ⌘V.",
+    "sendkeys": "In other apps your words are pasted for you with Ctrl+V.",
+    "xdotool": "In other apps your words are pasted for you with Ctrl+V, through xdotool.",
+    "wtype": "In other apps your words are pasted for you with Ctrl+V, through wtype.",
+    "clipboard": "In other apps your words are copied to the clipboard for you to paste."
+  },
+  "result": {
+    "typed": "Last dictation, typed in:",
+    "clipboard": "Last dictation, left on the clipboard:"
+  },
+  "accelError": {
+    "empty": "Pick a shortcut.",
+    "syntax": "That isn't a shortcut Munder Difflin can use.",
+    "no-key": "Add a key to the modifiers.",
+    "needs-modifier": "Hold at least one of Ctrl, Alt, Option or Command with it; on its own the key could no longer be typed.",
+    "reserved": "The system, or every app, already uses that one.",
+    "conflict": "That one belongs to the other dictation key or to the Stapler's meeting shortcut.",
+    "invalid": "That setting could not be saved."
+  },
+  "settings": {
+    "title": "Dictate into any app",
+    "enable": "Dictation",
+    "intro": "Press {{shortcut}}, talk, and press it again. The words land in the text box in front of you, in any app and in every text box inside Munder Difflin.",
+    "holdNote": "A global shortcut can't tell when a key is let go, so the shortcut starts and stops. On Windows and Linux (X11) you can also hold it while you talk: when the key stops repeating, dictation stops and types. {{cancel}} throws a dictation away.",
+    "holdNoteMac": "macOS can't give an app the bare Option key as a shortcut, and a shortcut can't tell when it is let go, so press once to start and again to stop. {{cancel}} throws a dictation away.",
+    "cancelNow": "Cancel",
+    "shortcutSection": "Shortcut",
+    "startStop": "Start and stop",
+    "cancelKey": "Cancel",
+    "change": "Change",
+    "useDefault": "Use default",
+    "pressKeys": "Press the new shortcut…",
+    "shortcutOn": "Active",
+    "shortcutFocusedOnly": "Only while Munder Difflin has focus",
+    "shortcutTaken": "In use by another app",
+    "shortcutUnavailable": "Shortcuts unavailable",
+    "shortcutInvalid": "Not valid",
+    "cancelNote": "The cancel key is only held while you dictate, so it never takes the key away from other apps the rest of the time.",
+    "takenHelp": "Another app holds this shortcut. Pick a different one, or free it in that app.",
+    "waylandShortcut": "On Wayland, apps only receive keys while they have focus, so the shortcut works inside Munder Difflin only. Elsewhere, use Dictate on the Stapler's ring.",
+    "otherApps": "Typing into other apps",
+    "pasteLabel": "Your words are",
+    "pasteTypeIt": "Typed for me",
+    "pasteClipboard": "Copied, I paste",
+    "restoreLabel": "Put my clipboard back",
+    "restoreNote": "Your words travel through the clipboard. Afterwards the text, links, rich text or image you had copied come back; copied files do not.",
+    "inAppNote": "Inside Munder Difflin no paste key is pressed: the words go straight into the text box at the cursor.",
+    "safetyStop": "Stop on its own after",
+    "minutes": "{{n}} min",
+    "safetyNote": "A dictation you forget about ends by itself and is typed like any other.",
+    "thisComputer": "This computer",
+    "tryIt": "Try it",
+    "tryPlaceholder": "Click here, press {{shortcut}} and say something.",
+    "copyAgain": "Copy again",
+    "copied": "Copied",
+    "loadFailed": "Dictation settings could not be loaded.",
+    "loading": "Loading dictation settings"
+  },
+  "status": {
+    "microphone": "Microphone",
+    "accessibility": "Accessibility",
+    "automation": "Automation",
+    "automationNote": "The first paste asks to let Munder Difflin control System Events. Allow it, or the words stay on the clipboard.",
+    "allow": "Allow",
+    "openSettings": "Open settings",
+    "powershell": "Paste helper (PowerShell)",
+    "session": "Display server",
+    "installed": "Installed",
+    "missing": "Not installed",
+    "waylandNote": "Wayland doesn't let one app type into another. wtype can on Sway, Hyprland and other wlroots desktops; on GNOME and KDE your words are copied for you to paste.",
+    "xdotoolNote": "Install xdotool to have your words typed for you, for example: sudo apt install xdotool",
+    "grant": {
+      "granted": "Allowed",
+      "denied": "Not allowed",
+      "not-determined": "Not asked yet",
+      "restricted": "Blocked by policy",
+      "unknown": "Unknown"
+    },
+    "sessionKind": {
+      "x11": "X11 session",
+      "wayland": "Wayland session",
+      "unknown": "None found"
+    }
+  }
 }

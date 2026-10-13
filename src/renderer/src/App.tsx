@@ -36,6 +36,7 @@ import { Workspace } from '@/workspace/Workspace';
 import { UiModeSwitch, StaplerTitlebarToggle } from '@/workspace/TitlebarControls';
 import { useFeatureBridge } from '@/workspace/useFeatureBridge';
 import { useWorkspaceShortcuts } from '@/workspace/useWorkspaceShortcuts';
+import { useDictationInsert } from '@/stapler/dictate/useDictationInsert';
 import brandLogo from '@brand/logo.png?url';
 
 // Injected at build time from package.json (see electron.vite.config.ts).
@@ -159,6 +160,8 @@ export function App() {
   // runs in both modes; the Workspace's desk keys only in the Workspace.
   useFeatureBridge();
   useWorkspaceShortcuts(uiMode === 'workspace' && hiveOpened && !!config?.onboardingComplete);
+  // Dictation (Stapler): words dictated while this window had focus land at its caret.
+  useDictationInsert();
 
   // Quit warning subscription
   useEffect(() => window.cth.onCloseRequested((info) => setQuitWarn(info)), []);

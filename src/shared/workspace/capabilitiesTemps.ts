@@ -56,6 +56,8 @@ export interface TempRecord {
   ledgerOffset?: number;
   /** The branch its worktree is cut from (for the unmerged-work check). */
   baseBranch?: string;
+  /** Last tick that saw it on the floor — the end time an app quit leaves. */
+  lastSeenAt?: number;
   stopRequested?: boolean;
   /** Set when the outcome is known before teardown settles (failed / stopped). */
   outcome?: TempOutcome;
@@ -322,7 +324,7 @@ function parseRecord(raw: unknown): TempRecord | null {
   };
   const model = str(r.model, 80);
   if (model) rec.model = model;
-  for (const k of ['submittedAt', 'startedAt', 'endedAt', 'ledgerOffset'] as const) {
+  for (const k of ['submittedAt', 'startedAt', 'endedAt', 'ledgerOffset', 'lastSeenAt'] as const) {
     const v = num(r[k]);
     if (v !== undefined) rec[k] = v;
   }

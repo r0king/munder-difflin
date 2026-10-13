@@ -122,10 +122,10 @@ function sources(over = {}) {
 test('assembleAutomations folds every source into one list, built-ins first then by age', () => {
   const items = assembleAutomations(sources(), T0 + DAY);
   assert.deepEqual(items.map((i) => i.key), [
-    'schedule:heartbeat', // built-ins: kind order, then name
-    'schedule:ops-standup',
+    'schedule:ops-standup', // built-ins: kind order, then the order config holds them
+    'schedule:heartbeat',
+    'context:compact', // compact before the off-by-default, destructive clear
     'context:clear',
-    'context:compact',
     'webhook:wh-1', // then by age
     'rule:cr-a-aaaaaa',
     `schedule:${mid(T0 + 3000)}`

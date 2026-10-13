@@ -32,18 +32,14 @@
  * input is limited to a number and short validated keys.
  */
 import { ipcMain } from 'electron';
-import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { redactSecrets } from '../hive';
 import {
   BASELINE_MARK,
-  MAX_BODY,
-  mergeMailboxes,
-  normalizeHiveMessage,
   selectForWire,
-  type InboxMessage,
   type ReadMarks
 } from '../../shared/workspace/inboxMessages';
+import { MailboxScanner } from './inbox/scan';
 import { applyReadMark, sanitizeReadMarks } from '../../shared/workspace/inboxSection';
 import {
   INBOX_CHANNELS,
@@ -58,10 +54,6 @@ const DEFAULT_LIMIT = 2000;
 const MAX_LIMIT = 5000;
 /** Human↔agent mail always sent on top of the floor-wide window. */
 const HUMAN_LIMIT = 2000;
-/** A message file larger than this is not a message; it is skipped unread. */
-const MAX_FILE_BYTES = 2 * 1024 * 1024;
-/** Parallel file reads during a scan. */
-const READ_CONCURRENCY = 16;
 /** Most entries one markRead call may carry. */
 const MAX_MARK_ENTRIES = 500;
 /** Hives whose read marks are remembered (one entry per hive folder). */
@@ -69,134 +61,7 @@ const MAX_HIVES = 24;
 
 // ─── Mailbox scan ───────────────────────────────────────────────────────────
 
-/** Where a file was found. Inbox and inbox/.done share a key, because draining
- *  a message is a rename between them under the same name. */
-type Slot = 'in' | 'sent';
-
-interface Cached {
-  msg: InboxMessage | null;
-  slot: Slot;
-}
-
-let cacheRoot: string | null = null;
-const cache = new Map<string, Cached>();
-let scanning: Promise<InboxMessage[]> | null = null;
-
-async function listDir(dir: string, want: 'file' | 'dir'): Promise<string[]> {
-  try {
-    const entries = await readdir(dir, { withFileTypes: true });
-    return entries
-      .filter((e) => (want === 'dir' ? e.isDirectory() : e.isFile()) && !e.name.startsWith('.'))
-      .map((e) => e.name);
-  } catch {
-    return [];
-  }
-}
-
-const isMessageFile = (name: string): boolean =>
-  name.endsWith('.json') && !name.startsWith('.') && !name.startsWith('bad-');
-
-/** Parse one message file; null for anything that is not a usable message. */
-async function readMessage(path: string, owner: string, slot: Slot, name: string): Promise<InboxMessage | null> {
-  try {
-    const info = await stat(path);
-    if (!info.isFile() || info.size > MAX_FILE_BYTES) return null;
-    const raw: unknown = JSON.parse(await readFile(path, 'utf8'));
-    const msg = normalizeHiveMessage(raw, {
-      // A raw outbox/.sent copy may carry no id (the router minted one on the
-      // routed copy); the file name keeps it unique and stable.
-      id: `sent-${owner}-${name.slice(0, -'.json'.length)}`,
-      createdAt: info.mtime.toISOString(),
-      // Redact the WHOLE body first, then clip — clipping first could cut a
-      // secret in half and leave the half the pattern no longer matches.
-      maxBody: Number.POSITIVE_INFINITY
-    });
-    if (!msg) return null;
-    // The router treats the owning directory as the sender of anything in an
-    // outbox (hive.ts routeOnce), whatever the file says. Mirror that.
-    if (slot === 'sent') msg.from = owner;
-    msg.subject = redactSecrets(msg.subject);
-    const body = redactSecrets(msg.body);
-    if (body.length > MAX_BODY) {
-      msg.body = body.slice(0, MAX_BODY);
-      msg.clipped = true;
-    } else {
-      msg.body = body;
-    }
-    return msg;
-  } catch {
-    return null; // unreadable or malformed — the router quarantines those itself
-  }
-}
-
-/** Run `jobs` with at most `n` in flight. */
-async function pool(jobs: Array<() => Promise<void>>, n: number): Promise<void> {
-  let next = 0;
-  const worker = async (): Promise<void> => {
-    while (next < jobs.length) {
-      const job = jobs[next++];
-      await job();
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(n, jobs.length) }, worker));
-}
-
-/** Every message on the floor, newest first, each once. */
-async function scanAll(hiveRoot: string): Promise<InboxMessage[]> {
-  if (cacheRoot !== hiveRoot) {
-    cache.clear();
-    cacheRoot = hiveRoot;
-  }
-  const agentsDir = join(hiveRoot, 'agents');
-  const owners = await listDir(agentsDir, 'dir');
-  const seen = new Set<string>();
-  const jobs: Array<() => Promise<void>> = [];
-
-  const folders = (owner: string): Array<{ dir: string; slot: Slot }> => {
-    const base = join(agentsDir, owner);
-    return [
-      { dir: join(base, 'inbox'), slot: 'in' },
-      { dir: join(base, 'inbox', '.done'), slot: 'in' },
-      { dir: join(base, 'outbox', '.sent'), slot: 'sent' }
-    ];
-  };
-
-  await Promise.all(owners.map(async (owner) => {
-    for (const { dir, slot } of folders(owner)) {
-      for (const name of await listDir(dir, 'file')) {
-        if (!isMessageFile(name)) continue;
-        const key = `${owner}\u0000${slot}\u0000${name}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        if (cache.has(key)) continue;
-        const path = join(dir, name);
-        jobs.push(async () => {
-          cache.set(key, { msg: await readMessage(path, owner, slot, name), slot });
-        });
-      }
-    }
-  }));
-  await pool(jobs, READ_CONCURRENCY);
-
-  // Forget files that are gone (a cleared mailbox, a deleted agent).
-  for (const key of cache.keys()) if (!seen.has(key)) cache.delete(key);
-
-  const delivered: InboxMessage[] = [];
-  const sent: InboxMessage[] = [];
-  for (const { msg, slot } of cache.values()) {
-    if (!msg) continue;
-    (slot === 'in' ? delivered : sent).push(msg);
-  }
-  return mergeMailboxes(delivered, sent);
-}
-
-/** One scan at a time; callers that arrive mid-scan share its result. */
-function scan(hiveRoot: string): Promise<InboxMessage[]> {
-  if (!scanning) {
-    scanning = scanAll(hiveRoot).finally(() => { scanning = null; });
-  }
-  return scanning;
-}
+const scanner = new MailboxScanner({ redact: redactSecrets });
 
 function hiveRootOf(ctx: FeatureContext): string | null {
   const home = ctx.harnessHome();
@@ -257,7 +122,7 @@ export const inboxFeature: FeatureModule = {
       const root = hiveRootOf(ctx);
       if (!root) return { hive: false, hiveId: null, messages: [], total: 0, truncated: false };
       try {
-        const all = await scan(root);
+        const all = await scanner.scan(root);
         const limit = clampLimit(opts);
         const messages = selectForWire(all, limit, HUMAN_LIMIT);
         return { hive: true, hiveId: root, messages, total: all.length, truncated: all.length > messages.length };
@@ -300,7 +165,6 @@ export const inboxFeature: FeatureModule = {
     });
   },
   dispose() {
-    cache.clear();
-    cacheRoot = null;
+    scanner.reset();
   }
 };

@@ -84,24 +84,18 @@ export function useTaskBoard(): TaskBoardData {
           setActivity(reply.activity);
           setFolderKey(reply.folderKey);
           setActivityError(reply.warning ?? null);
-          const moves = useTaskMoves.getState();
-          moves.bindLedger(reply.ledgerId);
+          useTaskMoves.getState().bindLedger(reply.ledgerId);
           setLedgerBound(true);
-          // Only reconcile against a ledger that has actually been read: an
-          // empty pre-load snapshot would look like "every card is gone" and
-          // silently discard the human's staged moves.
-          if (loadedRef.current) {
-            moves.reconcile(
-              tasksRef.current.map((t) => ({ id: t.id, title: t.title, column: t.column, assignee: t.assignee })),
-              Date.now()
-            );
-          }
         } else {
           setActivityError(reply.error);
         }
       } catch (e) {
         setActivityError(e instanceof Error ? e.message : 'unavailable');
       } finally {
+        // After binding (so it is the right ledger's moves), and only against
+        // a ledger that has actually been read: an empty pre-load snapshot
+        // would look like "every card is gone" and discard the staged moves.
+        if (loadedRef.current) reconcileWithLedger(tasksRef.current);
         inFlight.current = false;
         setNow(Date.now());
         if (again.current) { again.current = false; refreshActivity(); }
@@ -147,6 +141,14 @@ export function useTaskBoard(): TaskBoardData {
   const godName = agents.find((a) => a.isGod)?.name;
 
   return { loaded, tasks, activity, activityError, ledgerBound, folderKey, now, nameOf, owners, godName, refreshActivity };
+}
+
+/** Align the open ledger's staged and sent moves with these cards. */
+export function reconcileWithLedger(tasks: readonly WsTask[]): void {
+  useTaskMoves.getState().reconcile(
+    tasks.map((t) => ({ id: t.id, title: t.title, column: t.column, assignee: t.assignee })),
+    Date.now()
+  );
 }
 
 /** First day of the week for the "This week" filter, from the system's

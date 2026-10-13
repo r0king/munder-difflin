@@ -58,8 +58,23 @@ export function frameRms(samples: Float32Array, sampleRate: number, frameMs = 30
 /** Spans (in samples) that contain speech-level energy. */
 export function findVoicedSpans(samples: Float32Array, sampleRate: number, opts: VoicedSpanOptions = {}): Span[] {
   const frameMs = opts.frameMs ?? 30;
-  const frame = Math.max(1, Math.round((sampleRate * frameMs) / 1000));
   const levels = frameRms(samples, sampleRate, frameMs);
+  return voicedSpansFromLevels(levels, samples.length, sampleRate, opts).spans;
+}
+
+/**
+ * The same, from per-frame levels computed elsewhere (the worker streams a
+ * long WAV through `frameRms` block by block instead of holding it in memory).
+ * Also returns the gate, which `cleanSegments` reuses.
+ */
+export function voicedSpansFromLevels(
+  levels: Float32Array,
+  totalSamples: number,
+  sampleRate: number,
+  opts: VoicedSpanOptions = {}
+): { spans: Span[]; gate: number } {
+  const frameMs = opts.frameMs ?? 30;
+  const frame = Math.max(1, Math.round((sampleRate * frameMs) / 1000));
   const gate = energyGate(levels, opts.minRms ?? 0.0018, opts.floorFactor ?? 2.5);
   const pad = Math.round(((opts.padMs ?? 400) * sampleRate) / 1000);
   const joinGap = Math.round(((opts.joinGapMs ?? 1500) * sampleRate) / 1000);
@@ -71,18 +86,28 @@ export function findVoicedSpans(samples: Float32Array, sampleRate: number, opts:
     const voiced = i < levels.length && levels[i] > gate;
     if (voiced && runStart < 0) runStart = i;
     if (!voiced && runStart >= 0) {
-      raw.push({ startSample: runStart * frame, endSample: Math.min(samples.length, i * frame) });
+      raw.push({ startSample: runStart * frame, endSample: Math.min(totalSamples, i * frame) });
       runStart = -1;
     }
   }
   const out: Span[] = [];
   for (const s of raw) {
-    const padded = { startSample: Math.max(0, s.startSample - pad), endSample: Math.min(samples.length, s.endSample + pad) };
+    const padded = { startSample: Math.max(0, s.startSample - pad), endSample: Math.min(totalSamples, s.endSample + pad) };
     const last = out[out.length - 1];
     if (last && padded.startSample - last.endSample <= joinGap) last.endSample = Math.max(last.endSample, padded.endSample);
     else out.push(padded);
   }
-  return out.filter((s) => s.endSample - s.startSample >= minSpan);
+  return { spans: out.filter((s) => s.endSample - s.startSample >= minSpan), gate };
+}
+
+/** RMS over [startMs, endMs) from per-frame levels (energy-averaged). */
+export function levelBetween(levels: Float32Array, frameMs: number, startMs: number, endMs: number): number {
+  const a = Math.max(0, Math.floor(startMs / frameMs));
+  const b = Math.min(levels.length, Math.max(a + 1, Math.ceil(endMs / frameMs)));
+  if (b <= a) return 0;
+  let sum = 0;
+  for (let i = a; i < b; i++) sum += levels[i] * levels[i];
+  return Math.sqrt(sum / (b - a));
 }
 
 // ─── Artefacts ──────────────────────────────────────────────────────────────
@@ -128,11 +153,11 @@ export function looksLikePromptEcho(text: string, vocabulary: readonly string[])
 }
 
 export interface CleanOptions {
-  /** Level above which a segment is clearly speech (from energyGate). */
+  /** Level above which a frame is speech (from energyGate). */
   gate: number;
-  /** Mono samples of the track, at `sampleRate`, for per-segment energy. */
-  samples?: Float32Array;
-  sampleRate?: number;
+  /** RMS of the track's audio under a segment (e.g. levelBetween). Without
+   *  it only the text-level checks run. */
+  levelAt?: (startMs: number, endMs: number) => number;
   vocabulary?: readonly string[];
 }
 
@@ -143,12 +168,7 @@ export function cleanSegments(segments: readonly TranscriptSegment[], opts: Clea
     const text = stripTags(seg.text);
     if (!text || !/[A-Za-z0-9]/.test(text)) continue;
     if (opts.vocabulary && looksLikePromptEcho(text, opts.vocabulary)) continue;
-    let level = Number.POSITIVE_INFINITY;
-    if (opts.samples && opts.sampleRate) {
-      const a = Math.floor((seg.startMs / 1000) * opts.sampleRate);
-      const b = Math.ceil((seg.endMs / 1000) * opts.sampleRate);
-      level = rms(opts.samples, a, Math.max(a + 1, b));
-    }
+    const level = opts.levelAt ? opts.levelAt(seg.startMs, Math.max(seg.endMs, seg.startMs + 1)) : Number.POSITIVE_INFINITY;
     // Nothing above the gate under the whole segment: there was no speech.
     if (level < opts.gate * 0.6) continue;
     // A stock phrase over audio that is barely above the gate: noise, not words.

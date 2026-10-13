@@ -14,6 +14,8 @@
  * remaining items are counted, not included.
  */
 import { MAX_DELIVER_TEXT } from '../features/deliver';
+import { isoDay, parseNoteDate } from './memoryFormat';
+import type { AnswerAgent, AnswerTicket, NoteHit } from './memoryTypes';
 
 export type ContextItem =
   | {
@@ -114,8 +116,10 @@ function agentLine(a: Extract<ContextItem, { kind: 'agent' }>): string {
 }
 
 function noteLine(n: Extract<ContextItem, { kind: 'note' }>, excerptChars: number): string {
-  const by = [n.author ?? 'the user', n.date].filter(Boolean).join(', ');
-  let s = `- ${oneLine(n.title || '(untitled)', 160)} — ${by} (${SOURCE_LABEL[n.source] ?? n.source})`;
+  // A user note is the user's; a document or an unattributed drawer is no one's.
+  const author = n.author ?? (n.source === 'notes' ? 'the user' : undefined);
+  const by = [author, n.date].filter(Boolean).join(', ');
+  let s = `- ${oneLine(n.title || '(untitled)', 160)}${by ? ` — ${by}` : ''} (${SOURCE_LABEL[n.source] ?? n.source})`;
   if (n.path) s += `\n  file: ${n.path}`;
   if (n.excerpt.trim()) s += `\n${quote(n.excerpt, excerptChars)}`;
   return s;
@@ -160,4 +164,39 @@ export function buildContextBlock(opts: ContextOptions): string {
   const block = `${head}${body}`;
   const text = prompt ? `${prompt}\n\n---\n${block}` : block;
   return text.length > MAX_DELIVER_TEXT ? text.slice(0, MAX_DELIVER_TEXT) : text;
+}
+
+// ─── From the screen's selection ────────────────────────────────────────────
+
+/** Anything the user can tick in an answer. */
+export type SelectedResult = AnswerTicket | AnswerAgent | NoteHit;
+
+export interface ContextNames {
+  /** Display name for an agent id (the live roster's, else the registry's). */
+  name(id: string): string;
+  role(id: string): string | undefined;
+}
+
+/** The screen's ticked results as context items, in the order ticked. */
+export function toContextItems(selected: readonly SelectedResult[], names: ContextNames): ContextItem[] {
+  return selected.map((r): ContextItem => {
+    if (r.kind === 'ticket') {
+      const item: ContextItem = { kind: 'ticket', id: r.id, title: r.title, people: r.agentIds.map((id) => names.name(id)) };
+      if (r.status) item.status = r.status;
+      if (r.snippet?.text) item.excerpt = r.snippet.text;
+      return item;
+    }
+    if (r.kind === 'agent') {
+      const item: ContextItem = { kind: 'agent', id: r.id, name: names.name(r.id), tickets: r.tickets, notes: r.notes };
+      const role = names.role(r.id);
+      if (role) item.role = role;
+      return item;
+    }
+    const item: ContextItem = { kind: 'note', title: r.title, source: r.source, excerpt: r.text ?? r.snippet.text };
+    if (r.authorId) item.author = names.name(r.authorId);
+    const d = parseNoteDate(r.at);
+    if (d) item.date = isoDay(d);
+    if (r.path) item.path = r.path;
+    return item;
+  });
 }

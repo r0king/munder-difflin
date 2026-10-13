@@ -101,6 +101,10 @@ mac:
     # Flow dictation (Groq transcription) and Realtime Michael (live voice chat
     # with the orchestrator via OpenAI). Mic access only happens while one is on.
     NSMicrophoneUsageDescription: "Munder Difflin uses your microphone only for its opt-in voice features: Free Flow dictation (transcribed by Groq into the message queue) and talking to Michael in real time (streamed to OpenAI). The mic is off unless you turn one of these on."
+    # Dictate into any app (Stapler, opt-in, off by default) pastes the words
+    # into the app in front by asking System Events to press Command-V. macOS
+    # refuses that Apple Event outright unless this purpose string exists.
+    NSAppleEventsUsageDescription: "Munder Difflin types your dictated words into the app in front of you by pressing paste for you. It only does this right after you dictate, and only when dictation is turned on."
   # Hardened runtime + entitlements so the spawned `claude` agents inherit this
   # app's TCC responsibility (one grant covers them all) and node-pty can load.
   hardenedRuntime: true

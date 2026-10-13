@@ -41,8 +41,10 @@ export const ScheduleRow = forwardRef<HTMLDivElement, {
   const line = scheduleLine(t, i18n.language, m, target);
 
   const next = nextRunAt(m, now);
+  // A never-run interval schedule is armed to run at once; "next just now"
+  // would read as a typo, so that case gets its own words.
   const meta = m.enabled && next !== null
-    ? t('wsAutomations.meta.next', { when: relTime(t, next, now) })
+    ? next - now < 45_000 ? t('wsAutomations.meta.nextNow') : t('wsAutomations.meta.next', { when: relTime(t, next, now) })
     : m.lastFiredAt
       ? t('wsAutomations.meta.last', { when: relTime(t, m.lastFiredAt, now) })
       : null;

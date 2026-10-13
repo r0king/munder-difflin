@@ -1,14 +1,11 @@
 /**
- * Dictation host, mounted once in the Stapler's puck window (StaplerApp). Owned
- * by the `dictate` unit.
+ * Retired: dictation no longer records in the puck window. It has its own
+ * hidden recorder window (stapler.html#dictate → DictationHostPage), so it works
+ * with the Stapler off and a puck reload cannot strand a recording.
  *
- * The puck window is always alive while the Stapler is on, so it is where the
- * hold-to-talk capture runs: main signals key down/up over feat:dictate:*,
- * this hook records with audio/capture.ts, hands the WAV to transcription and
- * main types the text where the cursor is.
- *
- * FOUNDATION STUB — does nothing yet.
+ * Kept as a no-op only so StaplerApp's foundation-era call still compiles
+ * until the stapler unit removes it; nothing else should call it.
  */
 export function useDictationHost(): void {
-  // TODO(dictate): subscribe to feat:dictate:* here.
+  /* intentionally empty — see DictationHostPage */
 }

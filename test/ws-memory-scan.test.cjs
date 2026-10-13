@@ -248,3 +248,10 @@ test('parseRegistry and findSection tolerate odd input', () => {
   assert.equal(findSection(sections, 1).heading, 'A');
   assert.equal(findSection(sections, 5, 'C'), null);
 });
+
+test('readNote only opens note files the scan would surface', async () => {
+  const { root, w } = makeHive();
+  w('notes/data.json', '{"x":1}');
+  assert.equal((await readNote(root, { kind: 'notes', file: 'data.json' }, null)).ok, false);
+  assert.equal((await readNote(root, { kind: 'notes', file: 'release-checklist.md' }, null)).ok, true);
+});

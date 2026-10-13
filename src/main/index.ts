@@ -75,6 +75,8 @@ import {
   notifyAppWindowsClosed, disposeFeatures
 } from './features';
 import { withContextRules } from './features/automations';
+// Workspace Capabilities: an agent's own grants at spawn, and Temps hired from the app.
+import { capabilitySpawnInjection, tempRequestFiles } from './features/capabilities';
 // Workspace "Deliveries paused" (floor-wide queue hold) and the breaker's default
 // per-agent token cap — both owned by the orchestrator feature, mirrored below.
 import {
@@ -2807,6 +2809,19 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   let seedPrompt: string | undefined;
   if (opts.hive && hive.enabled()) {
     try {
+      // Workspace Capabilities: this agent's own grants (MCP overlay, keyed MCP
+      // servers, a broker token for granted connections). An agent with no grant
+      // gets today's values back unchanged; a spawn that already carries a broker
+      // token (an ephemeral worker) keeps it.
+      const caps = capabilitySpawnInjection({
+        ptyId: opts.id,
+        agentId: opts.hive.id,
+        provider,
+        mcpDefaults: readConfig().mcpDefaults,
+        grantBroker: integrationBroker.running() && !opts.env?.MD_BROKER_TOKEN
+          ? (ids) => ({ url: integrationBroker.url(), token: integrationBroker.grant(opts.id, ids) })
+          : null
+      });
       const inj = await hive.ensureAgent(
         { ...opts.hive, cwd: opts.cwd, provider },
         {
@@ -2819,14 +2834,14 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
           kgCliPath: knowledge.env().KG_CLI,
           theme: readConfig().terminalTheme ?? 'light',
           // W3 — default-MCP consent state + the bundled skills source dir.
-          mcpDefaults: readConfig().mcpDefaults,
+          mcpDefaults: caps.mcpDefaults,
           skillsDir: skillsResourceDir(),
           // The shared palace is mutated by the agent's own `mempalace` calls, so
           // the OS sandbox must let it through (empty when memory is off).
           extraWritableDirs: [memory.env().MEMPALACE_PALACE_PATH].filter((p): p is string => !!p)
         }
       );
-      opts.args = [...(opts.args ?? []), ...inj.args];
+      opts.args = [...(opts.args ?? []), ...inj.args, ...caps.args];
       seedPrompt = inj.seedPrompt;
       // A degraded spawn (proxy bridge never bound) is told to the user the same
       // way breaker escalations are: a native toast, gated on the notifications
@@ -2834,7 +2849,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
       if (inj.degraded) breakerToast('Agent running degraded', inj.degraded);
       // Point the agent's mempalace CLI at the shared palace + the `kg` CLI at the
       // enterprise knowledge store (both no-ops / empty when their flags are off).
-      opts.env = { ...(opts.env ?? {}), ...inj.env, ...memory.env(), ...knowledge.env() };
+      opts.env = { ...(opts.env ?? {}), ...inj.env, ...caps.env, ...memory.env(), ...knowledge.env() };
     } catch (e) {
       // Hive provisioning is best-effort; never block a spawn on it.
       console.error('[hive] ensureAgent failed:', e);
@@ -5049,6 +5064,14 @@ async function ephemeralWorkerTick(): Promise<void> {
         if (liveWorkers.size >= maxWorkers) break;
         await processSpawnRequest(join(dir, f));
       }
+    }
+    // Temps hired by the USER from Workspace → Capabilities. Their queue lives
+    // under userData, outside every agent's writable dirs, so the orchestrator
+    // gate above does not apply: the hire is the user's own click. Still bounded
+    // by maxWorkers; the Temps cap (features/capabilities) sits in front of it.
+    for (const f of tempRequestFiles()) {
+      if (liveWorkers.size >= maxWorkers) break;
+      if (existsSync(f)) await processSpawnRequest(f);
     }
 
     // (3) GC preserved worktrees whose work has since integrated. Throttled to

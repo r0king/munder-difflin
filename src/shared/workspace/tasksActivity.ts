@@ -25,6 +25,8 @@ export interface TrackedCard {
   column: TaskColumn;
   changedAt: number;
   statusSince: number;
+  /** See CardActivity.observed: false while changedAt is a first-look bound. */
+  observed: boolean;
 }
 
 export interface ActivityState {
@@ -72,7 +74,8 @@ const clampToNow = (ms: number | null, now: number): number | null =>
  *
  * Rules, per card:
  *   - first look at this hive: changed at its own explicit update stamp if it
- *     has one, else at the file's mtime (the latest it can have changed);
+ *     has one, else at the file's mtime (the latest it can have changed —
+ *     marked `observed: false`, so the date filters ignore the bound);
  *     in its column since its explicit stamp, else its latest known event
  *     (creation, an ask, an answer), else the mtime.
  *   - a card new since the last look, or one whose content changed: changed
@@ -109,7 +112,8 @@ export function observeLedger(
         fp,
         column,
         changedAt: explicit ?? floor,
-        statusSince: explicit ?? evidence ?? floor
+        statusSince: explicit ?? evidence ?? floor,
+        observed: explicit !== null
       };
       return;
     }
@@ -120,7 +124,8 @@ export function observeLedger(
         fp,
         column,
         changedAt: explicit ?? now,
-        statusSince: explicit ?? (createdUnseen ? evidence! : now)
+        statusSince: explicit ?? (createdUnseen ? evidence! : now),
+        observed: true
       };
       return;
     }
@@ -136,7 +141,8 @@ export function observeLedger(
       changedAt: believed,
       statusSince: column === before.column
         ? before.statusSince
-        : (explicit !== null && explicit > before.statusSince ? explicit : now)
+        : (explicit !== null && explicit > before.statusSince ? explicit : now),
+      observed: true
     };
   });
 
@@ -153,7 +159,9 @@ export function activityMap(state: ActivityState | null): ActivityMap {
   const out: ActivityMap = {};
   if (!state) return out;
   for (const [id, c] of Object.entries(state.cards)) {
-    out[id] = { changedAt: c.changedAt, statusSince: c.statusSince };
+    out[id] = c.observed
+      ? { changedAt: c.changedAt, statusSince: c.statusSince }
+      : { changedAt: c.changedAt, statusSince: c.statusSince, observed: false };
   }
   return out;
 }
@@ -175,7 +183,8 @@ export function parseActivityState(value: unknown): ActivityState | null {
       fp: c.fp,
       column: columnForStatus(c.column),
       changedAt: c.changedAt,
-      statusSince: c.statusSince
+      statusSince: c.statusSince,
+      observed: c.observed === true
     };
   }
   return { v: 1, seenAt: v.seenAt, cards };

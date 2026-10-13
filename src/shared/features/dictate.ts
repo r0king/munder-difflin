@@ -384,16 +384,24 @@ const MAC_KEYS: Record<string, string> = {
   Up: '↑', Down: '↓', Left: '←', Right: '→', Space: 'Space'
 };
 
-/** How a chord is printed in the UI: "⌥Space" on a Mac, "Ctrl+Alt+Space" elsewhere. */
-export function formatAccelerator(raw: string, platform: DictatePlatform): string {
+/** A chord as keycaps: ['⌥', 'Space'] on a Mac, ['Ctrl', 'Alt', 'Space']
+ *  elsewhere. Empty when it does not parse. */
+export function acceleratorKeys(raw: string, platform: DictatePlatform): string[] {
   const p = parseAccelerator(raw, platform);
-  if (!p || !p.key) return raw;
+  if (!p || !p.key) return [];
   if (platform === 'darwin') {
     // macOS menu order: ⌃ ⌥ ⇧ ⌘.
-    return p.modifiers.map((m) => MAC_SYMBOLS[m]).join('') + (MAC_KEYS[p.key] ?? p.key);
+    return [...p.modifiers.map((m) => MAC_SYMBOLS[m]), MAC_KEYS[p.key] ?? p.key];
   }
   const names = p.modifiers.map((m) => (platform === 'win32' && m === 'Super' ? 'Win' : PC_NAMES[m]));
-  return [...names, p.key].join('+');
+  return [...names, p.key];
+}
+
+/** How a chord is printed in running text: "⌥Space" on a Mac, "Ctrl+Alt+Space" elsewhere. */
+export function formatAccelerator(raw: string, platform: DictatePlatform): string {
+  const keys = acceleratorKeys(raw, platform);
+  if (!keys.length) return raw;
+  return platform === 'darwin' ? keys.join('') : keys.join('+');
 }
 
 /** The parts of a KeyboardEvent the recorder needs (kept DOM-free). */

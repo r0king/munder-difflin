@@ -1,3 +1,138 @@
 {
-  "title": "Tasks"
+  "title": "Tasks",
+  "loading": "Reading the task ledger",
+  "dismiss": "Dismiss",
+  "unassigned": "Unassigned",
+  "ownerGod": "{{name}} (orchestrator)",
+  "ownerAway": "not on the floor",
+  "ago": "{{age}} ago",
+  "updatedAgo": "updated {{age}} ago",
+  "age": {
+    "m": "{{n}}m",
+    "h": "{{n}}h",
+    "d": "{{n}}d"
+  },
+  "col": {
+    "todo": "To do",
+    "doing": "Doing",
+    "blocked": "Blocked",
+    "done": "Done"
+  },
+  "view": {
+    "label": "View",
+    "board": "Board",
+    "list": "List",
+    "cards": "Cards"
+  },
+  "range": {
+    "today": "Today",
+    "week": "This week",
+    "month": "This month",
+    "all": "All time"
+  },
+  "summary": {
+    "empty": "No tasks yet",
+    "inProgress": "{{count}} in progress",
+    "asksYouOne": "{{count}} asks you",
+    "asksYouMany": "{{count}} ask you",
+    "join": "{{a}}, {{b}}"
+  },
+  "filter": {
+    "range": "When",
+    "assignee": "Owner",
+    "everyone": "Everyone",
+    "search": "Search tasks",
+    "clear": "Clear filters",
+    "showing": "{{shown}} of {{total}}"
+  },
+  "empty": {
+    "title": "No tasks yet",
+    "body": "Cards appear here as {{godName}} plans the work. Add one yourself with New task.",
+    "filteredTitle": "Nothing matches",
+    "filteredBody": "No card fits these filters. Cards that ask you something or have gone stale always show."
+  },
+  "flag": {
+    "asks": "asks you",
+    "asksTitle": "This card is waiting on your answer. Open it in Ask me.",
+    "stale": "stale · {{age}}",
+    "staleTitle": "In Doing with no update for {{age}}",
+    "sentMove": "sent · → {{column}}",
+    "sentOwner": "sent · → {{owner}}",
+    "sentTitle": "Sent to {{godName}} {{age}} ago. The card moves when he updates the ledger."
+  },
+  "pending": {
+    "short": "Pending",
+    "from": "Pending · from {{column}}",
+    "owner": "to {{owner}}",
+    "undo": "Undo"
+  },
+  "card": {
+    "role": "task card"
+  },
+  "menu": {
+    "label": "Card actions",
+    "moveTo": "Move to",
+    "owner": "Owner",
+    "open": "Open details",
+    "undo": "Undo this change"
+  },
+  "board": {
+    "empty": "Nothing here",
+    "dropHere": "Drop a card here",
+    "hiddenDone": "{{count}} finished more than a day ago.",
+    "showInList": "Show in List"
+  },
+  "kbd": {
+    "hint": "Arrow keys move between cards. Shift with Left or Right moves a card one column. Space picks a card up, the arrows carry it, Space puts it down, Escape cancels. Enter opens a card.",
+    "short": "Shift+← → moves a card · Space picks it up",
+    "moved": "{{id}} staged to {{column}}. Send to hand it to {{godName}}.",
+    "lifted": "{{id}} picked up, over {{column}}.",
+    "cancelled": "{{id}} put back."
+  },
+  "list": {
+    "id": "ID",
+    "title": "Title",
+    "column": "Column",
+    "owner": "Owner",
+    "updated": "Updated",
+    "flags": "Flags",
+    "columnFor": "Column for {{id}}",
+    "ownerFor": "Owner of {{id}}",
+    "rawStatus": "The ledger says “{{status}}”"
+  },
+  "send": {
+    "region": "Staged changes",
+    "stagedOne": "1 change staged.",
+    "stagedMany": "{{count}} changes staged.",
+    "hint": "Send hands them all to {{godName}} in one message; he updates the board.",
+    "hintAway": "{{godName}} is not on the floor yet. Your message waits in his queue until he is.",
+    "review": "Review",
+    "hide": "Hide",
+    "discard": "Discard all",
+    "send": "Send to {{godName}}",
+    "sending": "Sending",
+    "sentOne": "Sent 1 change to {{godName}}. The card moves when he applies it.",
+    "sentMany": "Sent {{count}} changes to {{godName}}. Cards move as he applies them.",
+    "failed": "Could not send: {{error}}",
+    "failedGeneric": "the message was not accepted",
+    "columnChange": "{{from}} → {{to}}",
+    "ownerChange": "owner {{from}} → {{to}}"
+  },
+  "newTask": {
+    "button": "New task",
+    "heading": "New task",
+    "title": "Title",
+    "titlePlaceholder": "What needs doing",
+    "description": "Details (optional)",
+    "descriptionPlaceholder": "Context, constraints, what done looks like",
+    "assignee": "Owner (optional)",
+    "tell": "Tell {{godName}} so he dispatches it",
+    "cancel": "Cancel",
+    "create": "Add task",
+    "creating": "Adding",
+    "failed": "Could not add the task: {{error}}",
+    "failedGeneric": "the ledger did not accept it",
+    "created": "{{id}} is on the board.",
+    "createdNotTold": "{{id}} is on the board, but {{godName}} could not be told: {{error}}"
+  }
 }

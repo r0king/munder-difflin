@@ -16,6 +16,7 @@ import {
   MAX_DESCRIPTION_CHARS,
   MAX_TITLE_CHARS,
   formatDuration,
+  isSessionId,
   sanitizeSegments,
   type MeetingRecord,
   type MeetingSegment,
@@ -101,13 +102,7 @@ export function parseMeetingRecord(raw: unknown, id: string): MeetingRecord | nu
   };
   if (typeof r.engine === 'string' && r.engine.length <= 40) rec.engine = r.engine;
   if (typeof r.error === 'string') rec.error = r.error.slice(0, 2000);
-  const audio = r.audio as Record<string, unknown> | undefined;
-  if (audio && typeof audio === 'object') {
-    const a: { micWav?: string; systemWav?: string } = {};
-    if (typeof audio.micWav === 'string' && audio.micWav.length < 4096) a.micWav = audio.micWav;
-    if (typeof audio.systemWav === 'string' && audio.systemWav.length < 4096) a.systemWav = audio.systemWav;
-    if (a.micWav || a.systemWav) rec.audio = a;
-  }
+  if (isSessionId(r.sessionId)) rec.sessionId = r.sessionId;
   return rec;
 }
 

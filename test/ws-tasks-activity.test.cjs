@@ -39,6 +39,8 @@ test('first look: changed at the explicit stamp, else the file mtime', () => {
   assert.equal(state.cards.stamped.changedAt, T0 - 5 * HOUR);
   // Its column-entry time leans early (only used to move done cards off the Board).
   assert.equal(state.cards.done.statusSince, Date.parse('2026-10-01T00:00:00Z'));
+  assert.equal(state.cards.plain.observed, false, 'a bound, not a sighting');
+  assert.equal(state.cards.stamped.observed, true);
   // A future mtime (clock skew) never yields a future change.
   const skew = a.observeLedger(null, ledger, T0, T0 + HOUR).state;
   assert.equal(skew.cards.plain.changedAt, T0);
@@ -53,6 +55,7 @@ test('an unchanged card keeps its record; a changed one is credited to now', () 
   assert.equal(state.cards.y.changedAt, later);
   assert.equal(state.cards.y.statusSince, later, 'column change restarts statusSince');
   assert.equal(state.cards.y.column, 'done');
+  assert.equal(state.cards.y.observed, true);
 });
 
 test('a content edit without a column change keeps statusSince', () => {
@@ -93,7 +96,10 @@ test('a card gone from the ledger is dropped, and that counts as a change', () =
 
 test('the renderer map and the on-disk round trip', () => {
   const { state } = a.observeLedger(null, [{ id: 'x', status: 'doing' }], T0, T0);
-  assert.deepEqual(a.activityMap(state), { x: { changedAt: T0, statusSince: T0 } });
+  // A first-look bound is flagged, so the date filters do not read it as a change.
+  assert.deepEqual(a.activityMap(state), { x: { changedAt: T0, statusSince: T0, observed: false } });
+  const seen = a.observeLedger(state, [{ id: 'x', status: 'done' }], T0 + 5, T0 + 5).state;
+  assert.deepEqual(a.activityMap(seen), { x: { changedAt: T0 + 5, statusSince: T0 + 5 } });
   assert.deepEqual(a.parseActivityState(JSON.parse(JSON.stringify(state))), state);
   assert.equal(a.parseActivityState({ v: 2, seenAt: 1, cards: {} }), null);
   assert.equal(a.parseActivityState('nope'), null);

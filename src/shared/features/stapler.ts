@@ -94,6 +94,26 @@ export function isStaplerMode(v: unknown): v is StaplerMode {
   return v === 'puck' || v === 'ring' || v === 'panel';
 }
 
+/** What the puck's renderer gets when it says it is listening. */
+export interface PuckBoot {
+  /** Commands main held while the renderer was loading. */
+  commands: StaplerCommand[];
+  layout: StaplerLayout;
+  draft: StaplerDraft;
+  target: StaplerTarget;
+  /** Transparent areas pass clicks through (false on Linux). */
+  clickThrough: boolean;
+}
+
+/** Facts the settings panel explains. */
+export interface StaplerEnv {
+  platform: string;
+  /** macOS Screen Recording permission; 'granted' elsewhere. */
+  screenPermission: 'granted' | 'denied' | 'not-determined' | 'restricted' | 'unknown';
+  /** Linux only: 'wayland' or 'x11'. */
+  sessionType: string | null;
+}
+
 // ─── Targets ────────────────────────────────────────────────────────────────
 
 /** "Everything it catches goes to your orchestrator, or to the agent you
@@ -284,8 +304,9 @@ export interface MeetingRecord {
   engine?: string;
   error?: string;
   updatedAt: string;
-  /** Capture files kept (by the transcribe unit) for a retry. */
-  audio?: { micWav?: string; systemWav?: string };
+  /** The capture session (transcribe unit) the audio is in — what "Try
+   *  again" transcribes while the recording is still kept. */
+  sessionId?: string;
 }
 
 export interface MeetingSummary {
@@ -356,29 +377,46 @@ export function formatDuration(ms: number): string {
 // ─── Capture sessions ───────────────────────────────────────────────────────
 
 /** A capture session id the Stapler mints: `stapler-<kind>-<base36 time>-<rand>`.
- *  Letters, digits and dashes only, so every unit's id check accepts it. */
+ *  Letters, digits and dashes only, 20+ characters — inside the transcribe
+ *  unit's session-id shape (isValidSessionId). */
 export function newSessionId(kind: 'message' | 'meeting', now: number = Date.now(), rand: () => number = Math.random): string {
   const r = Math.floor(rand() * 36 ** 6).toString(36).padStart(6, '0');
   return `stapler-${kind === 'meeting' ? 'mtg' : 'msg'}-${Math.floor(now).toString(36)}-${r}`;
 }
 
-/** What the puck hands main after a capture stops, to transcribe. */
-export interface StaplerTranscribeRequest {
-  kind: 'message' | 'meeting';
-  sessionId: string;
-  micWav?: string;
-  systemWav?: string;
-  durationMs: number;
-  /** Meetings: the folder created at start. */
-  meetingId?: string;
+const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{7,63}$/;
+export function isSessionId(v: unknown): v is string {
+  return typeof v === 'string' && SESSION_ID.test(v);
 }
 
-export interface StaplerTranscribeResult {
+/** A meeting's capture stopped; its session is being transcribed. */
+export interface MeetingTranscribingRequest {
+  sessionId?: string;
+  durationMs: number;
+}
+
+/** The transcription of a meeting came back (from the puck, or from the
+ *  library's "Try again"). */
+export interface MeetingFinishRequest {
   ok: boolean;
-  text: string;
+  durationMs: number;
   segments: MeetingSegment[];
   engine?: string;
   error?: string;
-  /** Meetings: the saved meeting. */
-  meeting?: MeetingSummary;
+}
+
+/** Validate a MeetingFinishRequest from IPC. Null when malformed. */
+export function sanitizeMeetingFinish(v: unknown): MeetingFinishRequest | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const r = v as Record<string, unknown>;
+  if (typeof r.ok !== 'boolean') return null;
+  const out: MeetingFinishRequest = {
+    ok: r.ok,
+    durationMs: finite(r.durationMs) && r.durationMs >= 0 ? Math.round(r.durationMs) : 0,
+    segments: sanitizeSegments(r.segments)
+  };
+  if (typeof r.engine === 'string' && r.engine.length <= 40) out.engine = r.engine;
+  if (typeof r.error === 'string') out.error = r.error.slice(0, 2000);
+  if (!out.ok && !out.error) out.error = 'transcription failed';
+  return out;
 }

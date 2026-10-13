@@ -216,9 +216,9 @@ export function useAutomationsData(config: HarnessConfig): AutomationsData {
     }
   }, []);
 
-  const patchRule = useCallback((id: string, fields: Partial<HouseRule>) => {
+  const patchRule = useCallback((id: string, fields: Partial<HouseRule>): Promise<WriteOutcome & { stored?: HouseRule }> => {
     const latest = rulesRef.current.find((r) => r.id === id);
-    if (!latest) return Promise.resolve<WriteOutcome>({ ok: false, error: 'notFound' });
+    if (!latest) return Promise.resolve({ ok: false, error: 'notFound' });
     return saveRule({ ...latest, ...fields });
   }, [saveRule]);
 
@@ -270,10 +270,11 @@ export function useAutomationsData(config: HarnessConfig): AutomationsData {
     }
   }, [setWebhooks]);
 
-  const patchWebhook = useCallback(async (id: string, fields: Partial<WebhookTrigger>) => {
+  const patchWebhook = useCallback(async (id: string, fields: Partial<WebhookTrigger>): Promise<WriteOutcome & { stored?: WebhookTrigger }> => {
     const latest = useStore.getState().webhookTriggers;
     const res = await saveWebhooks(latest.map((w) => (w.id === id ? { ...w, ...fields } : w)));
-    return res.ok ? { ...res, stored: res.stored?.find((w) => w.id === id) } : res;
+    if (!res.ok) return { ok: false, error: res.error };
+    return { ok: true, stored: res.stored?.find((w) => w.id === id) };
   }, [saveWebhooks]);
 
   const deleteWebhook = useCallback(async (id: string): Promise<WriteOutcome> => {

@@ -66,7 +66,8 @@ interface Capture {
 }
 
 export interface ScreenshotHost {
-  ctx: FeatureContext;
+  /** Resolved lazily: the controllers exist before register() runs. */
+  ctx(): FeatureContext;
   shotsDir(): string;
   /** Remembered region for a display (CSS px). */
   rememberedRegion(displayId: string): Region | undefined;
@@ -166,7 +167,7 @@ export class ScreenshotController {
   }
 
   private openOverlay(display: Display): void {
-    const { ctx } = this.host;
+    const ctx = this.host.ctx();
     const win = new BrowserWindow({
       ...display.bounds,
       show: false,

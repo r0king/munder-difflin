@@ -28,17 +28,16 @@
  * openPanel, puckReady, setMode, setIgnoreMouse, dragStart, dragEnd,
  * setRecording, getTarget, setTarget, screenshot, overlayInit, overlayCommit,
  * overlayCancel, getDraft, removeAttachment, clearDraft, pickFiles, addPaths,
- * send, transcribe, meetingStart, meetingAbort, meetingList, meetingGet,
- * meetingUpdate, meetingDelete, meetingSend, meetingReveal, meetingRetry,
- * takeMeetingFocus, openMeetingInApp.
+ * send, meetingStart, meetingAbort, meetingTranscribing, meetingFinish,
+ * meetingList, meetingGet, meetingUpdate, meetingDelete, meetingSend,
+ * meetingReveal, takeMeetingFocus, openMeetingInApp.
  * Push: feat:stapler:state (every window), feat:stapler:command,
  * feat:stapler:draft (puck), feat:stapler:meetings, feat:stapler:focusMeeting
  * (app windows).
  */
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, shell, type IpcMainInvokeEvent } from 'electron';
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path';
-import { tmpdir } from 'node:os';
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, shell, type IpcMainInvokeEvent, type WebContents } from 'electron';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { basename, isAbsolute, join, relative, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import {
   DEFAULT_STAPLER_STATE,
@@ -46,23 +45,22 @@ import {
   cleanTarget,
   isStaplerMode,
   isStaplerPanel,
+  isSessionId,
   isStaplerSendRequest,
   isStaplerTarget,
+  sanitizeMeetingFinish,
   type DraftAttachment,
   type MeetingRecord,
-  type MeetingSegment,
   type MeetingShortcutStatus,
+  type MeetingSummary,
+  type MeetingTranscribingRequest,
   type StaplerCommand,
   type StaplerDraft,
   type StaplerRecording,
   type StaplerResult,
   type StaplerState,
-  type StaplerTarget,
-  type StaplerTranscribeRequest,
-  type StaplerTranscribeResult
+  type StaplerTarget
 } from '../../shared/features/stapler';
-import type { TranscribeResult } from '../../shared/features/transcribe';
-import { transcribeFile, transcribeMeeting } from './transcribe';
 import type { FeatureContext, FeatureModule } from './types';
 import { DEFAULT_SETTINGS, sanitizeSettings, type StaplerSettings } from './stapler/settings';
 import { PuckWindow } from './stapler/puckWindow';
@@ -95,11 +93,9 @@ let pendingCommands: StaplerCommand[] = [];
 let puckReady = false;
 let pendingFocus: string | null = null;
 let disposed = false;
-/** Meetings main is transcribing right now (not "interrupted"). */
-const transcribing = new Set<string>();
 
 const puck = new PuckWindow({
-  ctx: null as unknown as FeatureContext, // replaced in register()
+  ctx: () => ctx(),
   placement: () => settings.placement,
   savePlacement: (placement) => saveSettings({ placement }),
   protection: () => protectionWanted(),
@@ -107,7 +103,7 @@ const puck = new PuckWindow({
 });
 
 const screenshots = new ScreenshotController({
-  ctx: null as unknown as FeatureContext, // replaced in register()
+  ctx: () => ctx(),
   shotsDir: () => join(ctx().featureDataDir(UNIT), 'shots'),
   rememberedRegion: (displayId) => settings.regions[displayId],
   shotCount: () => shotCount(draft),
@@ -250,7 +246,7 @@ function interruptActiveMeeting(): void {
   activeMeeting = null;
   try {
     const rec = store.get(id);
-    if (rec && rec.status === 'recording') store.markInterrupted(new Set([...transcribing]));
+    if (rec && rec.status === 'recording') store.markInterrupted(inFlight());
   } catch { /* library unreadable */ }
   broadcastMeetings();
 }
@@ -384,128 +380,71 @@ function send(req: unknown): StaplerResult {
   return { ok: true };
 }
 
-// ─── Transcription ──────────────────────────────────────────────────────────
+// ─── Meeting transcription ──────────────────────────────────────────────────
+//
+// The puck (or the library's "Try again") transcribes through the transcribe
+// unit's session API — transcribeSession(sessionId, { meeting: true }) — so
+// that unit's retention ("deleted 24 hours after they are transcribed") sees
+// every transcription. Main only records the outcome in the meeting's folder.
 
-const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$/;
+/** id → the webContents transcribing it, so a renderer that dies mid-way
+ *  leaves "interrupted", not a spinner forever. */
+const transcribing = new Map<string, number>();
 
-/** Roots a capture WAV may live under: the app's data, or the OS temp dir. */
-function wavRoots(): string[] {
-  const roots: string[] = [];
-  for (const r of [ctx().userDataDir, tmpdir()]) {
-    try { roots.push(realpathSync(r)); } catch { roots.push(resolve(r)); }
-  }
-  return roots;
+/** Meetings legitimately in flight: recording now, or being transcribed. */
+function inFlight(): Set<string> {
+  const ids = new Set(transcribing.keys());
+  if (activeMeeting) ids.add(activeMeeting.id);
+  return ids;
 }
 
-/**
- * A WAV path handed back by the puck after a capture: absolute, a .wav, a real
- * file, belonging to this session (its id is in the path) and under the app's
- * data or temp dir. undefined = not given; null = given but refused.
- */
-function checkWav(p: unknown, sessionId: string): string | undefined | null {
-  if (p === undefined || p === null || p === '') return undefined;
-  if (typeof p !== 'string' || p.length > 4096 || !isAbsolute(p)) return null;
-  if (extname(p).toLowerCase() !== '.wav' || !p.includes(sessionId)) return null;
-  try {
-    const real = realpathSync(p);
-    if (!statSync(real).isFile()) return null;
-    const inside = wavRoots().some((root) => {
-      const rel = relative(root, real);
-      return !!rel && !rel.startsWith('..') && !isAbsolute(rel);
-    });
-    return inside ? real : null;
-  } catch {
-    return null;
-  }
-}
-
-function toSegments(r: TranscribeResult, meeting: boolean): MeetingSegment[] {
-  return (r.segments ?? [])
-    .filter((s) => s && typeof s.text === 'string' && s.text.trim())
-    .map((s) => ({
-      speaker: meeting && s.speaker === 'them' ? 'them' : 'you',
-      startMs: Number.isFinite(s.startMs) ? Math.max(0, Math.round(s.startMs)) : 0,
-      endMs: Number.isFinite(s.endMs) ? Math.max(0, Math.round(s.endMs)) : 0,
-      text: s.text.trim()
-    }));
-}
-
-async function runMeetingTranscription(id: string, micWav: string | undefined, systemWav: string | undefined, durationMs: number): Promise<MeetingRecord | null> {
-  transcribing.add(id);
-  try {
-    store.markTranscribing(id, durationMs, { micWav, systemWav });
-    broadcastMeetings();
-    let r: TranscribeResult;
-    try {
-      r = await transcribeMeeting(micWav, systemWav);
-    } catch (e) {
-      r = { ok: false, text: '', segments: [], engine: 'local', error: e instanceof Error ? e.message : String(e) };
-    }
-    const rec = store.finish(id, {
-      durationMs,
-      segments: r.ok ? toSegments(r, true) : [],
-      engine: r.engine,
-      ...(r.ok ? {} : { error: r.error || 'transcription failed' }),
-      audio: { micWav, systemWav }
-    });
-    return rec;
-  } finally {
-    transcribing.delete(id);
-    broadcastMeetings();
-  }
-}
-
-async function transcribe(req: unknown): Promise<StaplerTranscribeResult> {
-  const fail = (error: string): StaplerTranscribeResult => ({ ok: false, text: '', segments: [], error });
-  if (!req || typeof req !== 'object') return fail('invalid');
-  const r = req as Partial<StaplerTranscribeRequest>;
-  if ((r.kind !== 'message' && r.kind !== 'meeting') || typeof r.sessionId !== 'string' || !SESSION_ID.test(r.sessionId)) return fail('invalid');
-  const micWav = checkWav(r.micWav, r.sessionId);
-  const systemWav = checkWav(r.systemWav, r.sessionId);
-  if (micWav === null || systemWav === null) return fail('invalid-audio');
+function meetingTranscribing(sender: WebContents, id: unknown, req: unknown): StaplerResult {
+  if (!isMeetingId(id)) return { ok: false, error: 'invalid' };
+  if (transcribing.has(id)) return { ok: false, error: 'busy' };
+  const r = (req && typeof req === 'object' ? req : {}) as Partial<MeetingTranscribingRequest>;
   const durationMs = typeof r.durationMs === 'number' && Number.isFinite(r.durationMs) ? Math.max(0, r.durationMs) : 0;
-
-  if (r.kind === 'message') {
-    if (!micWav) return fail('no-audio');
-    try {
-      const res = await transcribeFile(micWav);
-      if (!res.ok) return { ok: false, text: '', segments: [], engine: res.engine, error: res.error || 'transcription failed' };
-      return { ok: true, text: res.text.trim(), segments: toSegments(res, false), engine: res.engine };
-    } catch (e) {
-      return fail(e instanceof Error ? e.message : String(e));
-    }
-  }
-
-  // Meeting: the folder was created at start.
-  const id = r.meetingId;
-  if (!isMeetingId(id) || !store.get(id)) return fail('unknown-meeting');
+  const sessionId = isSessionId(r.sessionId) ? r.sessionId : undefined;
   if (activeMeeting?.id === id) activeMeeting = null;
+  const rec = store.markTranscribing(id, durationMs, sessionId);
+  if (!rec) return { ok: false, error: 'not-found' };
+  transcribing.set(id, sender.id);
+  sender.once('destroyed', () => abandonTranscriptions(sender.id));
   publish();
-  if (!micWav && !systemWav) {
-    const rec = store.finish(id, { durationMs, segments: [], error: 'no-audio' });
-    broadcastMeetings();
-    return { ok: false, text: '', segments: [], error: 'no-audio', ...(rec ? { meeting: store.summary(id) ?? undefined } : {}) };
-  }
-  const rec = await runMeetingTranscription(id, micWav, systemWav, durationMs);
-  const summary = store.summary(id) ?? undefined;
-  if (!rec || rec.status !== 'ready') {
-    return { ok: false, text: '', segments: [], error: rec?.error || 'transcription failed', meeting: summary };
-  }
-  return { ok: true, text: '', segments: rec.segments, engine: rec.engine, meeting: summary };
+  broadcastMeetings();
+  return { ok: true };
+}
+
+function meetingFinish(id: unknown, req: unknown): { ok: boolean; error?: string; meeting?: MeetingSummary } {
+  if (!isMeetingId(id)) return { ok: false, error: 'invalid' };
+  const f = sanitizeMeetingFinish(req);
+  if (!f) return { ok: false, error: 'invalid' };
+  transcribing.delete(id);
+  if (activeMeeting?.id === id) activeMeeting = null;
+  const rec = store.finish(id, {
+    durationMs: f.durationMs,
+    segments: f.segments,
+    ...(f.engine ? { engine: f.engine } : {}),
+    ...(f.ok ? {} : { error: f.error })
+  });
+  publish();
+  broadcastMeetings();
+  if (!rec) return { ok: false, error: 'not-found' };
+  return { ok: true, meeting: store.summary(rec.id) ?? undefined };
+}
+
+/** A renderer that was transcribing meetings went away. */
+function abandonTranscriptions(senderId: number): void {
+  const mine = [...transcribing].filter(([, wc]) => wc === senderId).map(([id]) => id);
+  if (!mine.length) return;
+  for (const id of mine) transcribing.delete(id);
+  try { store.markInterrupted(inFlight()); } catch { /* library unreadable */ }
+  broadcastMeetings();
 }
 
 // ─── Meetings library ───────────────────────────────────────────────────────
 
 function broadcastMeetings(): void {
   if (ctxRef) ctxRef.broadcastAll(ch('meetings'));
-}
-
-/** What the renderer gets: the record minus the capture paths. */
-function publicRecord(rec: MeetingRecord | null): MeetingRecord | null {
-  if (!rec) return null;
-  const { audio: _audio, ...rest } = rec;
-  void _audio;
-  return rest;
 }
 
 function meetingSend(id: unknown, target: unknown): StaplerResult {
@@ -523,17 +462,6 @@ function meetingSend(id: unknown, target: unknown): StaplerResult {
     source: 'stapler'
   });
   return { ok: true };
-}
-
-async function meetingRetry(id: unknown): Promise<StaplerResult> {
-  const rec = store.get(id);
-  if (!rec) return { ok: false, error: 'not-found' };
-  if (transcribing.has(rec.id) || activeMeeting?.id === rec.id) return { ok: false, error: 'busy' };
-  const micWav = rec.audio?.micWav && existsSync(rec.audio.micWav) ? rec.audio.micWav : undefined;
-  const systemWav = rec.audio?.systemWav && existsSync(rec.audio.systemWav) ? rec.audio.systemWav : undefined;
-  if (!micWav && !systemWav) return { ok: false, error: 'audio-gone' };
-  const done = await runMeetingTranscription(rec.id, micWav, systemWav, rec.durationMs);
-  return done?.status === 'ready' ? { ok: true } : { ok: false, error: done?.error || 'transcription failed' };
 }
 
 function openMeetingInApp(id: unknown): StaplerResult {
@@ -603,8 +531,9 @@ function registerIpc(): void {
   });
 
   // ── The puck window ──
-  puckOnly('puckReady', () => {
+  puckOnly('puckReady', (evt) => {
     puckReady = true;
+    abandonTranscriptions(evt.sender.id);
     // A fresh renderer cannot be recording: whatever was live died with the
     // old one. Clear it so the mic gate and content protection let go.
     if (recording === 'message' || recording === 'meeting') {
@@ -692,7 +621,6 @@ function registerIpc(): void {
   puckOnly('send', (_e, req) => send(req));
 
   // ── Recording ──
-  puckOnly('transcribe', (_e, req) => transcribe(req));
   puckOnly('meetingStart', () => {
     if (activeMeeting) return { ok: false, error: 'busy' };
     const rec = store.create({ startedAt: new Date() });
@@ -714,12 +642,12 @@ function registerIpc(): void {
 
   // ── Meetings library (main window and puck) ──
   handle('meetingList', (_e, query) => store.list(typeof query === 'string' ? query.slice(0, MAX_QUERY) : ''));
-  handle('meetingGet', (_e, id) => publicRecord(store.get(id)));
+  handle('meetingGet', (_e, id) => store.get(id));
   handle('meetingUpdate', (_e, id, patch) => {
     if (activeMeeting?.id === id) return null;
     const rec = store.update(id, patch);
     if (rec) broadcastMeetings();
-    return publicRecord(rec);
+    return rec;
   });
   handle('meetingDelete', (_e, id) => {
     if (activeMeeting?.id === id || (typeof id === 'string' && transcribing.has(id))) return { ok: false, error: 'busy' };
@@ -734,7 +662,9 @@ function registerIpc(): void {
     const err = await shell.openPath(dir);
     return err ? { ok: false, error: err } : { ok: true };
   });
-  handle('meetingRetry', (_e, id) => meetingRetry(id));
+  // Transcription outcomes, from the puck or the library's "Try again".
+  handle('meetingTranscribing', (evt, id, req) => meetingTranscribing(evt.sender, id, req));
+  handle('meetingFinish', (_e, id, req) => meetingFinish(id, req));
   handle('takeMeetingFocus', () => {
     const id = pendingFocus;
     pendingFocus = null;
@@ -760,9 +690,6 @@ export const staplerFeature: FeatureModule = {
   name: UNIT,
   register(c) {
     ctxRef = c;
-    // The controllers were built before the context existed.
-    (puck as unknown as { host: { ctx: FeatureContext } }).host.ctx = c;
-    (screenshots as unknown as { host: { ctx: FeatureContext } }).host.ctx = c;
     settings = sanitizeSettings(c.readFeatureSettings<Record<string, unknown>>(UNIT, {}));
     loadDraft();
     sweepShots();

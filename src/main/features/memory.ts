@@ -105,7 +105,10 @@ async function searchByMeaning(ctx: FeatureContext, raw: unknown): Promise<Memor
   const ticket = ++meaningSeq;
   const run = meaningChain.then(async (): Promise<MemorySearchResult> => {
     if (ticket !== meaningSeq) return base({ query: q.raw, state: 'superseded' });
-    const res = await mm.search(q.raw, { results: PALACE_RESULTS });
+    // The query is one argv entry (no shell), but argparse would still read a
+    // leading '-' as a flag ("-h" prints the help). A leading space makes it
+    // positional and embeds the same.
+    const res = await mm.search(q.raw.startsWith('-') ? ` ${q.raw}` : q.raw, { results: PALACE_RESULTS });
     if (!res.ok) return base({ query: q.raw, state: 'error', error: cleanError(res.error || 'search failed') });
     const out = await meaningAnswer(corpus, root, q, res.output.replace(ANSI, ''));
     const result: MemorySearchResult = {

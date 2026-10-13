@@ -110,9 +110,14 @@ export function movesReducer(state: readonly StagedMove[], action: MoveAction): 
  *     dropped.
  * Returns the same array instance when nothing changed, so a store can skip
  * a write.
+ *
+ * An EMPTY ledger changes nothing. hive.tasks() answers `{ tasks: [] }` when it
+ * catches tasks.json mid-write (the parse fails and it falls back), so "every
+ * card is gone" is far more likely a torn read than a real wipe — and acting
+ * on it would throw away every move the human staged.
  */
 export function reconcileMoves(state: readonly StagedMove[], ledger: readonly LedgerCardState[]): readonly StagedMove[] {
-  if (!state.length) return state;
+  if (!state.length || !ledger.length) return state;
   const byId = new Map(ledger.map((c) => [c.id, c]));
   let dirty = false;
   const out: StagedMove[] = [];
@@ -140,7 +145,8 @@ export const SENT_MOVE_TTL_MS = 6 * 60 * 60 * 1000;
  * speaks for itself), and it is younger than SENT_MOVE_TTL_MS.
  */
 export function reconcileSent(sent: readonly SentMove[], ledger: readonly LedgerCardState[], now: number): readonly SentMove[] {
-  if (!sent.length) return sent;
+  // Same torn-read rule as reconcileMoves.
+  if (!sent.length || !ledger.length) return sent;
   const byId = new Map(ledger.map((c) => [c.id, c]));
   const out = sent.filter((m) => {
     const card = byId.get(m.taskId);

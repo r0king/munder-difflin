@@ -189,3 +189,18 @@ test('deriveTaskKey makes a short ASCII key from a folder name', () => {
   assert.equal(m.deriveTaskKey('x'), 'TSK');
   assert.equal(m.deriveTaskKey('ab'), 'AB');
 });
+
+test('a first-look bound counts for staleness but not for the date filters', () => {
+  const now = new Date(2026, 9, 14, 15, 30).getTime();
+  const [old] = m.normalizeLedger([{ id: 'old', status: 'doing', createdAt: new Date(2026, 8, 2).toISOString() }]);
+  const bound = { old: { changedAt: now - 5 * HOUR, statusSince: 0, observed: false } };
+  // Not touched today as far as anyone knows...
+  assert.equal(m.lastActivityMs(old, bound.old), new Date(2026, 8, 2).getTime());
+  // ...but the bound still drives the stale chip, conservatively.
+  assert.equal(m.staleForMs(old, bound.old, now), 5 * HOUR);
+  const todo = m.normalizeLedger([{ id: 't', status: 'todo', createdAt: new Date(2026, 8, 2).toISOString() }]);
+  const ids = m.filterTasks(todo, { range: 'today', assignee: 'all', query: '' }, {
+    now, activity: { t: { changedAt: now - HOUR, statusSince: 0, observed: false } }
+  }).map((t) => t.id);
+  assert.deepEqual(ids, []);
+});

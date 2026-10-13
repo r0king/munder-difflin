@@ -138,7 +138,9 @@ function observeNow(): Promise<void> {
   if (running) return running;
   const t = currentTracker();
   if (!t) return Promise.resolve();
-  running = observe(t).finally(() => { running = null; });
+  running = observe(t)
+    .catch((e) => { t.lastError = 'observation failed'; console.warn('[tasks] observing the ledger failed:', e); })
+    .finally(() => { running = null; });
   return running;
 }
 

@@ -62,8 +62,10 @@ export interface WavInfo {
 }
 
 /** Walk the RIFF chunks; throws a readable error on anything that is not a
- *  WAV we can decode. */
-export function parseWav(buf: Buffer): WavInfo {
+ *  WAV we can decode. `buf` may be just the head of the file, with the real
+ *  `fileSize` given, so a multi-hour recording is never read whole to find out
+ *  what it is. */
+export function parseWav(buf: Buffer, fileSize: number = buf.length): WavInfo {
   if (buf.length < 12 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') {
     throw new Error('not a WAV file');
   }
@@ -89,8 +91,8 @@ export function parseWav(buf: Buffer): WavInfo {
       if (!fmt) throw new Error('WAV data before format chunk');
       // A streamed header that was never fixed up says 0 (or -1): everything
       // after this point is sample data.
-      const declared = size === 0 || size === 0xffffffff ? buf.length - body : size;
-      const dataBytes = Math.max(0, Math.min(declared, buf.length - body));
+      const declared = size === 0 || size === 0xffffffff ? fileSize - body : size;
+      const dataBytes = Math.max(0, Math.min(declared, fileSize - body));
       validateFormat(fmt);
       return { ...fmt, dataOffset: body, dataBytes: dataBytes - (dataBytes % fmt.blockAlign) };
     }

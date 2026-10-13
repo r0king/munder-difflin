@@ -27,7 +27,7 @@ import {
   type NoteHit,
   type TicketHit
 } from '../../../shared/workspace/memoryTypes';
-import { FloorCorpus, MAX_MD_BYTES, ScanBudget, findSection, readCapped, regularFile, type FloorSnapshot } from './corpus';
+import { FloorCorpus, MAX_MD_BYTES, NOTE_EXTS, ScanBudget, findSection, readCapped, regularFile, type FloorSnapshot } from './corpus';
 
 /** How long one exact scan may take before it answers with what it has. */
 export const EXACT_DEADLINE_MS = 4000;
@@ -263,7 +263,8 @@ export async function meaningAnswer(
       ticketRefs: findTicketRefs(h.text, floor.ledgerIds),
       // Keep MemPalace's own order: its hybrid rank is the point of this lane.
       score: Math.round((10 / Math.max(1, h.rank) + (h.similarity ?? 0)) * 1000) / 1000,
-      snippet: needles.some((n) => text.folded.includes(n)) ? makeSnippet(text, needles, { radius: 120, max: 320 }) : leadSnippet(h.text, 320)
+      snippet: needles.some((n) => text.folded.includes(n)) ? makeSnippet(text, needles, { radius: 120, max: 320 }) : leadSnippet(h.text, 320),
+      text: h.text
     };
     if (authorId) note.authorId = authorId;
     const at = firstHeading ? headingDate(firstHeading) : undefined;
@@ -360,7 +361,9 @@ export async function readNote(root: string | null, ref: MemoryNoteRef, knowledg
 
   if (ref.kind === 'notes') {
     const file = ref.file;
-    if (!NOTE_FILE.test(file) || file === '.' || file === '..' || file.startsWith('.')) return fail('invalid note');
+    if (!NOTE_FILE.test(file) || file.startsWith('.') || !NOTE_EXTS.some((x) => file.toLowerCase().endsWith(x))) {
+      return fail('invalid note');
+    }
     const path = join(root, 'notes', file);
     const text = await readCapped(path, MAX_MD_BYTES);
     if (!text) return fail('not found');
