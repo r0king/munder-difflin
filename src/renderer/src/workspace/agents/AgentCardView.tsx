@@ -65,8 +65,10 @@ export function AgentCardView({ agent, activity, ticket, ask, hasOpenQuestion, d
   const update = pickLatestUpdate(activity, liveText);
   const { engine, model } = engineModelLabel(t, agent);
 
-  // The tool line: the transcript's (with its argument and result) when it is
-  // as fresh as anything the store knows, else the store's own action.
+  // The tool line: the transcript's when there is one (Claude writes the
+  // tool_use record as the call starts, with its argument, and the result as
+  // it returns); otherwise the store's own action (the pty parser's
+  // `<tool> <arg>` or a hook's `using <Tool>`), for engines with no transcript.
   const fromTranscript = activity?.lastTool;
   const fromAction = toolLineFromAction(agent.action);
   const tool = fromTranscript

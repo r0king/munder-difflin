@@ -18,6 +18,7 @@ import {
   SYSTEM,
   buildAgentRows,
   canonicalParty,
+  pendingOptions,
   pendingReplyIds,
   summarizeAgents,
   type AgentRow,
@@ -96,7 +97,7 @@ export interface WaitingModel {
  */
 export function useWaitingOnYou(): WaitingModel {
   const { tasks, loaded: tasksLoaded } = useHiveTasks();
-  const { messages, loaded: mailLoaded } = useInboxMail();
+  const { messages, marks, loaded: mailLoaded } = useInboxMail();
   const godId = useGodId();
   return useMemo(() => {
     const items: WaitingItem[] = [];
@@ -109,7 +110,7 @@ export function useWaitingOnYou(): WaitingModel {
         agentId: askOwner(task, godId), at: askedAtMs(question) ?? Number.NaN
       });
     }
-    const pending = pendingReplyIds(messages);
+    const pending = pendingReplyIds(messages, pendingOptions(godId, marks));
     for (const m of messages) {
       if (!pending.has(m.id)) continue;
       items.push({
@@ -120,7 +121,7 @@ export function useWaitingOnYou(): WaitingModel {
     const asked = (i: WaitingItem) => ({ askedAt: i.kind === 'ask' ? i.question.askedAt : i.message.createdAt });
     items.sort((a, b) => compareByNewestAsk(asked(a), asked(b)));
     return { items, loaded: tasksLoaded && mailLoaded, tasks };
-  }, [tasks, messages, godId, tasksLoaded, mailLoaded]);
+  }, [tasks, messages, marks, godId, tasksLoaded, mailLoaded]);
 }
 
 // ─── Agent rows ─────────────────────────────────────────────────────────────

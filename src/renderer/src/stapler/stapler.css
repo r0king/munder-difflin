@@ -105,8 +105,8 @@
 .cth-stapler-ringbtn[aria-pressed='true'] { background: var(--cth-lemon-light); box-shadow: inset 0 0 0 2px var(--cth-lemon), var(--cth-shadow-hard); }
 .cth-stapler-ringbtn--live,
 .cth-stapler-ringbtn--live:hover { background: var(--cth-coral-light); box-shadow: inset 0 0 0 2px var(--cth-coral), var(--cth-shadow-hard); }
-.cth-stapler-ringbtn:disabled,
-.cth-stapler-ringbtn:disabled:hover { background: var(--cth-cream-200); color: var(--cth-ink-300); box-shadow: inset 0 0 0 1px var(--cth-ink-100); cursor: default; }
+.cth-stapler-ringbtn[aria-disabled='true'],
+.cth-stapler-ringbtn[aria-disabled='true']:hover { background: var(--cth-cream-200); color: var(--cth-ink-300); box-shadow: inset 0 0 0 1px var(--cth-ink-100); cursor: default; }
 .cth-stapler-ringbtn-mark {
   position: absolute;
   top: -4px;

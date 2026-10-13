@@ -33,8 +33,8 @@ import { extname, sep } from 'node:path';
 import { BrowserWindow, Notification, globalShortcut, ipcMain, webContents, type WebContents } from 'electron';
 import {
   DEFAULT_DICTATE_STATE,
-  cleanTranscript,
   defaultDictateConfig,
+  polishTranscript,
   toDictatePlatform,
   validateAccelerator,
   type DictateConfig,
@@ -47,7 +47,8 @@ import {
   type DictateState,
   type ShortcutError
 } from '../../shared/features/dictate';
-import { newSessionId } from '../../shared/features/transcribe';
+import { DEFAULT_TRANSCRIBE_SETTINGS, newSessionId, normalizeSettings } from '../../shared/features/transcribe';
+import { mergeVocabulary } from '../../shared/features/vocabulary';
 import { transcribeFile } from './transcribe';
 import type { FeatureContext, FeatureModule } from './types';
 import { applyDictatePatch, sanitizeDictateConfig } from './dictate/config';
@@ -351,7 +352,9 @@ function isHostEvent(v: unknown): v is DictateHostEvent {
   switch (e.type) {
     case 'started': return true;
     case 'level': return typeof e.level === 'number';
-    case 'failed': return e.code === 'mic-denied' || e.code === 'mic-unavailable' || e.code === 'capture-failed';
+    case 'failed':
+      return (e.code === 'mic-denied' || e.code === 'mic-unavailable' || e.code === 'capture-failed') &&
+        (e.detail === undefined || typeof e.detail === 'string');
     case 'captured': return typeof e.wavPath === 'string' && e.wavPath.length < 4096 && typeof e.durationMs === 'number';
     default: return false;
   }
@@ -408,6 +411,18 @@ function containedWav(p: string): string | null {
   }
 }
 
+/** The built-in names plus the user's own words (the transcribe unit's
+ *  settings, read through its own normaliser). */
+function vocabulary(): string[] {
+  if (!ctx) return mergeVocabulary([]);
+  try {
+    const settings = normalizeSettings(ctx.readFeatureSettings('transcribe', { ...DEFAULT_TRANSCRIBE_SETTINGS }));
+    return mergeVocabulary(settings.customVocabulary);
+  } catch {
+    return mergeVocabulary([]);
+  }
+}
+
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | 'timeout'> {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => resolve('timeout'), ms);
@@ -428,7 +443,7 @@ async function transcribeAndInsert(r: Run, wavPath: string, durationMs: number):
   if (run !== r || r.cancelled) return;
   if (result === 'timeout') { fail(r, 'transcribe-timeout'); return; }
   if (!result.ok) { fail(r, 'transcribe-failed', result.error); return; }
-  const text = cleanTranscript(result.text);
+  const text = polishTranscript(result.text, vocabulary());
   if (!text) { fail(r, 'nothing-heard'); return; }
 
   // Past the point of no return: the cancel key goes back to its owner.

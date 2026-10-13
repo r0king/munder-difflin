@@ -271,3 +271,25 @@ test('agent rows: needs-you, then unread, then activity, then the quiet roster',
   assert.equal(rows[4].summary, null);
   assert.equal(rows[4].latestAt, Number.NEGATIVE_INFINITY);
 });
+
+test('the orchestrator answering for you clears a request, unless it was his own', () => {
+  const ask = msg({ from: 'angela', to: 'human', act: 'request', requiresReply: true, conversation: 'logo', createdAt: '2026-10-01T10:00:00Z' });
+  const proxyAnswer = msg({ from: 'god-1', to: 'angela', conversation: 'logo', createdAt: '2026-10-01T11:00:00Z' });
+  assert.ok(M.pendingReplyIds([ask, proxyAnswer]).has(ask.id), 'without knowing the proxy nothing changes');
+  assert.equal(M.pendingReplyIds([ask, proxyAnswer], { proxyId: 'god-1' }).size, 0);
+  const aliasAnswer = msg({ from: 'god', to: 'angela', inReplyTo: ask.id, conversation: 'x', createdAt: '2026-10-01T09:00:00Z' });
+  assert.equal(M.pendingReplyIds([ask, aliasAnswer], { proxyId: null }).size, 0, 'the god alias is the proxy too');
+
+  const godsOwn = msg({ from: 'god-1', to: 'human', act: 'query', requiresReply: true, conversation: 'g', createdAt: '2026-10-01T10:00:00Z' });
+  const godFollowUp = msg({ from: 'god-1', to: 'jim', conversation: 'g', createdAt: '2026-10-01T12:00:00Z' });
+  assert.ok(M.pendingReplyIds([godsOwn, godFollowUp], { proxyId: 'god-1' }).has(godsOwn.id));
+});
+
+test('requests from before the Inbox baseline are not waiting on you', () => {
+  const old = msg({ from: 'angela', to: 'human', act: 'request', requiresReply: true, createdAt: '2026-09-01T00:00:00Z' });
+  const fresh = msg({ from: 'angela', to: 'human', act: 'request', requiresReply: true, createdAt: '2026-10-05T00:00:00Z' });
+  const opts = M.pendingOptions('god-1', { '*': '2026-10-01T00:00:00Z' });
+  assert.deepEqual(opts, { proxyId: 'god-1', since: Date.parse('2026-10-01T00:00:00Z') });
+  assert.deepEqual([...M.pendingReplyIds([old, fresh], opts)], [fresh.id]);
+  assert.deepEqual(M.pendingOptions(null, {}), { proxyId: null });
+});

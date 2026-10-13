@@ -17,6 +17,7 @@ import {
   isToHuman,
   isUnread,
   newestAt,
+  pendingOptions,
   pendingReplyIds,
   searchMessages,
   watermark,
@@ -152,7 +153,10 @@ export function AgentSection({ agentId, mail, waiting, tasks, nameOf, godId }: {
     [mail.messages, godId, agentId]
   );
   const threads = useMemo(() => groupThreads(mine), [mine]);
-  const pending = useMemo(() => pendingReplyIds(mail.messages), [mail.messages]);
+  const pending = useMemo(
+    () => pendingReplyIds(mail.messages, pendingOptions(godId, mail.marks)),
+    [mail.messages, mail.marks, godId]
+  );
   const asks = waiting.filter((w): w is Extract<WaitingItem, { kind: 'ask' }> => w.kind === 'ask' && w.agentId === agentId);
   // The mark as it was when the section opened (or when the mail first
   // landed), so what was new stays dotted while you read it rather than
