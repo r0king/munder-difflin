@@ -21,7 +21,7 @@
  * A message file never changes once written — the router writes it atomically
  * and draining it is a rename into .done under the same name — so a file is
  * parsed once and remembered by owner + name; a scan is then a handful of
- * readdirs plus whatever arrived since the last one.
+ * readdirs plus whatever arrived since the last one (./inbox/scan.ts).
  *
  * SECURITY. Paths come only from config.harnessHome and the directory listing
  * itself: agent directories and message files are taken from readdir with

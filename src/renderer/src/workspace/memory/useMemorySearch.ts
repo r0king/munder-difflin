@@ -111,7 +111,10 @@ export function useMemorySearch() {
     if (remembered?.query === query) remember({ meaning: view });
   }, [checkPalace]);
 
-  const run = useCallback((raw: string) => {
+  /** Search both lanes. `reuse` (coming back to the screen) shows the
+   *  remembered answer for the same query instead of searching again; a
+   *  search the user asks for always runs fresh. */
+  const run = useCallback((raw: string, opts: { reuse?: boolean } = {}) => {
     const query = raw.replace(/\s+/g, ' ').trim();
     const mine = ++exactSeq.current;
     const mineMeaning = ++meaningSeq.current;
@@ -122,7 +125,7 @@ export function useMemorySearch() {
       remembered = null;
       return;
     }
-    if (remembered?.query === query && remembered.exact.phase === 'done' && remembered.meaning.phase !== 'loading') {
+    if (opts.reuse && remembered?.query === query && remembered.exact.phase === 'done' && remembered.meaning.phase !== 'loading') {
       setExact(remembered.exact);
       setMeaning(remembered.meaning);
       return;

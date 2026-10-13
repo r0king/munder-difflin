@@ -75,7 +75,7 @@ export function MemoryScreen({ config, query }: MemoryScreenProps) {
       if (q === lastRun.current) return;
       lastRun.current = q;
       setInput(q);
-      search.run(q);
+      search.run(q, { reuse: true });
       return;
     }
     // The route lost its query (the sidebar links to plain Memory) while the
