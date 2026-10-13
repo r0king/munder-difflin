@@ -36,7 +36,8 @@ function Keys({ accelerator, platform }: { accelerator: string; platform: Dictat
   const keys = acceleratorKeys(accelerator, platform);
   if (!keys.length) return <span className="cth-stapler-dictate-code">{accelerator}</span>;
   return (
-    <span className="cth-ws-keys" aria-label={keys.join(' ')}>
+    // A chord reads left to right in every language (Ctrl, then Alt, then Space).
+    <span className="cth-ws-keys" dir="ltr" aria-label={keys.join(' ')}>
       {keys.map((k, i) => <kbd key={i} className="cth-ws-key">{k}</kbd>)}
     </span>
   );
@@ -140,6 +141,13 @@ export function DictateSettings() {
     window.addEventListener('focus', onFocus);
     return () => { alive = false; window.removeEventListener('focus', onFocus); };
   }, [api, refreshStatus]);
+
+  // Another window (the Stapler's panel, the meetings screen) may change the
+  // settings; the pushed state says when the shortcut or the switch moved.
+  useEffect(() => {
+    api.getSettings().then(setConfig, () => { /* keep what we have */ });
+  }, [api, state.enabled, state.shortcut.accelerator, state.cancelShortcut.accelerator]);
+  useEffect(() => { setCopied(false); }, [state.last?.at]);
 
   const save = useCallback(async (patch: Partial<DictateConfig>) => {
     try {

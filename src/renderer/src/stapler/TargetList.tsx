@@ -16,7 +16,8 @@ const FILTER_FROM = 8;
 
 export function TargetList({ roster, value, onPick, autoFocus }: {
   roster: readonly RosterEntry[];
-  value: StaplerTarget;
+  /** The current pick, or null for a plain "pick one" list. */
+  value: StaplerTarget | null;
   onPick: (target: StaplerTarget) => void;
   autoFocus?: boolean;
 }) {
@@ -34,6 +35,7 @@ export function TargetList({ roster, value, onPick, autoFocus }: {
     return [...byProject.entries()].sort(([a], [b]) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)));
   }, [roster, query]);
   const orchestrator: StaplerTarget = { kind: 'orchestrator' };
+  const isPicked = (x: StaplerTarget): boolean => !!value && sameTarget(value, x);
   const showGod = !query.trim() || (god?.name ?? t('stapler.to.orchestrator')).toLowerCase().includes(query.trim().toLowerCase());
 
   return (
@@ -47,9 +49,9 @@ export function TargetList({ roster, value, onPick, autoFocus }: {
         <button
           type="button"
           role="option"
-          aria-selected={sameTarget(value, orchestrator)}
+          aria-selected={isPicked(orchestrator)}
           className="cth-ws-navrow"
-          aria-current={sameTarget(value, orchestrator) ? 'page' : undefined}
+          aria-current={isPicked(orchestrator) ? 'page' : undefined}
           onClick={() => onPick(orchestrator)}
         >
           {god ? <StatusDot status={god.status} /> : <StaplerIcon name="to" />}
@@ -57,7 +59,7 @@ export function TargetList({ roster, value, onPick, autoFocus }: {
             {god?.name ?? t('stapler.to.orchestrator')}
           </span>
           <span className="cth-ws-navrow-meta">{t('stapler.to.orchestratorRole')}</span>
-          {sameTarget(value, orchestrator) && <span className="cth-stapler-target-check"><StaplerIcon name="check" /></span>}
+          {isPicked(orchestrator) && <span className="cth-stapler-target-check"><StaplerIcon name="check" /></span>}
         </button>
       )}
       {groups.map(([project, agents]) => (
@@ -65,7 +67,7 @@ export function TargetList({ roster, value, onPick, autoFocus }: {
           <div className="cth-stapler-group">{project || t('stapler.to.noProject')}</div>
           {agents.map((a) => {
             const target: StaplerTarget = { kind: 'agent', agentId: a.id };
-            const selected = sameTarget(value, target);
+            const selected = isPicked(target);
             return (
               <button
                 key={a.id}

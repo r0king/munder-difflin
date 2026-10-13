@@ -1,3 +1,110 @@
 {
-  "title": "转写"
+  "title": "语音转写",
+  "loading": "正在加载转写设置…",
+  "loadFailed": "无法加载转写设置。",
+  "busy": "正在转写…",
+  "speaker": {
+    "you": "你",
+    "them": "对方"
+  },
+  "engine": {
+    "title": "引擎",
+    "inUse": "使用中",
+    "fallback": "{{engine}} 当前无法运行，因此改用内置模型。",
+    "englishOnly": "目前仅支持英语转写。",
+    "local": {
+      "name": "内置 Whisper",
+      "desc": "在本机运行，无需联网。默认引擎。"
+    },
+    "localLarge": {
+      "name": "更大的 Whisper",
+      "desc": "更准确但更慢，仍在本机运行。需一次性下载 {{size}} MB。"
+    },
+    "apple": {
+      "name": "Apple 设备端识别",
+      "desc": "macOS 26 内置的语音识别器。"
+    },
+    "groq": {
+      "name": "Groq",
+      "desc": "使用你自己的密钥进行快速云端转写。音频会上传到 Groq。"
+    }
+  },
+  "reason": {
+    "model-missing": "请先下载",
+    "downloading": "下载中",
+    "no-groq-key": "请先添加 Groq 密钥",
+    "macos-only": "仅限 macOS",
+    "needs-macos-26": "需要 macOS 26",
+    "no-native-helper": "此版本尚未提供"
+  },
+  "model": {
+    "title": "模型",
+    "base": "内置模型",
+    "large": "更大的模型",
+    "size": "{{size}} 兆字节",
+    "bundled": "随应用附带",
+    "cached": "已下载",
+    "firstUse": "首次使用时下载（{{size}} MB）",
+    "missing": "未下载",
+    "downloading": "正在下载 {{pct}}%",
+    "downloadingLabel": "模型下载进度",
+    "error": "下载失败：{{error}}",
+    "failed": "操作未成功。",
+    "download": "下载",
+    "retry": "重试",
+    "cancel": "取消",
+    "remove": "删除"
+  },
+  "groq": {
+    "title": "Groq",
+    "keySaved": "已保存密钥",
+    "noKey": "没有密钥",
+    "openSettings": "打开 设置 → 语音",
+    "desc": "除非你添加自己的密钥，否则 Groq 保持关闭。添加密钥后，录音会上传到 Groq 进行转写；密钥本身始终不会离开应用的主进程。",
+    "whereKey": "请在主窗口中添加密钥：设置 → 语音 → Free Flow → Groq API 密钥。"
+  },
+  "devices": {
+    "title": "设备",
+    "mic": "麦克风（你）",
+    "system": "对方（对方的声音）",
+    "default": "系统默认",
+    "automatic": "自动",
+    "disconnected": "未连接的设备",
+    "noLabel": "输入 {{n}}",
+    "helpWindows": "“自动”会录制电脑播放的声音，因此通话音频就是对方。",
+    "helpMac": "“自动”通过屏幕与系统音频录制来录制 Mac 的声音：请在 系统设置 → 隐私与安全性 → 屏幕与系统音频录制 中允许 Munder Difflin。也可以选择 BlackHole 等回环设备。",
+    "helpLinux": "“自动”会从 PulseAudio 或 PipeWire 的监视源（“Monitor of …”）录制。如果选错了，请选择其他输入。",
+    "helpDevice": "这台电脑无法直接录制自身的声音。请为对方选择一个回环设备（例如 BlackHole），否则只会录制你的麦克风。",
+    "screenAccessOff": "尚未允许“屏幕与系统音频录制”，因此无法自动录制对方。",
+    "listFailed": "无法列出音频输入。",
+    "test": "测试",
+    "stopTest": "停止",
+    "starting": "正在打开输入…",
+    "testing": "正在收听。请说话，并播放一些声音。",
+    "testHelp": "开会前检查两个音量表。不会保留任何内容。",
+    "you": "你",
+    "them": "对方",
+    "micDenied": "麦克风访问被拒绝。",
+    "testFailed": "无法打开输入：{{error}}"
+  },
+  "vocab": {
+    "title": "词汇表",
+    "intro": "{{count}} 个内置技术名称（Anthropic、Claude、Kubernetes、ARR …）以及你自己的词，让拼写保持正确。",
+    "placeholder": "添加一个词或名称",
+    "add": "添加",
+    "limit": "最多可添加 {{max}} 个自定义词。",
+    "yours": "你的词",
+    "remove": "删除 {{word}}",
+    "empty": "还没有自定义词。",
+    "showBuiltin": "显示 {{count}} 个内置名称",
+    "hideBuiltin": "隐藏内置名称"
+  },
+  "notice": {
+    "mic-device-missing": "所选麦克风未连接，因此使用默认麦克风。",
+    "system-device-missing": "为对方选择的设备未连接；只录制你的麦克风。",
+    "system-no-monitor": "未找到系统音频监视源；只录制你的麦克风。请在转写设置中为对方选择一个输入。",
+    "system-unsupported": "没有回环设备时，这台电脑无法录制自身的声音；只录制你的麦克风。",
+    "system-permission": "录制对方需要“屏幕与系统音频录制”权限；只录制你的麦克风。",
+    "system-no-audio": "无法获取电脑的声音；只录制你的麦克风。"
+  }
 }

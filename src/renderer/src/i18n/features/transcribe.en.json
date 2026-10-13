@@ -1,3 +1,110 @@
 {
-  "title": "Transcription"
+  "title": "Transcription",
+  "loading": "Loading transcription settings…",
+  "loadFailed": "Couldn't load the transcription settings.",
+  "busy": "Transcribing…",
+  "speaker": {
+    "you": "You",
+    "them": "Them"
+  },
+  "engine": {
+    "title": "Engine",
+    "inUse": "In use",
+    "fallback": "{{engine}} can't run right now, so the built-in model is used.",
+    "englishOnly": "Transcription is English only for now.",
+    "local": {
+      "name": "Built-in Whisper",
+      "desc": "Runs on this computer and needs no internet. The default."
+    },
+    "localLarge": {
+      "name": "Larger Whisper",
+      "desc": "More accurate and slower, still on this computer. A one-time {{size}} MB download."
+    },
+    "apple": {
+      "name": "Apple on-device",
+      "desc": "The speech recogniser built into macOS 26."
+    },
+    "groq": {
+      "name": "Groq",
+      "desc": "Fast cloud transcription with your own key. Audio is uploaded to Groq."
+    }
+  },
+  "reason": {
+    "model-missing": "Download it first",
+    "downloading": "Downloading",
+    "no-groq-key": "Add a Groq key first",
+    "macos-only": "macOS only",
+    "needs-macos-26": "Needs macOS 26",
+    "no-native-helper": "Not in this build yet"
+  },
+  "model": {
+    "title": "Models",
+    "base": "Built-in model",
+    "large": "Larger model",
+    "size": "{{size}} MB",
+    "bundled": "Included with the app",
+    "cached": "Downloaded",
+    "firstUse": "Downloads on first use ({{size}} MB)",
+    "missing": "Not downloaded",
+    "downloading": "Downloading {{pct}}%",
+    "downloadingLabel": "Model download progress",
+    "error": "Download failed: {{error}}",
+    "failed": "That didn't work.",
+    "download": "Download",
+    "retry": "Try again",
+    "cancel": "Cancel",
+    "remove": "Remove"
+  },
+  "groq": {
+    "title": "Groq",
+    "keySaved": "Key saved",
+    "noKey": "No key",
+    "openSettings": "Open Settings → Voice",
+    "desc": "Groq stays off unless you add your own key. With a key, recordings are uploaded to Groq to be transcribed; the key itself never leaves the app's main process.",
+    "whereKey": "Add the key in the main window: Settings → Voice → Free Flow → Groq API key."
+  },
+  "devices": {
+    "title": "Devices",
+    "mic": "Microphone (You)",
+    "system": "Other side (Them)",
+    "default": "System default",
+    "automatic": "Automatic",
+    "disconnected": "A device that isn't connected",
+    "noLabel": "Input {{n}}",
+    "helpWindows": "Automatic records what your computer plays, so the call's audio is Them.",
+    "helpMac": "Automatic records the Mac's audio through screen and system audio recording: allow Munder Difflin in System Settings → Privacy & Security → Screen & System Audio Recording. Or pick a loopback device such as BlackHole.",
+    "helpLinux": "Automatic records from a PulseAudio or PipeWire monitor source (\"Monitor of …\"). Pick another input if it chooses the wrong one.",
+    "helpDevice": "This computer can't record its own audio directly. Pick a loopback device (such as BlackHole) for the other side, or only your microphone is recorded.",
+    "screenAccessOff": "Screen & System Audio Recording is not allowed yet, so the other side can't be recorded automatically.",
+    "listFailed": "Couldn't list the audio inputs.",
+    "test": "Test",
+    "stopTest": "Stop",
+    "starting": "Opening the inputs…",
+    "testing": "Listening. Speak, and play some audio.",
+    "testHelp": "Check both meters before a meeting. Nothing is kept.",
+    "you": "You",
+    "them": "Them",
+    "micDenied": "Microphone access was denied.",
+    "testFailed": "Couldn't open the inputs: {{error}}"
+  },
+  "vocab": {
+    "title": "Vocabulary",
+    "intro": "{{count}} built-in technical names (Anthropic, Claude, Kubernetes, ARR …) and your own words keep spellings right.",
+    "placeholder": "Add a word or name",
+    "add": "Add",
+    "limit": "Up to {{max}} words of your own.",
+    "yours": "Your words",
+    "remove": "Remove {{word}}",
+    "empty": "No words of your own yet.",
+    "showBuiltin": "Show the {{count}} built-in names",
+    "hideBuiltin": "Hide the built-in names"
+  },
+  "notice": {
+    "mic-device-missing": "The chosen microphone isn't connected, so the default one is used.",
+    "system-device-missing": "The chosen device for the other side isn't connected; only your microphone is recorded.",
+    "system-no-monitor": "No system audio monitor source was found; only your microphone is recorded. Pick an input for the other side in transcription settings.",
+    "system-unsupported": "This computer can't record its own audio without a loopback device; only your microphone is recorded.",
+    "system-permission": "Recording the other side needs Screen & System Audio Recording permission; only your microphone is recorded.",
+    "system-no-audio": "The computer's audio wasn't available; only your microphone is recorded."
+  }
 }

@@ -178,9 +178,6 @@ export function WorkspaceSidebar({ config }: WorkspaceSidebarProps) {
               {t('wsSidebar.agents.title')}
               {agentCount > 0 && <span className="cth-ws-sidebar-section-count">· {agentCount}</span>}
             </button>
-            <IconButton label={t('ws.shell.addAgent')} size="sm" onClick={() => setAddAgentOpen(true)}>
-              <WsIcon name="plus" />
-            </IconButton>
           </div>
           <AgentList config={config} hiveKey={hiveKey} />
         </section>

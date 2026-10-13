@@ -40,6 +40,7 @@ export const DEFAULTS = {
   lang: 'en',
   viewport: '1440x900',
   settle: 3000,            // ms after load + network idle
+  advance: undefined,      // ms of office-floor (Pixi) time to fast-forward; default 15000 for the index entry, else 0
   timeout: 45000,
   csp: 'relax',
   seed: 1337,              // Math.random seed, or 'off'
@@ -103,6 +104,9 @@ export const CHROMIUM_ARGS = [
   '--use-angle=swiftshader',
   '--enable-unsafe-swiftshader',
   '--ignore-gpu-blocklist',
+  // Software compositing: SwiftShader is then used for WebGL canvases only,
+  // not for every composited layer (Workspace pages go from ~1-6 fps to 60).
+  '--disable-gpu-compositing',
   '--disable-dev-shm-usage',
   '--no-proxy-server',
   '--font-render-hinting=none',
@@ -226,6 +230,7 @@ function normalise(options) {
   o.width = w || 1440;
   o.height = h || 900;
   o.settle = Number(o.settle);
+  o.advance = o.advance === undefined ? (o.entry === 'index' ? 15000 : 0) : Number(o.advance) || 0;
   o.timeout = Number(o.timeout);
   o.seed = o.seed === 'off' || o.seed === false ? null : Number(o.seed);
   o.events = !(o.events === false || o.events === 'off' || o.events === 'false');
@@ -341,6 +346,20 @@ export async function shoot(harness, options = {}) {
     }
     await page.waitForTimeout(o.settle);
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+    if (o.advance > 0) {
+      const nav = navigation;
+      const advanced = await page.evaluate((ms) => {
+        try { return { apps: window.__cthHarness.advancePixi(ms) }; } catch (e) { return { error: String((e && e.stack) || e) }; }
+      }, o.advance);
+      if (advanced.error) {
+        // Thrown by the app's own ticker listeners: a real app error.
+        const { stack, at } = await harness.mapper.mapStack(advanced.error);
+        pageErrors.push({ navigation: nav, message: `(while fast-forwarding the office floor) ${advanced.error.split('\n')[0]}`, at, stack: stack.split('\n').slice(0, 25).join('\n') });
+      } else if (advanced.apps > 0) {
+        notes.push(`fast-forwarded ${advanced.apps} Pixi app(s) by ${o.advance}ms of simulated time`);
+        await page.waitForTimeout(600);
+      }
+    }
   } catch (err) {
     harnessError = String(err?.message ?? err);
   }
@@ -398,7 +417,7 @@ export async function shoot(harness, options = {}) {
   const sidecar = {
     name,
     url,
-    options: { entry: o.entry, mode: o.mode, theme: o.theme, route: o.route ?? null, hash: o.hash ?? null, platform: o.platform, lang: o.lang, viewport: `${o.width}x${o.height}`, csp: o.csp, seed: o.seed, settle: o.settle },
+    options: { entry: o.entry, mode: o.mode, theme: o.theme, route: o.route ?? null, hash: o.hash ?? null, platform: o.platform, lang: o.lang, viewport: `${o.width}x${o.height}`, csp: o.csp, seed: o.seed, settle: o.settle, advance: o.advance },
     png: relative(REPO_ROOT, pngPath),
     pngBytes,
     durationMs: Date.now() - t0,
@@ -441,7 +460,7 @@ async function main() {
       mode: { type: 'string' }, theme: { type: 'string' }, route: { type: 'string' },
       entry: { type: 'string' }, hash: { type: 'string' }, out: { type: 'string' },
       platform: { type: 'string' }, lang: { type: 'string' }, viewport: { type: 'string' },
-      settle: { type: 'string' }, timeout: { type: 'string' }, csp: { type: 'string' },
+      settle: { type: 'string' }, advance: { type: 'string' }, timeout: { type: 'string' }, csp: { type: 'string' },
       seed: { type: 'string' }, events: { type: 'string' },
       'stapler-enabled': { type: 'boolean' }, 'keep-picker': { type: 'boolean' }, onboarding: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' }
@@ -458,6 +477,8 @@ async function main() {
   --out <file.png>             (default tools/screenshot-harness/out/<name>.png)
   --platform darwin|linux|win32  window.cth.platform (default darwin)
   --lang en|zh-CN|ar  --viewport 1440x900  --settle <ms>  --timeout <ms>
+  --advance <ms>               fast-forward the Pixi office floor by <ms> of simulated time
+                               before the shot (default 15000 for --entry index, 0 = off)
   --csp relax|strip|keep       how the served HTML's CSP meta is treated (default relax)
   --seed <n>|off  --events on|off  --stapler-enabled  --keep-picker  --onboarding`);
     return 0;
@@ -465,7 +486,7 @@ async function main() {
   const options = {
     mode: values.mode, theme: values.theme, route: values.route, entry: values.entry, hash: values.hash,
     out: values.out, platform: values.platform, lang: values.lang, viewport: values.viewport,
-    settle: values.settle, timeout: values.timeout, csp: values.csp, seed: values.seed, events: values.events,
+    settle: values.settle, advance: values.advance, timeout: values.timeout, csp: values.csp, seed: values.seed, events: values.events,
     staplerEnabled: values['stapler-enabled'], keepPicker: values['keep-picker'], onboarding: values.onboarding
   };
   normalise(options); // validate before starting anything

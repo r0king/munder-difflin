@@ -125,9 +125,15 @@ export function mergeSavedOrder(saved: readonly string[] | null | undefined, vie
   return trimmed.slice(0, Math.max(MAX_SAVED_ORDER, view.length));
 }
 
+/** Longest id a saved list may hold. Project keys are folder paths
+ *  (`path:/…`), so this is sized for a deep path, not for an agent id. */
+export const MAX_SAVED_ID = 4096;
+
 /** Validate an untrusted persisted value as an id list. */
 export function isIdList(value: unknown): value is string[] {
-  return Array.isArray(value) && value.length <= MAX_SAVED_ORDER * 2 && value.every((v) => typeof v === 'string' && v.length > 0 && v.length <= 512);
+  return Array.isArray(value)
+    && value.length <= MAX_SAVED_ORDER * 2
+    && value.every((v) => typeof v === 'string' && v.length > 0 && v.length <= MAX_SAVED_ID);
 }
 
 // ─── Automatic order ────────────────────────────────────────────────────────

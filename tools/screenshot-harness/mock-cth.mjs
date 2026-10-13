@@ -659,6 +659,43 @@ function installInBrowser(createCthTree, wrapWithFallback, payload) {
     };
   }
 
+  // Capture every Pixi Application (the office floor) through Pixi's own
+  // devtools hook, so the harness can fast-forward the floor's simulation:
+  // under SwiftShader the page renders at ~2-4 fps and Pixi clamps each frame
+  // to 100 ms, so agents walking in from the door would take minutes of wall
+  // clock to reach their desks.
+  H.pixiApps = [];
+  const prevAppHook = window.__PIXI_APP_INIT__;
+  window.__PIXI_APP_INIT__ = function (app, version) {
+    H.pixiApps.push(app);
+    if (typeof prevAppHook === 'function') prevAppHook(app, version);
+  };
+  /** Step every live Pixi app's ticker by `ms` of simulated time WITHOUT
+   *  rendering the intermediate frames, then render once. Returns the number
+   *  of apps advanced. App exceptions thrown by a tick propagate (they are
+   *  real app errors and the harness reports them as such). */
+  H.advancePixi = function (ms, stepMs) {
+    const step = stepMs || 1000 / 60;
+    let n = 0;
+    for (const app of H.pixiApps) {
+      if (!app || !app.stage || !app.renderer || !app.ticker) continue; // destroyed (StrictMode remount)
+      const tk = app.ticker;
+      const hadRender = typeof app.render === 'function';
+      if (hadRender) tk.remove(app.render, app);
+      try {
+        let t = tk.lastTime > 0 ? tk.lastTime : performance.now();
+        for (let i = 0; i < Math.ceil(ms / step); i++) { t += step; tk.update(t); }
+      } finally {
+        // Re-anchor on the real clock so the next frame does not see a jump.
+        tk.lastTime = performance.now();
+        if (hadRender) tk.add(app.render, app, -25 /* UPDATE_PRIORITY.LOW */);
+      }
+      if (hadRender) app.render();
+      n += 1;
+    }
+    return n;
+  };
+
   document.addEventListener('securitypolicyviolation', (e) => {
     H.csp.push({ directive: e.violatedDirective, blocked: e.blockedURI, source: e.sourceFile, line: e.lineNumber, sample: e.sample });
   });

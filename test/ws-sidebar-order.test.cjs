@@ -82,7 +82,8 @@ test('isIdList rejects anything that is not a list of short strings', () => {
   assert.equal(isIdList('a'), false);
   assert.equal(isIdList([1]), false);
   assert.equal(isIdList(['']), false);
-  assert.equal(isIdList(['x'.repeat(600)]), false);
+  assert.equal(isIdList(['path:/' + 'deep/'.repeat(200)]), true);
+  assert.equal(isIdList(['x'.repeat(5000)]), false);
 });
 
 test('statusRank: needs-you (or an open question) leads, offline trails', () => {
