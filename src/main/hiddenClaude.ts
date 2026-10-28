@@ -1,7 +1,9 @@
 import * as pty from 'node-pty';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { resolveCommand, userShellPath } from './shellEnv';
+import { buildPtyEnv } from './ptyEnv';
 import { expandTilde } from './fs';
 import { projectDir } from './transcript';
 import { ensureKilled } from './procKill';
@@ -25,6 +27,8 @@ import { ensureKilled } from './procKill';
 
 /** ms of PTY silence that signals the TUI is ready for input (boot complete). */
 const BOOT_QUIET_MS = 1500;
+/** Pastes sent before giving up on a TUI that never takes the prompt. */
+const MAX_SUBMITS = 5;
 
 export interface HiddenClaudeOptions {
   /** Model to use (e.g. 'claude-haiku-4-5'). */
@@ -54,29 +58,10 @@ export interface HiddenClaudeResult {
   error?: string;
 }
 
-/**
- * Extract the last assistant text block from the transcript JSONL written
- * at or after `spawnedAt`. Reuses projectDir() from transcript.ts.
- */
-function extractLastAssistantText(cwd: string, spawnedAt: number): string | null {
+/** Extract the last assistant text block from one session's transcript JSONL. */
+function extractLastAssistantText(file: string): string | null {
   try {
-    const dir = projectDir(cwd);
-    if (!existsSync(dir)) return null;
-
-    const candidates: { f: string; mtime: number }[] = [];
-    for (const f of readdirSync(dir)) {
-      if (!f.endsWith('.jsonl')) continue;
-      try {
-        const mtime = statSync(path.join(dir, f)).mtimeMs;
-        // 5 s slack: include files that already existed at spawn but were
-        // updated by this session. Sort by mtime and take the newest.
-        if (mtime >= spawnedAt - 5000) candidates.push({ f, mtime });
-      } catch { /* file removed between readdir and stat — skip */ }
-    }
-    if (!candidates.length) return null;
-    candidates.sort((a, b) => b.mtime - a.mtime);
-
-    const lines = readFileSync(path.join(dir, candidates[0].f), 'utf8').split('\n');
+    const lines = readFileSync(file, 'utf8').split('\n');
     for (let i = lines.length - 1; i >= 0; i--) {
       const trimmed = lines[i].trim();
       if (!trimmed) continue;
@@ -112,7 +97,12 @@ export function runHiddenClaude(prompt: string, opts: HiddenClaudeOptions): Prom
     const disallowed = opts.disallowedTools ?? ['Edit', 'Write', 'NotebookEdit'];
     const addDirs = (opts.addDirs ?? []).filter((d) => d && existsSync(d));
 
+    // Our transcript by name. The project dir is shared with every session in
+    // this cwd (god runs in the hive home), and "newest .jsonl" read god's turn.
+    const sessionId = randomUUID();
+    const transcript = (): string => path.join(projectDir(opts.cwd), `${sessionId}.jsonl`);
     const args: string[] = [
+      '--session-id', sessionId,
       '--model', opts.model,
       '--permission-mode', 'bypassPermissions',
       '--disallowedTools', ...disallowed,
@@ -123,7 +113,6 @@ export function runHiddenClaude(prompt: string, opts: HiddenClaudeOptions): Prom
     const idleMs = opts.idleMs ?? 3500;
     const timeoutMs = opts.timeoutMs ?? 180_000;
 
-    const spawnedAt = Date.now();
     // Windows: node-pty's CreateProcess can't exec the npm `.cmd`/extensionless
     // `claude` shim directly (ERROR_BAD_EXE_FORMAT, error 193) — route non-.exe
     // targets through cmd.exe. A real claude.exe (WinGet) launches directly. (#22)
@@ -137,11 +126,9 @@ export function runHiddenClaude(prompt: string, opts: HiddenClaudeOptions): Prom
         cols: 220,
         rows: 50,
         cwd: opts.cwd,
-        env: {
-          ...process.env,
-          PATH: userShellPath(),
-          ...(opts.env ?? {}),
-        } as Record<string, string>,
+        // Same strip as agent PTYs: an inherited CLAUDE_CODE_CHILD_SESSION turns
+        // transcript saving off, and the transcript is the only reply we read.
+        env: buildPtyEnv(process.env, userShellPath(), opts.env),
       });
     } catch (e) {
       resolve({ ok: false, error: e instanceof Error ? e.message : String(e) });
@@ -149,7 +136,9 @@ export function runHiddenClaude(prompt: string, opts: HiddenClaudeOptions): Prom
     }
 
     let settled = false;
+    let exited = false;
     let promptSent = false;
+    let submits = 0;
     let bootTimer: NodeJS.Timeout | null = null;
     let idleTimer: NodeJS.Timeout | null = null;
     let bootMaxTimer: NodeJS.Timeout;
@@ -176,19 +165,37 @@ export function runHiddenClaude(prompt: string, opts: HiddenClaudeOptions): Prom
     };
 
     const captureAndFinish = () => {
-      const text = extractLastAssistantText(opts.cwd, spawnedAt);
+      const file = transcript();
+      // The TUI paints its prompt before it takes input, and a paste typed in
+      // that window vanishes (seen live 2026-10-28: every condense for 90 min).
+      // A submitted prompt is on disk at once, so no transcript = paste again.
+      if (!existsSync(file)) {
+        if (!exited && submits < MAX_SUBMITS) { promptSent = false; sendPrompt(); return; }
+        finish({ ok: false, error: `prompt never submitted (no transcript after ${submits} pastes)` });
+        return;
+      }
+      const text = extractLastAssistantText(file);
       finish(text
         ? { ok: true, text }
         : { ok: false, error: 'no assistant response found in transcript' });
     };
 
+    // Response phase: capture once output settles, or idleMs after a paste the
+    // TUI ignored without printing anything.
+    const armIdle = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(captureAndFinish, idleMs);
+    };
+
     const sendPrompt = () => {
       if (settled || promptSent) return;
       promptSent = true;
+      submits++;
       if (bootTimer) { clearTimeout(bootTimer); bootTimer = null; }
       // Bracketed paste + enter — same mechanism as submitToPty in useHive.ts.
       ptyProc.write(`\x1b[200~${prompt}\x1b[201~`);
       setTimeout(() => { if (!settled) ptyProc.write('\r'); }, 140);
+      armIdle();
     };
 
     bootMaxTimer = setTimeout(sendPrompt, bootCapMs);
@@ -203,13 +210,11 @@ export function runHiddenClaude(prompt: string, opts: HiddenClaudeOptions): Prom
         if (bootTimer) clearTimeout(bootTimer);
         bootTimer = setTimeout(sendPrompt, BOOT_QUIET_MS);
       } else {
-        // Response phase: reset idle timer; capture when output settles.
-        if (idleTimer) clearTimeout(idleTimer);
-        idleTimer = setTimeout(captureAndFinish, idleMs);
+        armIdle();
       }
     });
 
     // Session exited cleanly before idle — try to capture the transcript anyway.
-    ptyProc.onExit(() => { if (!settled) captureAndFinish(); });
+    ptyProc.onExit(() => { exited = true; if (!settled) captureAndFinish(); });
   });
 }

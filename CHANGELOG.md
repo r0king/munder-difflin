@@ -34,6 +34,18 @@ All notable changes to this project are documented here. The format is based on
   data and never markup, and a model id is length-capped and stripped of control characters before it
   can reach a `--model` flag on a spawn command line. Same mechanism as the Settings hero card.
 
+### Fixed
+
+- **Memory condense works again.** Every standup condense aborted from 12:29Z on 2026-10-28. The
+  hidden Haiku session pasted its prompt as soon as the TUI went quiet, and the TUI was not yet taking
+  input, so the paste vanished and nothing was ever submitted. The run then read the newest transcript
+  in the hive home, which is god's own session ("no parseable summary"). The session now runs under its
+  own `--session-id` and reads only that transcript. It pastes again until the transcript exists, and
+  strips the parent session's `CLAUDE_*` markers like agent PTYs do (an inherited
+  `CLAUDE_CODE_CHILD_SESSION` turns transcript saving off). A memory whose newest `reflectRecentKeep`
+  sections already fill 95% of the file is skipped as `recent-too-large` before the LLM call, instead
+  of spending a Haiku call every 30 minutes to abort `not-smaller`.
+
 ## [0.4.6] — 2026-08-27
 
 **The release that speaks your language and updates itself.** The interface runs in Chinese and
