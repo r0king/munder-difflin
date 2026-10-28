@@ -23,7 +23,7 @@ function setup({ agents = { alice: {} }, live = ['alice'], ctx = {}, timeoutMs }
   const q = new CompactRequests(() => dir, {
     agent: (id) => agents[id],
     live: (id) => live.includes(id),
-    queue: (id, keep) => queued.push({ id, keep }),
+    queue: (id, description) => queued.push({ id, description }),
     liveAgents: () => live,
     ctxPct: (id) => ctx[id] ?? null,
     now: () => clock.t
@@ -54,14 +54,21 @@ test('archived agent and an agent without a live session fail', () => {
 
 test('a busy agent waits: re-queued each tick, file stays pending', () => {
   const s = setup();
-  s.drop('r.json', { agent: 'alice', keep: 'keep the auth\ndecisions' });
+  s.drop('r.json', { agent: 'alice', description: 'keep the auth\ndecisions' });
   s.q.tick();
   s.clock.t += 60_000;
   s.q.tick();
   assert.deepEqual(s.pending(), ['r.json']);
   assert.equal(s.queued.length, 2);
   // Control characters never reach the prompt: a newline would submit early.
-  assert.deepEqual(s.queued[0], { id: 'alice', keep: 'keep the auth decisions' });
+  assert.deepEqual(s.queued[0], { id: 'alice', description: 'keep the auth decisions' });
+});
+
+test('the first field name, keep, still works', () => {
+  const s = setup();
+  s.drop('r.json', { agent: 'alice', keep: 'old name' });
+  s.q.tick();
+  assert.deepEqual(s.queued[0], { id: 'alice', description: 'old name' });
 });
 
 test('idle → compacts → PostCompact moves it to .done', () => {

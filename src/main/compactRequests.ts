@@ -4,7 +4,7 @@ import { join } from 'node:path';
 // ─── On-demand compaction: HIVE_ROOT/compact-requests/<id>.json ─────────────
 // Slash commands act only on your own session, so god could never /compact an
 // agent (or itself — it is never idle while it is the one typing). A request
-// file `{ "agent": "<id>", "keep": "<optional /compact focus text>" }` asks the
+// file `{ "agent": "<id>", "description": "<optional /compact focus text>" }` asks the
 // harness to do it. Polled on the spawn-requests tick, no fs.watch.
 //
 // Delivery REUSES the standup's path: main asks the renderer to queue the
@@ -26,7 +26,7 @@ export interface CompactRequestDeps {
   /** Does the agent have a live PTY? */
   live(id: string): boolean;
   /** Ask the renderer to queue the compact command for this agent when idle. */
-  queue(id: string, keep: string): void;
+  queue(id: string, description: string): void;
   /** Live agents and their context fill, for the optional auto threshold. */
   liveAgents?(): string[];
   ctxPct?(id: string): number | null;
@@ -80,8 +80,10 @@ export class CompactRequests {
     const agent = typeof req.agent === 'string' ? req.agent.trim() : '';
     // Typed into a live prompt: control characters (a newline would submit early,
     // an ESC could drive the TUI) collapse to spaces.
-    const keep = typeof req.keep === 'string'
-      ? req.keep.replace(/[\x00-\x1f\x7f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 2000) : '';
+    // `keep` was the field's first name; still accepted.
+    const raw = typeof req.description === 'string' ? req.description : req.keep;
+    const description = typeof raw === 'string'
+      ? raw.replace(/[\x00-\x1f\x7f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 2000) : '';
     const a = agent ? this.deps.agent(agent) : undefined;
     if (!a) return this.finish(dir, f, req, `unknown agent "${agent}"`);
     if (a.archived) return this.finish(dir, f, req, `agent "${agent}" is archived`);
@@ -91,7 +93,7 @@ export class CompactRequests {
       return this.finish(dir, f, req, `timeout: not compacted within ${Math.round(this.timeoutMs / 60_000)} min `
         + '(agent stayed busy, its CLI has no compact command, or there was nothing to compact)');
     }
-    this.deps.queue(agent, keep);
+    this.deps.queue(agent, description);
   }
 
   /** Move to .done/ (reason null) or .failed/ with the reason written into the JSON. */

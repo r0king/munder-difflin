@@ -354,12 +354,13 @@ const compactRequests = new CompactRequests(
     // The standup's renderer path, scoped to one agent and with the pressure gate
     // zeroed: an explicit request is the decision. Not emitContextTrigger, whose
     // legacy alias would compact every agent.
-    queue: (agentId, keep) => {
+    queue: (agentId, description) => {
       try {
         liveWebContents()?.send('trigger:context', {
           action: 'compact',
           agentId,
-          rule: { ...contextRule('compact'), message: keep, minContextPct: 0, minContextPctLargeWindow: 0 }
+          // No description → the standup's own focus text, not a bare /compact.
+          rule: { ...contextRule('compact'), ...(description ? { message: description } : {}), minContextPct: 0, minContextPctLargeWindow: 0 }
         });
       } catch { /* window gone */ }
     }

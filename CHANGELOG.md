@@ -10,7 +10,7 @@ All notable changes to this project are documented here. The format is based on
 
 - **god can compact any agent.** Slash commands only act on your own session, so nobody but the
   operator could `/compact` an agent. god now drops `compact-requests/<id>.json` =
-  `{"agent": "<id>", "keep": "<optional focus>"}` in the hive root. The harness types the compact
+  `{"agent": "<id>", "description": "<optional focus>"}` in the hive root. The harness types the compact
   command through the standup's idle-only queue, never mid-tool-call, and archives the request to
   `.done/` once the agent's PostCompact hook fires, or to `.failed/` with a reason (unknown agent,
   archived, no live session, 60-minute timeout). Optional, off by default: `ctxAutoCompact: true` in

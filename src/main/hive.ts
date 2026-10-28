@@ -1584,7 +1584,7 @@ export class HiveManager {
       : '';
     // Not gated: a compaction spends nothing new.
     const compactQueueLine = meta.isGod
-      ? `COMPACTING AN AGENT: slash commands act only on your own session, so to /compact any agent (yourself included) write ONE JSON file into ${inRoot('compact-requests')}/<id>.json: {"agent": "<agent id>", "keep": "<optional focus text passed to /compact>"}. The harness types it the next time that agent is idle (never mid-tool-call) and moves the request to \`compact-requests/.done/\` once the agent has compacted, or to \`.failed/\` with a \`reason\` (unknown agent, archived, no live session, timeout after 60 min). Use it when an agent's \`ctx\` is high before you hand it a big task.`
+      ? `COMPACTING AN AGENT: slash commands act only on your own session, so to /compact any agent (yourself included) write ONE JSON file into ${inRoot('compact-requests')}/<id>.json: {"agent": "<agent id>", "description": "<optional focus text passed to /compact>"}. The harness types it the next time that agent is idle (never mid-tool-call) and moves the request to \`compact-requests/.done/\` once the agent has compacted, or to \`.failed/\` with a \`reason\` (unknown agent, archived, no live session, timeout after 60 min). Use it when an agent's \`ctx\` is high before you hand it a big task.`
       : '';
     const godLine = meta.isGod
       ? 'You are the GOD / ORCHESTRATOR of this hive — your job is to ORCHESTRATE, not to implement: maintain live situational awareness and delegate the work. (1) AWARENESS — always know what is going on: keep an accurate picture of every agent (active vs archived/idle), the task board, and all in-flight work; drain your inbox continually and triage every other agent\'s requests, answering clarifications so the team runs autonomously. (2) DELEGATE — decompose work and fan it out to the hive agents via their inboxes (route messages and assign owners; do not do their jobs); do NOT take on grunt implementation yourself. Stay aware of who is already on the floor and delegate OPPORTUNISTICALLY: BEFORE you spawn anything, CHECK THE LIVE ROSTER (active agents in registry.json + their state in fleet.json) and prefer routing to an EXISTING agent that fits — above all when the request names one ("ask Pam to…", "have Jim…"), route to that agent instead of reflexively creating a new one. Reuse an idle or already-running agent whose role matches; only spawn a fresh agent when no existing one is a sensible fit, and say that you checked. One capable owner beats a duplicate. (3) OWN ONLY THE IMPORTANT, high-leverage things — task decomposition, dispatch decisions, sign-offs, conflict resolution, branch integration, and final QA — and remain the sole scribe of board.md. You are otherwise fully autonomous — there is NO separate approval queue. For the genuinely critical (destructive actions, spending real money, scope changes, unresolvable conflicts), ask the human directly in your own session and let the tool-permission prompt gate the action; the human approves natively, including remotely from their phone via /remote-control. Keep the team unblocked. When you DISPATCH a task, write it as a 4-part contract so the agent can run autonomously: (1) OBJECTIVE — the concrete goal; (2) OUTPUT — the expected deliverable/format; (3) TOOLS — what to use or avoid, and any references to read instead of re-deriving; (4) BOUNDARIES — scope limits + the definition of done. Pass references (file paths, message ids, board sections), not pasted content — keep dispatches short.'
@@ -2942,7 +2942,7 @@ function renderCommandsMd(): string {
     'Reference of the Claude Code commands available to you. Two kinds:',
     '- **slash** commands act ONLY on your own session — you CANNOT run them on another agent\'s terminal.',
     '- **cli** commands run in your shell (Bash) and can target the fleet, spawn, or query.',
-    '- To `/compact` ANOTHER agent (or yourself, unattended), write `compact-requests/<id>.json` = `{"agent": "<id>", "keep": "<optional focus>"}` in the hive root; it runs when that agent is idle. Details in PROTOCOL.md.',
+    '- To `/compact` ANOTHER agent (or yourself, unattended), write `compact-requests/<id>.json` = `{"agent": "<id>", "description": "<optional focus>"}` in the hive root; it runs when that agent is idle. Details in PROTOCOL.md.',
     '',
     'To MONITOR the other agents in this hive, read `fleet.json` in the hive root (live per-agent tokens, cost, status, last tool, breaker level, inbox backlog) plus `registry.json` — `claude agents` does NOT list your hive siblings. Use `claude -p "..." --output-format json` for a one-off headless query.',
     ''
@@ -3098,7 +3098,7 @@ Slash commands act only on your own session. To \`/compact\` any agent, yourself
 JSON file into \`compact-requests/<id>.json\` in the hive root:
 
 \`\`\`json
-{ "agent": "<agent id> (required)", "keep": "focus text passed to /compact (optional)" }
+{ "agent": "<agent id> (required)", "description": "focus text passed to /compact (optional)" }
 \`\`\`
 
 The harness polls that directory like \`spawn-requests/\`, types the compact command the next time the
