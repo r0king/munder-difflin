@@ -8,6 +8,14 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **god can compact any agent.** Slash commands only act on your own session, so nobody but the
+  operator could `/compact` an agent. god now drops `compact-requests/<id>.json` =
+  `{"agent": "<id>", "description": "<optional focus>"}` in the hive root. The harness types the compact
+  command through the standup's idle-only queue, never mid-tool-call, and archives the request to
+  `.done/` once the agent's PostCompact hook fires, or to `.failed/` with a reason (unknown agent,
+  archived, no live session, 60-minute timeout). Optional, off by default: `ctxAutoCompact: true` in
+  config.json files a request for any agent at or above `ctxAutoCompactPct` (75) of its context, at
+  most once per `ctxAutoCompactEveryMin` (30) per agent.
 - **Tasks show their id.** The one thing people actually refer to a card by — `bmt-12` — was not
   displayed anywhere: not on the kanban card, which printed only the title and the assignee, and not
   in the detail view behind it. It now leads the card above the title, and leads the detail view's

@@ -1098,11 +1098,14 @@ export function useHive(config: HarnessConfig | null): void {
   useEffect(() => {
     if (!config?.onboardingComplete) return;
 
-       const fire = (action: 'compact' | 'clear', rule: ContextRule): void => {
+       const fire = (action: 'compact' | 'clear', rule: ContextRule, onlyId?: string): void => {
       const { agents, messageQueues, enqueueMessage } = useStore.getState();
       const now = Date.now();
       for (const a of agents) {
         if (!a.ptyId) continue;
+        // A compact-requests entry targets one agent (main re-asks every tick
+        // until it is idle and compacts; the dedupe and latch below absorb that).
+        if (onlyId && a.id !== onlyId) continue;
         // Gate #109-2: don't enqueue a context command for an agent that cannot
         // currently receive one (e.g. god 'blocked' on a human prompt). Enqueuing
         // anyway left a stuck /compact at the head of the queue that dedupe then
@@ -1155,11 +1158,11 @@ export function useHive(config: HarnessConfig | null): void {
     // that emits it; access it defensively so this lands independently of that.
     const off = (window.cth as unknown as {
       onContextTrigger?: (
-        cb: (p: { action: 'compact' | 'clear'; rule: ContextRule }) => void
+        cb: (p: { action: 'compact' | 'clear'; rule: ContextRule; agentId?: string }) => void
       ) => () => void;
     }).onContextTrigger?.((p) => {
       if (!p?.rule) return;
-      fire(p.action === 'clear' ? 'clear' : 'compact', p.rule);
+      fire(p.action === 'clear' ? 'clear' : 'compact', p.rule, p.agentId);
     });
 
     // LEGACY fallback: main still emits the old parameterless auto-compact until

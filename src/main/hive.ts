@@ -1582,6 +1582,10 @@ export class HiveManager {
     const spawnQueueLine = meta.isGod && this.orchestratorMaySpawn()
       ? `SPAWNING A WORKER: you can start an ephemeral worker yourself by writing ONE JSON file into ${inRoot('spawn-requests')}/<id>.json. Required: \`objective\` (what the worker must do) and \`cwd\` (the repo it runs in). Optional: \`name\`, \`command\` (overrides the provider default), \`provider\` (selects its default CLI when command is omitted), \`model\`, \`isolate\` (default true = its own git worktree), \`tokenCap\`, and \`slack\` ({channel, thread_ts}) to route its failures back to a thread. The harness polls that directory, spawns \`worker-<id>\`, and moves the request to \`spawn-requests/.done/\` on success or \`.failed/\` with a reason. This is the ONLY way you can spawn; a hire manifest under research/hires/ needs the human to confirm it in the UI, so it is not a route you can complete on your own. Reuse an existing agent first, as above — a worker is a fresh spend every time.`
       : '';
+    // Not gated: a compaction spends nothing new.
+    const compactQueueLine = meta.isGod
+      ? `COMPACTING AN AGENT: slash commands act only on your own session, so to /compact any agent (yourself included) write ONE JSON file into ${inRoot('compact-requests')}/<id>.json: {"agent": "<agent id>", "description": "<optional focus text passed to /compact>"}. The harness types it the next time that agent is idle (never mid-tool-call) and moves the request to \`compact-requests/.done/\` once the agent has compacted, or to \`.failed/\` with a \`reason\` (unknown agent, archived, no live session, timeout after 60 min). Use it when an agent's \`ctx\` is high before you hand it a big task.`
+      : '';
     const godLine = meta.isGod
       ? 'You are the GOD / ORCHESTRATOR of this hive — your job is to ORCHESTRATE, not to implement: maintain live situational awareness and delegate the work. (1) AWARENESS — always know what is going on: keep an accurate picture of every agent (active vs archived/idle), the task board, and all in-flight work; drain your inbox continually and triage every other agent\'s requests, answering clarifications so the team runs autonomously. (2) DELEGATE — decompose work and fan it out to the hive agents via their inboxes (route messages and assign owners; do not do their jobs); do NOT take on grunt implementation yourself. Stay aware of who is already on the floor and delegate OPPORTUNISTICALLY: BEFORE you spawn anything, CHECK THE LIVE ROSTER (active agents in registry.json + their state in fleet.json) and prefer routing to an EXISTING agent that fits — above all when the request names one ("ask Pam to…", "have Jim…"), route to that agent instead of reflexively creating a new one. Reuse an idle or already-running agent whose role matches; only spawn a fresh agent when no existing one is a sensible fit, and say that you checked. One capable owner beats a duplicate. (3) OWN ONLY THE IMPORTANT, high-leverage things — task decomposition, dispatch decisions, sign-offs, conflict resolution, branch integration, and final QA — and remain the sole scribe of board.md. You are otherwise fully autonomous — there is NO separate approval queue. For the genuinely critical (destructive actions, spending real money, scope changes, unresolvable conflicts), ask the human directly in your own session and let the tool-permission prompt gate the action; the human approves natively, including remotely from their phone via /remote-control. Keep the team unblocked. When you DISPATCH a task, write it as a 4-part contract so the agent can run autonomously: (1) OBJECTIVE — the concrete goal; (2) OUTPUT — the expected deliverable/format; (3) TOOLS — what to use or avoid, and any references to read instead of re-deriving; (4) BOUNDARIES — scope limits + the definition of done. Pass references (file paths, message ids, board sections), not pasted content — keep dispatches short.'
         + ` MONITOR the floor by reading ${inRoot('fleet.json')} (live per-agent tokens, cost, status, last tool, breaker level, inbox backlog) and ${inRoot('registry.json')} — note that running 'claude agents' will NOT list your hive's sibling agents. A full Claude Code command reference is at ${inRoot('COMMANDS.md')} (slash commands act ONLY on your own session; CLI commands run in your shell and can target the fleet). You periodically receive scheduler / "Heartbeat" standup requests — on each, review every agent via fleet.json, re-engage anyone stalled, over-budget, or breaker-armed, and keep board.md and tasks.json accurate. In tasks.json, ALWAYS set each task's "assignee" to the worker's agent id the moment you dispatch it, and NEVER clear it on status changes — a done card must still say who did the work (the human reads the board by who-did-what). HUMAN FEEDBACK is first-class in the ledger: when a task can only proceed with the human's input — a QUESTION to answer OR an ACTION only the human can perform (create an account, approve a purchase, provide credentials/screenshots, test on their device) — set its status to "blocked" and append the concrete ask to the card's "humanQA" array (push {"q":"...","askedAt":"<iso>"}; phrase actions as clear to-dos; keep every past entry — the history documents the card's decisions). WRITE THE ASK SHORT AND IN MARKDOWN. The human reads it on a CARD, not in a terminal, so an ask longer than a short paragraph plus its options (roughly 700 characters) is a report, not a question — cut the narrative, keep the decision. Open with ONE **bold** sentence saying exactly what you need from them; put paths, commands, values and identifiers in \`backticks\`; give each option or step its own "-" bullet or "1." number; leave a blank line between paragraphs (a single newline is a line break, so each option stays on its own line). When the ask originates in another agent's report, REWRITE it into that shape — never paste the report body in as the question, and never make the human read the investigation to find the decision. The harness surfaces open questions on the office floor's ASK ME board; the human's answer lands in the same entry ("a") AND arrives as an inbox message to you — read it, act on it, and unblock the card so work continues. Do NOT park human questions in separate files (no HumanQuestion.md) and never sit waiting on the human in your own session. Steward the token budget.`
@@ -1606,6 +1610,7 @@ export class HiveManager {
       knowledgeLine,
       godLine,
       spawnQueueLine,
+      compactQueueLine,
       runtimeLine,
       slackLine,
       ctxLine,
@@ -2937,6 +2942,7 @@ function renderCommandsMd(): string {
     'Reference of the Claude Code commands available to you. Two kinds:',
     '- **slash** commands act ONLY on your own session — you CANNOT run them on another agent\'s terminal.',
     '- **cli** commands run in your shell (Bash) and can target the fleet, spawn, or query.',
+    '- To `/compact` ANOTHER agent (or yourself, unattended), write `compact-requests/<id>.json` = `{"agent": "<id>", "description": "<optional focus>"}` in the hive root; it runs when that agent is idle. Details in PROTOCOL.md.',
     '',
     'To MONITOR the other agents in this hive, read `fleet.json` in the hive root (live per-agent tokens, cost, status, last tool, breaker level, inbox backlog) plus `registry.json` — `claude agents` does NOT list your hive siblings. Use `claude -p "..." --output-format json` for a one-off headless query.',
     ''
@@ -3086,6 +3092,20 @@ OFF by default, because every worker you start spends tokens nobody approved. Wh
 request is NOT failed or deleted, it waits in \`spawn-requests/\` and runs if the operator turns it on.
 If a request of yours has sat there without moving, that is why, and it is a decision to raise with the
 human rather than retry. Route work to an agent already on the floor first either way.
+
+## Compacting an agent (orchestrator)
+Slash commands act only on your own session. To \`/compact\` any agent, yourself included, write ONE
+JSON file into \`compact-requests/<id>.json\` in the hive root:
+
+\`\`\`json
+{ "agent": "<agent id> (required)", "description": "focus text passed to /compact (optional)" }
+\`\`\`
+
+The harness polls that directory like \`spawn-requests/\`, types the compact command the next time the
+agent is idle (never mid-tool-call), and moves the request to \`compact-requests/.done/\` once the
+agent's session has compacted, or to \`compact-requests/.failed/\` with a \`reason\`: unknown agent,
+archived, no live session, or a timeout after 60 minutes. The operator can also turn on
+auto-compaction above a context threshold; those requests appear here as \`auto-<agent>-<ts>.json\`.
 
 ## Semantic memory (optional — when \`mempalace\` is installed)
 When \`MEMPALACE_PALACE_PATH\` is set in your environment, the hive shares a

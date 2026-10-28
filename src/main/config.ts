@@ -200,6 +200,13 @@ export interface HarnessConfig {
    *  Off does not FAIL a queued spawn request, it declines to consume one. The
    *  request sits in HIVE_ROOT/spawn-requests until the toggle is turned on. */
   orchestratorMaySpawn: boolean;
+  /** Auto-compact any live agent whose context fill is at or above
+   *  `ctxAutoCompactPct` (default 75), at most once per `ctxAutoCompactEveryMin`
+   *  (default 30) per agent. It files a HIVE_ROOT/compact-requests entry, so it
+   *  waits for the agent to be idle like any other request. Default OFF. */
+  ctxAutoCompact?: boolean;
+  ctxAutoCompactPct?: number;
+  ctxAutoCompactEveryMin?: number;
   /** The command we run when spawning a new agent. */
   defaultCommand: string;
   /** Default model for newly spawned agents (e.g. 'claude-sonnet-4-6[1m]'); unset = CLI default. */
