@@ -725,6 +725,9 @@ export class HiveManager {
       /** Consent state for the default-MCP bundle (W3). Threaded from the live
        *  HarnessConfig by the caller; undefined → catalog defaults apply. */
       mcpDefaults?: { [id: string]: { enabled: boolean } };
+      /** Roles that keep the claude.ai connectors (exact, case-insensitive);
+       *  every other Claude agent spawns without them. Undefined → all keep them. */
+      claudeAiConnectorRoles?: string[];
       /** App-resources `skills/` source dir (W3). The bundled read-only skills are
        *  copied into the agent's `.claude/skills/` per spawn; undefined or missing
        *  is a no-op (tolerated until Kevin populates the resource dir). */
@@ -1000,7 +1003,10 @@ export class HiveManager {
     if (sock && shim) {
       env.HIVE_SOCK = sock;
       const settingsPath = join(dir, 'settings.json');
-      this.writeJson(settingsPath, this.hookSettings(shim, meta.cwd, opts.mcpDefaults, opts.theme, this.sandboxWritableDirs(meta, dir, root, opts.extraWritableDirs)));
+      const role = (meta.role ?? '').trim().toLowerCase();
+      const connectors = !opts.claudeAiConnectorRoles
+        || opts.claudeAiConnectorRoles.some((r) => r.trim().toLowerCase() === role);
+      this.writeJson(settingsPath, this.hookSettings(shim, meta.cwd, opts.mcpDefaults, opts.theme, this.sandboxWritableDirs(meta, dir, root, opts.extraWritableDirs), connectors));
       args.push('--settings', settingsPath);
     }
     return { args, env };
@@ -1242,7 +1248,7 @@ export class HiveManager {
     return Array.from(new Set(out));
   }
 
-  private hookSettings(shim: string, cwd: string, cfg: McpDefaultsMap, theme?: 'light' | 'dark', writableDirs: string[] = []): unknown {
+  private hookSettings(shim: string, cwd: string, cfg: McpDefaultsMap, theme?: 'light' | 'dark', writableDirs: string[] = [], claudeAiConnectors = true): unknown {
     // Bundled node, NOT bare `node` — see nodeLauncherPath(). Claude runs each of
     // these through `sh -c` with a stripped PATH, where `node` is often absent.
     const cmd = this.nodeRun(shim);
@@ -1269,6 +1275,9 @@ export class HiveManager {
       // Claude merges this additively. Omitted entirely when empty so a settings
       // file with no enabled servers is unchanged from before.
       ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
+      // claude.ai connectors (Figma, Gmail, …) only for the roles allowed them.
+      // Per session, so the user's own sessions and ~/.claude.json are untouched.
+      ...(claudeAiConnectors ? {} : { disableClaudeAiConnectors: true }),
       // The status line gets the session status JSON after every response —
       // including context_window.{total_input_tokens,context_window_size},
       // the only clean programmatic source for the session's REAL context
@@ -1484,7 +1493,7 @@ export class HiveManager {
       lines,
       // Native separators (join, not string-concatenated `/`) so a Windows agent is
       // handed a path its own shell/tools accept, not `C:\…\agents\god/inbox/`.
-      `Open the files in ${join(dir, 'inbox')} for full detail, act on each, then move handled ones to ${join(dir, 'inbox', '.done')}. Reply via your outbox if a message requires it.`
+      `Open the files in ${join(dir, 'inbox')} for full detail, act on each, then move handled ones to ${join(dir, 'inbox', '.done')}. Reply via your outbox if a message requires it, and at once if its work will outlast this turn: say what you are waiting on.`
     ].join('\n');
     return { block: true, reason };
   }
@@ -2964,7 +2973,9 @@ only thing that moves messages between agents.
 - \`identity.md\`  — who you are (read-only; the harness writes it).
 - \`memory.md\`    — your long-term memory. Read at the start of a task; append to it as you learn.
 - \`inbox/\`       — messages addressed to you. Read them at the start of a task.
-- \`inbox/.done/\` — move a message here once you've handled it.
+- \`inbox/.done/\` — move a message here once you've handled it. If the work outlasts
+  your turn (a queued test run, a long build), reply to the sender at once with what
+  you are waiting on, and keep the message in \`inbox/\` until it is done.
 - \`outbox/\`      — drop messages here to send them. The harness delivers them.
 
 **Never write into another agent's folder.** Write to your own \`outbox/\`; the
