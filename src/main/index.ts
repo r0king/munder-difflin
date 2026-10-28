@@ -65,7 +65,7 @@ import { RosterStore } from './roster';
 import { buildWorkerLaunch } from './workerLaunch';
 import { CompactRequests } from './compactRequests';
 import { ControlRegistry } from './control';
-import { WorkerWakeWatchdog, WORKER_WAKE_REPORT_MS, activityEvidenceAt, type WorkerWakeFacts } from './workerWake';
+import { WorkerWakeWatchdog, WORKER_WAKE_REPORT_MS, activityEvidenceAt, idlePingText, type WorkerWakeFacts } from './workerWake';
 import { inboxNudgeText } from '../shared/hiveNudge';
 import { resolveGodName } from '../shared/godIdentity';
 import { fetchHireManifest, readHireManifestFiles } from './hire';
@@ -2866,6 +2866,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
           theme: readConfig().terminalTheme ?? 'light',
           // W3 — default-MCP consent state + the bundled skills source dir.
           mcpDefaults: caps.mcpDefaults,
+          claudeAiConnectorRoles: readConfig().claudeAiConnectorRoles ?? ['Designer'],
           skillsDir: skillsResourceDir(),
           // The shared palace is mutated by the agent's own `mempalace` calls, so
           // the OS sandbox must let it through (empty when memory is off).
@@ -5291,12 +5292,8 @@ let hookHealthTimer: ReturnType<typeof setInterval> | null = null;
 /** Type the renderer's guarded nudge into one worker's PTY — text first, Enter a
  *  tick later (the exact submitToPty pattern: a single-chunk write would land the
  *  "\r" inside the input box and never submit). Best-effort + never throws. */
-function nudgeWorker(ptyId: string, ids: string[] = []): void {
-  // Same text the renderer queues (#187's inboxNudgeText), so the two wake paths
-  // produce byte-identical nudges: the queue's one-pending rule recognises either
-  // via isInboxNudge, and a watchdog nudge names its ids so the agent can still
-  // tell "I filed this last turn" from "woken for nothing".
-  const wrote = ptyManager.write(ptyId, inboxNudgeText(ids));
+function nudgeWorker(ptyId: string, text: string): void {
+  const wrote = ptyManager.write(ptyId, text);
   if (!wrote.ok) { console.warn(`[worker-wake] write failed for ${ptyId}: ${wrote.error}`); return; }
   setTimeout(() => {
     try {
@@ -5367,7 +5364,21 @@ function runWorkerWakeBeat(): void {
     const ids = hive.inbox(agentId).map((m) => m.id).filter(Boolean);
     if (!ids.length) { console.log(`[worker-wake] ${agentId} drained before delivery, skipping`); continue; }
     console.log(`[worker-wake] nudging ${agentId} on ${ptyId} (${ids.length} pending)`);
-    nudgeWorker(ptyId, ids);
+    // Same text the renderer queues (#187's inboxNudgeText), so the two wake paths
+    // produce byte-identical nudges: the queue's one-pending rule recognises either
+    // via isInboxNudge, and a watchdog nudge names its ids so the agent can still
+    // tell "I filed this last turn" from "woken for nothing".
+    nudgeWorker(ptyId, inboxNudgeText(ids));
+  }
+  // Idle ping: an agent quiet with an empty inbox never gets a prompt, so its
+  // idle-time context rules never run. One ping per idle stretch (workerWake.ts).
+  const idleMin = readConfig().idlePingMin ?? 20;
+  for (const agentId of workerWake.idlePings(facts, now, idleMin * 60_000)) {
+    const ptyId = ptyForAgent(agentId);
+    if (!ptyId) continue;
+    console.log(`[idle-ping] ${agentId} on ${ptyId} (quiet ${idleMin}+ min)`);
+    try { hive.appendLog({ kind: 'idle-ping', agentId, idleMin }); } catch { /* best-effort */ }
+    nudgeWorker(ptyId, idlePingText(idleMin));
   }
   // A worker sitting on old mail without a nudge is the failure this watchdog
   // exists for — say WHY it is being held, once per cooldown, so the log can

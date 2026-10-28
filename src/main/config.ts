@@ -207,6 +207,14 @@ export interface HarnessConfig {
   ctxAutoCompact?: boolean;
   ctxAutoCompactPct?: number;
   ctxAutoCompactEveryMin?: number;
+  /** Ping a hive agent (never god) that has been quiet this many minutes with an
+   *  empty inbox, once per idle stretch, so its idle-time context rules run.
+   *  Default 20; 0 turns it off. */
+  idlePingMin?: number;
+  /** Roles (exact, case-insensitive) whose Claude sessions keep the claude.ai
+   *  connectors (Figma, Gmail, …). Every other agent spawns with them off.
+   *  Default ['Designer']; [] turns them off for everyone. */
+  claudeAiConnectorRoles?: string[];
   /** The command we run when spawning a new agent. */
   defaultCommand: string;
   /** Default model for newly spawned agents (e.g. 'claude-sonnet-4-6[1m]'); unset = CLI default. */

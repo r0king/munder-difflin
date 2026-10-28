@@ -42,6 +42,21 @@ All notable changes to this project are documented here. The format is based on
   data and never markup, and a model id is length-capped and stripped of control characters before it
   can reach a `--model` flag on a spawn command line. Same mechanism as the Settings hero card.
 
+### Changed
+
+- **An idle agent gets a prompt.** An agent quiet for 20 minutes with an empty inbox is pinged once,
+  so context rules such as "Idle time: propose quality work" get a turn to run in. It is not pinged
+  again until mail reaches it or it works for more than five minutes, so a quiet agent costs one turn
+  per idle stretch. God, paused or halted agents, and an agent with a permission prompt open are never
+  pinged. `idlePingMin` in config.json sets the minutes; `0` turns it off.
+- **claude.ai connectors only for designers.** Figma, Gmail, Google Calendar and the other claude.ai
+  connectors now load only in agents whose role is on `claudeAiConnectorRoles` (default
+  `["Designer"]`). Every other agent's session settings carry `disableClaudeAiConnectors`, so your own
+  sessions and `~/.claude.json` are untouched.
+- **Agents say what they are waiting on.** When a message's work will outlast the turn (a queued test
+  run, a long build), the protocol now asks the agent to reply to the sender at once with what it is
+  waiting on, so held mail no longer reads as unread.
+
 ### Fixed
 
 - **Memory condense works again.** Every standup condense aborted from 12:29Z on 2026-10-28. The

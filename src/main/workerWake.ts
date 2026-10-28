@@ -65,6 +65,20 @@ export const WORKER_WAKE_HITL_REARM_MS = 5 * 60_000;
  *  Codex/Gemini/grok worker would otherwise read as stalled forever and be
  *  nudged every cooldown while working — the repeated nudging #368 removed. */
 export const WORKER_WAKE_STALL_MS = 90_000;
+/** After an idle ping, work longer than a one-line answer re-arms the next
+ *  ping. A short reply ("waiting on tests") does not, so a quiet agent costs one
+ *  turn per idle stretch instead of one every threshold. */
+// ponytail: fixed window; per-agent backoff if one answer routinely runs longer.
+export const IDLE_PING_REARM_MS = 5 * 60_000;
+/** A turn open longer than this is presumed lost (an interrupt fires no Stop). */
+const OPEN_TURN_MAX_MS = 60 * 60_000;
+
+/** What an agent idle with an empty inbox is told. Its context rules (e.g. "Idle
+ *  time: propose quality work") say what to do; this only gives them a turn. */
+export function idlePingText(idleMin: number): string {
+  return `Idle check from the harness: no activity for ${idleMin} min and your inbox is empty. Apply your standing idle-time rules now. If you are waiting on something (a queued test run, a reply), say what in one line and keep waiting.`;
+}
+
 /** Minimum age of pending mail before a held worker is reported in the log. */
 export const WORKER_WAKE_REPORT_MS = 60_000;
 
@@ -200,6 +214,10 @@ export class WorkerWakeWatchdog {
   private hookSeenAt = new Map<string, number>();
   /** agentId → timestamp of its last hook event that proves a turn. */
   private lastTurnHookAt = new Map<string, number>();
+  /** agentId → its last turn hook was not Stop: a turn (maybe a silent tool call) is open. */
+  private turnOpen = new Map<string, boolean>();
+  /** agentId → when it was idle-pinged; cleared by mail or by real work since. */
+  private idlePingedAt = new Map<string, number>();
   /** agentId → when its hold was last reported, so the beat logs a held worker
    *  once per cooldown instead of every 15 s. */
   private lastHoldReportAt = new Map<string, number>();
@@ -215,7 +233,10 @@ export class WorkerWakeWatchdog {
   noteHook(agentId: string | undefined, event: string | undefined, message: string | undefined, at = Date.now()): void {
     if (!agentId) return;
     this.hookSeenAt.set(agentId, at);
-    if (isTurnHook(event) && at > (this.lastTurnHookAt.get(agentId) ?? 0)) this.lastTurnHookAt.set(agentId, at);
+    if (isTurnHook(event) && at > (this.lastTurnHookAt.get(agentId) ?? 0)) {
+      this.lastTurnHookAt.set(agentId, at);
+      this.turnOpen.set(agentId, event !== 'Stop' && event !== 'StopFailure');
+    }
     if (classifyHook(event, message) === 'needsHuman') this.lastHumanNeedsAt.set(agentId, at);
   }
 
@@ -243,6 +264,8 @@ export class WorkerWakeWatchdog {
     this.hookSeenAt.delete(agentId);
     this.lastTurnHookAt.delete(agentId);
     this.lastHoldReportAt.delete(agentId);
+    this.idlePingedAt.delete(agentId);
+    this.turnOpen.delete(agentId);
     if (ptyId) this.spawnedAt.delete(ptyId);
   }
 
@@ -301,6 +324,32 @@ export class WorkerWakeWatchdog {
     if (last > 0 && now - last < WORKER_WAKE_COOLDOWN_MS) return false;
     this.lastHoldReportAt.set(agentId, now);
     return true;
+  }
+
+  /** Agents to ping now: no PTY output for `idleMs`, an empty inbox (mail is the
+   *  inbox nudge's job), not god, not held, no turn or permission prompt open, and not
+   *  already pinged this idle stretch. `idleMs` <= 0 turns pinging off. */
+  idlePings(facts: readonly WorkerWakeFacts[], now: number, idleMs: number): string[] {
+    const out: string[] = [];
+    if (!(idleMs > 0)) return out;
+    for (const f of facts) {
+      if (liveInboxIds(f).size > 0) { this.idlePingedAt.delete(f.agentId); continue; }
+      const pinged = this.idlePingedAt.get(f.agentId);
+      if (pinged !== undefined) {
+        const workedAt = Math.max(f.lastActivityAt ?? 0, this.turnHookAt(f.agentId));
+        if (workedAt <= pinged + IDLE_PING_REARM_MS) continue;
+        this.idlePingedAt.delete(f.agentId);
+      }
+      if (f.isGod || !f.ptyId || f.autoDeliveryPaused || f.paused || f.halted) continue;
+      if (f.lastOutputAt <= 0 || now - f.lastOutputAt < idleMs) continue;
+      // A long tool call can be silent for minutes: quiet output is not idle then.
+      if (this.turnOpen.get(f.agentId) && now - this.turnHookAt(f.agentId) < OPEN_TURN_MAX_MS) continue;
+      // A permission prompt with no turn since is still open: typing would answer it.
+      if ((this.lastHumanNeedsAt.get(f.agentId) ?? 0) > this.turnHookAt(f.agentId)) continue;
+      this.idlePingedAt.set(f.agentId, now);
+      out.push(f.agentId);
+    }
+    return out;
   }
 
   lastNudge(agentId: string): number {
