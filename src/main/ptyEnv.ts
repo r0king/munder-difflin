@@ -5,6 +5,7 @@
  *
  * The layering rule, bottom to top:
  *   1. the inherited environment, minus the parent Claude session's identity
+ *      and the app's own NODE_ENV
  *   2. the app's own defaults (PATH, terminal identity, locale)
  *   3. per-agent values (`opts.env`) — always win, even over the strip below
  */
@@ -57,6 +58,12 @@ export function buildPtyEnv(
   for (const [k, v] of Object.entries(parentEnv)) {
     if (v === undefined) continue;
     if (CLAUDE_MARKER_RE.test(k) && !CLAUDE_CONFIG_KEEP.has(k)) continue;
+    // The APP's build mode, not the agent's: `electron-vite preview` sets
+    // NODE_ENV=production in-process, and an agent inheriting it gets a Vite dev
+    // server that bundles React's production runtime (blank page, "_jsxDEV is not
+    // a function") and an `npm install` that skips devDependencies (seen live
+    // 2026-10-26). Per-agent env can still set it.
+    if (k === 'NODE_ENV') continue;
     inherited[k] = v;
   }
   return {
