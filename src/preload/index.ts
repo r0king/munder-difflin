@@ -1214,8 +1214,8 @@ const api = {
   /** Fires when a context rule comes due. `rule` rides along because main owns
    *  only the CADENCE — the renderer applies the per-agent pressure gate and
    *  queues the command for each agent that qualifies. */
-  onContextTrigger: (cb: (evt: { action: 'compact' | 'clear'; rule: ContextRule }) => void): (() => void) => {
-    const listener = (_e: IpcRendererEvent, payload: { action: 'compact' | 'clear'; rule: ContextRule }) => cb(payload);
+  onContextTrigger: (cb: (evt: { action: 'compact' | 'clear'; rule: ContextRule; agentId?: string }) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, payload: { action: 'compact' | 'clear'; rule: ContextRule; agentId?: string }) => cb(payload);
     ipcRenderer.on('trigger:context', listener);
     return () => ipcRenderer.removeListener('trigger:context', listener);
   },

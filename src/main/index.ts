@@ -63,6 +63,7 @@ import * as integrations from './integrations';
 import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, INTEGRATION_TEMPLATES } from '../shared/integrations';
 import { RosterStore } from './roster';
 import { buildWorkerLaunch } from './workerLaunch';
+import { CompactRequests } from './compactRequests';
 import { ControlRegistry } from './control';
 import { WorkerWakeWatchdog, WORKER_WAKE_REPORT_MS, activityEvidenceAt, type WorkerWakeFacts } from './workerWake';
 import { inboxNudgeText } from '../shared/hiveNudge';
@@ -333,7 +334,36 @@ const hookServer = new HookServer(
   // Workspace → Automations "context rules" (house style and the like) ride the
   // standing-goal channel: SessionStart, then again whenever the text changes.
   (agentId) => withContextRules(standingGoalFromRoster(agentId)),
-  (agentId, event, message) => workerWake.noteHook(agentId, event, message)
+  (agentId, event, message) => {
+    workerWake.noteHook(agentId, event, message);
+    if (event === 'PostCompact' && agentId) compactRequests.noteCompacted(agentId);
+  }
+);
+// god (or the auto threshold below) drops HIVE_ROOT/compact-requests/<id>.json;
+// polled on the spawn-requests tick. See compactRequests.ts.
+const compactRequests = new CompactRequests(
+  () => { const r = hive.root(); return r ? join(r, 'compact-requests') : null; },
+  {
+    agent: (id) => hive.registry().agents[id],
+    live: (id) => !!ptyForAgent(id),
+    liveAgents: () => Object.keys(hive.registry().agents).filter((id) => ptyForAgent(id)),
+    ctxPct: (id) => {
+      const c = hookServer.contextFor(id);
+      return c && c.limit > 0 ? Math.round((c.tokens / c.limit) * 100) : null;
+    },
+    // The standup's renderer path, scoped to one agent and with the pressure gate
+    // zeroed: an explicit request is the decision. Not emitContextTrigger, whose
+    // legacy alias would compact every agent.
+    queue: (agentId, keep) => {
+      try {
+        liveWebContents()?.send('trigger:context', {
+          action: 'compact',
+          agentId,
+          rule: { ...contextRule('compact'), message: keep, minContextPct: 0, minContextPctLargeWindow: 0 }
+        });
+      } catch { /* window gone */ }
+    }
+  }
 );
 const memory = new MemoryManager(
   () => readConfig().harnessHome,
@@ -5076,6 +5106,15 @@ async function ephemeralWorkerTick(): Promise<void> {
       if (existsSync(f)) await processSpawnRequest(f);
     }
 
+    // Compact requests ride this tick. Not gated on orchestratorMaySpawn: a
+    // compaction spends nothing new, it shrinks what an agent already holds.
+    try {
+      compactRequests.tick(cfg.ctxAutoCompact ? {
+        pct: cfg.ctxAutoCompactPct ?? 75,
+        everyMs: Math.max(1, cfg.ctxAutoCompactEveryMin ?? 30) * 60_000
+      } : null);
+    } catch (e) { console.error('[compact] tick error:', e); }
+
     // (3) GC preserved worktrees whose work has since integrated. Throttled to
     //     GC_SWEEP_MS and a no-op when nothing is preserved (the common case).
     const now = Date.now();
@@ -5094,6 +5133,8 @@ function startEphemeralWorkerWatcher(): void {
   if (workerWatchTimer || !hive.enabled()) return;
   const dir = spawnRequestsDir();
   if (dir) { try { mkdirSync(dir, { recursive: true }); } catch { /* noop */ } }
+  const root = hive.root();
+  if (root) { try { mkdirSync(join(root, 'compact-requests'), { recursive: true }); } catch { /* noop */ } }
   workerWatchTimer = setInterval(() => { void ephemeralWorkerTick(); }, WORKER_TICK_MS);
 }
 
