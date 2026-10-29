@@ -6,7 +6,9 @@
  *
  *   -M …           a ControlMaster: writes its pid to the ControlPath and
  *                  waits for SIGTERM. FAKE_SSH_MODE=portbusy fails the way
- *                  ExitOnForwardFailure does. A ControlPath that already
+ *                  ExitOnForwardFailure does; hostkey-new and
+ *                  hostkey-changed the way BatchMode does on an untrusted
+ *                  or changed host key. A ControlPath that already
  *                  exists makes it run as a plain client, as real ssh does.
  *   -O check|exit  answers for the pid in the ControlPath.
  *   … -- <cmd>     prints login-shell noise around running <cmd>.
@@ -29,6 +31,14 @@ const masterPid = () => {
 if (a.includes('-M')) {
   if (process.env.FAKE_SSH_MODE === 'portbusy') {
     process.stderr.write('Error: remote port forwarding failed for listen port 47991\\n');
+    process.exit(255);
+  }
+  if (process.env.FAKE_SSH_MODE === 'hostkey-new') {
+    process.stderr.write('No ED25519 host key is known for 100.65.189.1 and you have requested strict checking.\\nHost key verification failed.\\n');
+    process.exit(255);
+  }
+  if (process.env.FAKE_SSH_MODE === 'hostkey-changed') {
+    process.stderr.write('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\\n@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\\nHost key verification failed.\\n');
     process.exit(255);
   }
   if (fs.existsSync(ctl)) {

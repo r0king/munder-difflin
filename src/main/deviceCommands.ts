@@ -76,9 +76,18 @@ export function controlArgs(ctl: string, target: string, op: 'check' | 'exit'): 
 }
 
 /** Why the master exited, in words a person can act on. `fallback` is the
- *  link's own reason when it ended the master itself. A busy port still wins,
- *  because that is the thing that needs fixing. */
-export function masterExitReason(stderr: string, deviceId: string, fallback?: string): string {
+ *  link's own reason when it ended the master itself. A refused host key or
+ *  a busy port still wins, because that is the thing that needs fixing.
+ *  `target` is the device's user@host, for the command that fixes a host key.
+ *  A changed key is never just accepted: it can mean someone in between. */
+export function masterExitReason(stderr: string, deviceId: string, fallback?: string, target = deviceId): string {
+  if (/REMOTE HOST IDENTIFICATION HAS CHANGED/.test(stderr)) {
+    const host = target.slice(target.lastIndexOf('@') + 1);
+    return `The host key of ${deviceId} has changed since this laptop last connected. Do nothing unless you reinstalled or replaced ${deviceId}; if you did, run in a terminal: ssh-keygen -R ${host} && ssh ${target}   # then run Check`;
+  }
+  if (hostKeyFailed(stderr)) {
+    return `This laptop does not trust the host key of ${deviceId} yet. Run once in a terminal: ssh ${target}   # compare the fingerprint it shows with the device's, answer yes, then run Check`;
+  }
   const port = /remote port forwarding failed for listen port (\d+)/.exec(stderr);
   if (port) {
     return `Port ${port[1]} is already in use on ${deviceId}. Free it there, or give ${deviceId} another portBase in config.json.`;
@@ -86,6 +95,12 @@ export function masterExitReason(stderr: string, deviceId: string, fallback?: st
   if (fallback) return fallback;
   const last = stderr.split('\n').map((l) => l.trim()).filter(Boolean).pop();
   return last ? `${deviceId}: ${last}` : `Lost the connection to ${deviceId}.`;
+}
+
+/** ssh refused the device's host key (not trusted yet, or changed). It never
+ *  fixes itself, so the link waits for a Check instead of retrying. */
+export function hostKeyFailed(stderr: string): boolean {
+  return /Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED|No \S+ host key is known for/.test(stderr);
 }
 
 const BACKOFF_MS = [2_000, 5_000, 15_000, 30_000, 60_000];

@@ -223,6 +223,25 @@ test('backoff is 2s, 5s, 15s, 30s, then every 60s; a busy port names itself', ()
   assert.equal(dc.masterExitReason('', 'my-lap', 'the link ended it'), 'the link ended it');
 });
 
+test('a host key ssh does not trust yet, or one that changed, says what to do', () => {
+  const unknown = 'No ED25519 host key is known for 100.65.189.1 and you have requested strict checking.\nHost key verification failed.\n';
+  const why = dc.masterExitReason(unknown, 'my-lap', undefined, 'royal@100.65.189.1');
+  assert.ok(why.includes('ssh royal@100.65.189.1'), why);
+  assert.match(why, /fingerprint/);
+  assert.match(why, /yes/);
+  assert.equal(dc.hostKeyFailed(unknown), true);
+  assert.ok(dc.masterExitReason('Host key verification failed.\n', 'my-lap', undefined, 'royal@h').includes('ssh royal@h'));
+
+  const changed = '@@@@\n@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n@@@@\nHost key verification failed.\n';
+  const why2 = dc.masterExitReason(changed, 'my-lap', undefined, 'royal@100.65.189.1');
+  assert.match(why2, /changed/);
+  assert.match(why2, /reinstalled or replaced/);
+  assert.ok(why2.includes("ssh-keygen -R 100.65.189.1"), why2);
+  assert.ok(!/answer yes/.test(why2), 'a changed key is never just accepted');
+  assert.equal(dc.hostKeyFailed(changed), true);
+  assert.equal(dc.hostKeyFailed('ssh: connect to host h port 22: No route to host'), false);
+});
+
 test('git runs in the right folder whatever its name', (t) => {
   const s = sandbox(t);
   s.fake('git');
