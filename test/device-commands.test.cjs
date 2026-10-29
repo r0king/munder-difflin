@@ -121,7 +121,7 @@ test('the hive mounts only on an empty folder; a non-empty one is refused, not h
 
   let r = s.sh(dc.mountCommand(hive, 47990));
   assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(s.calls()[0].argv, ['-o', 'directport=47990,reconnect,ServerAliveInterval=15', `127.0.0.1:${hive}`, hive]);
+  assert.deepEqual(s.calls()[0].argv, ['-o', 'directport=47990,reconnect,ServerAliveInterval=15,dir_cache=no,entry_timeout=0,attr_timeout=0,negative_timeout=0', `127.0.0.1:${hive}`, hive]);
 
   fs.writeFileSync(path.join(hive, 'stray-mail.json'), '{}');
   r = s.sh(dc.mountCommand(hive, 47990));
@@ -153,7 +153,7 @@ fs.mkdirSync(process.argv[3], { recursive: true });\n`);
   assert.deepEqual(s.calls().map((c) => c.argv), [
     ['-uz', hive],
     ['-uz', hive],
-    ['-o', 'directport=47990,reconnect,ServerAliveInterval=15', `127.0.0.1:${hive}`, hive]
+    ['-o', 'directport=47990,reconnect,ServerAliveInterval=15,dir_cache=no,entry_timeout=0,attr_timeout=0,negative_timeout=0', `127.0.0.1:${hive}`, hive]
   ]);
 
   // Still unable to create the folder: exit 2, with the fix in the message.

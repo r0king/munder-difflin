@@ -12,7 +12,7 @@
  * always `bash -lc '<cmd>'`: a known shell, with the device's login PATH,
  * where `~/.local/bin/claude` lives.
  */
-import { DEFAULT_PORT_BASE, isValidDeviceHost, isValidDeviceUser, type DeviceCheckItem, type DeviceConfig } from '../shared/devices';
+import { DEFAULT_PORT_BASE, isValidDeviceHost, isValidDeviceUser, type DeviceCheckItem, type DeviceConfig, type DeviceState } from '../shared/devices';
 import { projectKey } from './transcript';
 
 /** POSIX single quotes: safe for any string, newlines and unicode included. */
@@ -157,6 +157,31 @@ export function planReconcile(sessions: string[], keepAgentIds: string[]): { kee
   return { keep: sessions.filter((s) => want.has(s)), kill: sessions.filter((s) => !want.has(s)) };
 }
 
+/** After a device agent's terminal died: was it only a detach (the agent
+ *  still runs in its tmux session), or did the agent itself end? Only a
+ *  definite "no such session" (has-session exit 1 on an online device)
+ *  counts as ended. A dead link or a failed check must never archive a live
+ *  agent. */
+export function isDetach(state: DeviceState, hasSessionCode: number): boolean {
+  return !(state === 'online' && hasSessionCode === 1);
+}
+
+/** The roster's agents on a device, on the floor or waiting in the restore
+ *  list, for reconcile and Check. The roster's agent shape is the renderer's
+ *  (roster.ts keeps it opaque), so it is read defensively. */
+export function rosterAgentsOn(
+  roster: { agents?: unknown[]; restorable?: unknown[] } | null,
+  deviceId: string
+): Array<{ id: string; cwd?: string }> {
+  const out: Array<{ id: string; cwd?: string }> = [];
+  for (const a of [...(roster?.agents ?? []), ...(roster?.restorable ?? [])]) {
+    if (!a || typeof a !== 'object') continue;
+    const { id, cwd, device } = a as Record<string, unknown>;
+    if (typeof id === 'string' && device === deviceId) out.push(typeof cwd === 'string' ? { id, cwd } : { id });
+  }
+  return out;
+}
+
 export function tmuxConfPath(hiveRoot: string): string {
   return `${hiveRoot}/devices/tmux.conf`;
 }
@@ -186,11 +211,16 @@ export const NOT_EMPTY = 'MD_HIVE_NOT_EMPTY';
  *  A dead mount (sshfs killed: every stat fails with "Transport endpoint is
  *  not connected") also reads as "not mounted", and `mkdir -p` fails on it
  *  for good. So a lazy unmount runs first; on a plain folder it just fails,
- *  quietly. fusermount3 is fuse3's name, fusermount fuse2's. */
+ *  quietly. fusermount3 is fuse3's name, fusermount fuse2's.
+ *
+ *  No caching: sshfs keeps directory listings and attributes for 20 s by
+ *  default, so an agent woken for new mail could list its inbox and not see
+ *  the file yet, and a launch.sh rewritten at another length within 20 s
+ *  could be read at its stale size (a truncated or padded script). */
 export function mountCommand(hiveRoot: string, base: number): string {
   const h = shq(hiveRoot);
   const hint = shq(`Cannot create ${hiveRoot} on the device. If it is a dead mount, run there: fusermount3 -uz ${h} (or fusermount -uz); otherwise check the permissions of its parent folder.`);
-  return `mountpoint -q ${h} || { fusermount3 -uz ${h} 2>/dev/null || fusermount -uz ${h} 2>/dev/null; mkdir -p ${h} || { printf '%s\\n' ${hint} >&2; exit 2; }; [ -z "$(ls -A ${h})" ] || { echo ${NOT_EMPTY}; exit 3; }; sshfs -o directport=${base},reconnect,ServerAliveInterval=15 127.0.0.1:${h} ${h}; }`;
+  return `mountpoint -q ${h} || { fusermount3 -uz ${h} 2>/dev/null || fusermount -uz ${h} 2>/dev/null; mkdir -p ${h} || { printf '%s\\n' ${hint} >&2; exit 2; }; [ -z "$(ls -A ${h})" ] || { echo ${NOT_EMPTY}; exit 3; }; sshfs -o directport=${base},reconnect,ServerAliveInterval=15,dir_cache=no,entry_timeout=0,attr_timeout=0,negative_timeout=0 127.0.0.1:${h} ${h}; }`;
 }
 
 // ─── Hooks on the device ─────────────────────────────────────────────────────

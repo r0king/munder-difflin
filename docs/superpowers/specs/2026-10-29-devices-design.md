@@ -91,7 +91,11 @@ There is one `DeviceLink` per configured device, with states `offline`,
    `/usr/libexec/sftp-server`, and pipes the socket through it. It is shared by
    all devices, so there is no socat dependency.
 3. **The hive mount.** Once the connection is up, the link runs over it:
-   `mountpoint -q <hive> || { mkdir -p <hive> && sshfs -o directport=<base>,reconnect,ServerAliveInterval=15 127.0.0.1:<hive> <hive>; }`
+   `mountpoint -q <hive> || { mkdir -p <hive> && sshfs -o directport=<base>,reconnect,ServerAliveInterval=15,dir_cache=no,entry_timeout=0,attr_timeout=0,negative_timeout=0 127.0.0.1:<hive> <hive>; }`
+   No caching (`dir_cache=no` and the three timeouts at 0): with sshfs's default
+   20 s cache an agent woken for new mail can list its inbox and not see the
+   file yet, and a `launch.sh` rewritten at another length can be read at its
+   stale size.
    `<hive>` is the same absolute path on both machines. The mount reconnects by
    itself, so the link only re-runs this when `mountpoint` says it is gone.
 4. **Reconnects.** When the master exits, the device goes `offline` and
