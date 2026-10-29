@@ -16,15 +16,17 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir, userInfo } from 'node:os';
-import { dirname, sep } from 'node:path';
-import { normalizeDevices, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { cpus, freemem, homedir, loadavg, tmpdir, userInfo } from 'node:os';
+import { dirname, join, sep } from 'node:path';
+import { LOCAL_DEVICE, normalizeDevices, type ConversationStayed, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
 import {
-  backoffDelay, checkCommands, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
-  masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, sshTarget,
-  terminalArgs, TMUX_CONF, tmuxConfPath
+  backoffDelay, baseFolder, engineCheck, basePathCommand, basePathFix, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
+  forwardArgs, masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, PROXY_SLOT_FIRST, readTranscriptCommand, sshTarget,
+  terminalArgs, TMUX_CONF, tmuxConfPath, TRANSCRIPT_MISSING, writeTranscriptCommand, parseWslProbe, WSL_PROBE, wslCheckItems
 } from './deviceCommands';
+import { projectKey } from './transcript';
+import type { AgentProvider } from '../shared/agentProvider';
 import type { SpawnOptions } from './pty';
 
 export interface ExecResult {
@@ -50,6 +52,8 @@ export interface LinkEnv {
   sshEnv?: NodeJS.ProcessEnv;
   runDir?: string;
   backoff?: (attempt: number) => number;
+  /** This laptop's home folder, for the base-path fix (a test seam). */
+  localHome?: string;
 }
 
 /** /run/user/<uid> keeps the ControlPath short; a Unix socket path must be under 108 bytes. */
@@ -67,6 +71,9 @@ export class DeviceLink extends EventEmitter {
   private retry: NodeJS.Timeout | null = null;
   /** Set when the link ends the master itself, so the exit says why. */
   private killReason: string | undefined;
+  /** Proxy sidecar forwards, by key: device port → this laptop's port. Kept
+   *  across reconnects and re-added on each one. */
+  private readonly forwards = new Map<string, { device: number; local: number }>();
 
   constructor(readonly device: DeviceConfig, private readonly env: LinkEnv) {
     super();
@@ -101,11 +108,34 @@ export class DeviceLink extends EventEmitter {
 
   /** Run one command on the device over the master, under `bash -lc` so it
    *  sees the login PATH. Fails at once while the device is not online. */
-  exec(cmd: string, timeoutMs = 15_000): Promise<ExecResult> {
+  exec(cmd: string, timeoutMs = 15_000, input?: string): Promise<ExecResult> {
     if (this.state !== 'online') {
       return Promise.resolve({ ok: false, code: -1, stdout: '', stderr: '', error: `${this.id} is offline` });
     }
-    return this.run(cmd, timeoutMs);
+    return this.run(cmd, timeoutMs, input);
+  }
+
+  /** Forward a loopback port of this laptop to the first free proxy slot on
+   *  the device's loopback (base+3, base+4, …). Resolves the device port, or
+   *  null when the master refused it. */
+  async addForward(key: string, localPort: number): Promise<number | null> {
+    await this.removeForward(key);
+    const used = new Set([...this.forwards.values()].map((f) => f.device));
+    let device = this.portBase + PROXY_SLOT_FIRST;
+    while (used.has(device)) device++;
+    if (device > 65535 || this.state !== 'online') return null;
+    const r = await this.spawnSsh(forwardArgs(this.ctl(), this.target(), 'forward', device, localPort), 10_000);
+    if (r.code !== 0) return null;
+    this.forwards.set(key, { device, local: localPort });
+    return device;
+  }
+
+  /** Drop a forward (its agent ended). Idempotent. */
+  async removeForward(key: string): Promise<void> {
+    const f = this.forwards.get(key);
+    if (!f) return;
+    this.forwards.delete(key);
+    if (this.state === 'online') await this.spawnSsh(forwardArgs(this.ctl(), this.target(), 'cancel', f.device, f.local), 5_000);
   }
 
   private setState(state: DeviceState, error: string | undefined): void {
@@ -157,15 +187,35 @@ export class DeviceLink extends EventEmitter {
     const mount = await this.run(`${mountCommand(this.env.hiveRoot, this.portBase)} && ${installShimCommand(this.env.hiveRoot)}`, 30_000);
     if (this.master !== m) return;
     if (!mount.ok) {
+      // mkdir failed (exit 2): usually this laptop's base folder does not
+      // exist there (another user, another layout). Say how to make it exist.
+      const fix = mount.code === 2 ? await this.baseFix() : null;
+      if (this.master !== m) return;
       this.killReason = mount.stdout.includes(NOT_EMPTY)
         ? `The hive folder on ${this.id} is not empty, so it was not mounted. Move it aside on ${this.id}: mv ${this.env.hiveRoot} ${this.env.hiveRoot}.local`
-        : `Could not mount the hive on ${this.id}: ${mount.error ?? (mount.stderr.trim() || `exit ${mount.code}`)}`;
+        : fix
+          ? `${baseFolder(this.env.hiveRoot)} does not exist on ${this.id}, so the hive cannot be mounted at the same path. On ${this.id}, run: ${fix}`
+          : `Could not mount the hive on ${this.id}: ${mount.error ?? (mount.stderr.trim() || `exit ${mount.code}`)}`;
       m.kill();
       return;
     }
+    // A new master has only its three forwards: put the proxies back.
+    for (const f of this.forwards.values()) {
+      await this.spawnSsh(forwardArgs(this.ctl(), this.target(), 'forward', f.device, f.local), 10_000);
+    }
+    if (this.master !== m) return;
     this.attempt = 0;
     this.setState('online', undefined);
     this.emit('online');
+  }
+
+  /** The command that makes this laptop's base folder exist on the device,
+   *  or null when it exists or the probe got no answer. */
+  private async baseFix(): Promise<string | null> {
+    const base = baseFolder(this.env.hiveRoot);
+    const home = this.env.localHome ?? homedir();
+    const r = await this.run(basePathCommand(base, home), 10_000);
+    return r.ok ? basePathFix(base, home, r.stdout) : null;
   }
 
   /** The master gives no "ready" signal, so ask it (`-O check`) until it answers. */
@@ -199,8 +249,8 @@ export class DeviceLink extends EventEmitter {
     this.retry = setTimeout(() => { this.retry = null; void this.connect(); }, delay);
   }
 
-  private async run(cmd: string, timeoutMs: number): Promise<ExecResult> {
-    const r = await this.spawnSsh(execArgs(this.ctl(), this.target(), cmd), timeoutMs);
+  private async run(cmd: string, timeoutMs: number, input?: string): Promise<ExecResult> {
+    const r = await this.spawnSsh(execArgs(this.ctl(), this.target(), cmd), timeoutMs, input);
     const fenced = parseFenced(r.stdout);
     if (!fenced) {
       return { ok: false, code: -1, stdout: '', stderr: r.stderr, error: r.stderr.trim().split('\n').pop() || `No answer from ${this.id}.` };
@@ -208,13 +258,21 @@ export class DeviceLink extends EventEmitter {
     return { ok: fenced.code === 0, code: fenced.code, stdout: fenced.out, stderr: r.stderr };
   }
 
-  private spawnSsh(args: string[], timeoutMs: number): Promise<{ code: number; stdout: string; stderr: string }> {
+  private spawnSsh(args: string[], timeoutMs: number, input?: string): Promise<{ code: number; stdout: string; stderr: string }> {
     return new Promise((resolve) => {
-      const p = spawn(this.sshBin, args, { stdio: ['ignore', 'pipe', 'pipe'], env: this.env.sshEnv });
+      const p = spawn(this.sshBin, args, { stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], env: this.env.sshEnv });
+      if (input !== undefined) {
+        // ssh may die before reading it all; its exit reports that, not this.
+        p.stdin?.on('error', () => { /* reported by close */ });
+        p.stdin?.end(input);
+      }
       let stdout = '';
       let stderr = '';
       const timer = setTimeout(() => { try { p.kill('SIGKILL'); } catch { /* gone */ } }, timeoutMs);
-      p.stdout?.on('data', (d) => { stdout += d.toString(); });
+      // One decoder for the whole stream: a multi-byte character split
+      // across two reads would become two U+FFFD with a per-chunk toString().
+      p.stdout?.setEncoding('utf8');
+      p.stdout?.on('data', (d: string) => { stdout += d; });
       p.stderr?.on('data', (d) => { stderr += d.toString(); });
       p.on('error', (e) => { clearTimeout(timer); resolve({ code: -1, stdout, stderr: `${stderr}${e.message}` }); });
       p.on('close', (code) => { clearTimeout(timer); resolve({ code: code ?? -1, stdout, stderr }); });
@@ -290,14 +348,14 @@ function replaceFile(hiveRoot: string, file: string, data: string, mode: number)
 export function remoteTerminal(
   link: DeviceLink,
   hiveRoot: string,
-  o: { ptyId: string; agentId: string; cwd: string; env: Record<string, string>; args: string[]; cols?: number; rows?: number }
+  o: { ptyId: string; agentId: string; cwd: string; env: Record<string, string>; args: string[]; cols?: number; rows?: number; command?: string }
 ): SpawnOptions {
   const launch = launchPath(hiveRoot, o.agentId);
   mkdirSync(dirname(launch), { recursive: true });
   // Owner-only: it carries the agent's env, capability tokens included. A
   // fresh file each time, so a launch.sh left wider (a copied or restored
   // hive) never keeps its old mode.
-  replaceFile(hiveRoot, launch, launchScript({ cwd: o.cwd, env: o.env, command: 'claude', args: o.args }), 0o600);
+  replaceFile(hiveRoot, launch, launchScript({ cwd: o.cwd, env: o.env, command: o.command ?? 'claude', args: o.args }), 0o600);
   mkdirSync(dirname(tmuxConfPath(hiveRoot)), { recursive: true });
   replaceFile(hiveRoot, tmuxConfPath(hiveRoot), TMUX_CONF, 0o644);
   return {
@@ -316,7 +374,13 @@ export function remoteTerminal(
  *  scripts/devices-smoke.sh. Offline, the only answer is the login line,
  *  carrying the link's own reason. Fix texts stay English (built in main,
  *  like masterExitReason): they are shell commands and tool output. */
-export async function checkDevice(link: DeviceLink | undefined, hiveRoot: string, folders: string[]): Promise<DeviceCheckItem[]> {
+export async function checkDevice(
+  link: DeviceLink | undefined,
+  hiveRoot: string,
+  folders: string[],
+  localHome: string = homedir(),
+  engines: Array<{ provider: AgentProvider; bin: string }> = []
+): Promise<DeviceCheckItem[]> {
   if (!link || link.state !== 'online') {
     return [{ id: 'login', ok: false, fix: link?.error ?? 'Not connected yet. Check the host, and that Tailscale SSH is on for this device.' }];
   }
@@ -324,6 +388,90 @@ export async function checkDevice(link: DeviceLink | undefined, hiveRoot: string
   for (const c of checkCommands(hiveRoot, folders)) {
     const r = await link.exec(c.cmd, 20_000);
     out.push({ id: c.item, ...(c.path ? { path: c.path } : {}), ok: r.ok, ...(r.ok ? {} : { fix: c.fix }) });
+    // Right after login: the base folder, which every path the hive holds needs.
+    if (c.item === 'login') out.push(await checkBase(link, hiveRoot, localHome));
   }
+  // Each other engine an agent here uses: its CLI, found by the login shell
+  // (devices phase 2, item 5). Claude has its own item above.
+  for (const e of engines) {
+    const c = engineCheck(e.provider, e.bin);
+    const r = await link.exec(c.cmd, 20_000);
+    out.push(r.ok ? { id: 'engine', name: e.bin, ok: true } : { id: 'engine', name: e.bin, ok: false, fix: c.fix });
+  }
+  // A Windows machine through WSL2 (devices phase 2, item 6).
+  out.push(...wslCheckItems(parseWslProbe((await link.exec(WSL_PROBE, 20_000)).stdout)));
   return out;
+}
+
+// ─── Moving an agent: its conversation file (devices phase 2, item 1) ────────
+
+export type TranscriptCopyResult = { ok: true } | { ok: false; reason: ConversationStayed['reason'] };
+
+/** Claude's session ids are UUIDs. Anything else never becomes a path. */
+const SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
+/** A transcript is a few MB; over Tailscale that takes seconds. */
+const COPY_TIMEOUT_MS = 120_000;
+
+function localTranscript(home: string, cwd: string, sessionId: string): string {
+  return join(home, '.claude', 'projects', projectKey(cwd), `${sessionId}.jsonl`);
+}
+
+/** Copy `~/.claude/projects/<projectKey(cwd)>/<sid>.jsonl` from where the
+ *  agent ran to where it is about to run: this laptop (`undefined`) or a
+ *  device, at the same path. Device to device passes through this laptop.
+ *  `home` is this laptop's home folder (a test seam). */
+export async function copyTranscript(
+  from: DeviceLink | undefined,
+  to: DeviceLink | undefined,
+  cwd: string,
+  sessionId: string,
+  home: string = homedir()
+): Promise<TranscriptCopyResult> {
+  if (!SESSION_ID.test(sessionId)) return { ok: false, reason: 'missing' };
+  let body: string;
+  if (from) {
+    if (from.state !== 'online') return { ok: false, reason: 'offline' };
+    const r = await from.exec(readTranscriptCommand(cwd, sessionId), COPY_TIMEOUT_MS);
+    if (r.code === TRANSCRIPT_MISSING) return { ok: false, reason: 'missing' };
+    // -1: the command never ran or never finished, i.e. the link went down.
+    if (!r.ok) return { ok: false, reason: r.code === -1 ? 'offline' : 'failed' };
+    body = r.stdout;
+  } else {
+    try { body = readFileSync(localTranscript(home, cwd, sessionId), 'utf8'); }
+    catch { return { ok: false, reason: 'missing' }; }
+  }
+  if (to) {
+    const w = await to.exec(writeTranscriptCommand(cwd, sessionId), COPY_TIMEOUT_MS, body);
+    return w.ok ? { ok: true } : { ok: false, reason: 'failed' };
+  }
+  try {
+    const dest = localTranscript(home, cwd, sessionId);
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(`${dest}.part`, body);
+    renameSync(`${dest}.part`, dest);
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'failed' };
+  }
+}
+
+// ─── Automatic placement (devices phase 2, item 2) ───────────────────────────
+
+/** A device's load, or null when it did not answer (it is then no candidate). */
+export async function readLoad(link: DeviceLink): Promise<LoadSample | null> {
+  const r = await link.exec(LOAD_COMMAND, 10_000);
+  return r.ok ? parseLoad(link.id, r.stdout) : null;
+}
+
+/** This laptop's load, the same three numbers. */
+export function localLoad(): LoadSample {
+  return { id: LOCAL_DEVICE, load1: loadavg()[0], cores: cpus().length || 1, memAvailable: freemem() };
+}
+
+/** Check's base-folder item (devices phase 2, item 3). */
+async function checkBase(link: DeviceLink, hiveRoot: string, localHome: string): Promise<DeviceCheckItem> {
+  const base = baseFolder(hiveRoot);
+  const r = await link.exec(basePathCommand(base, localHome), 20_000);
+  const fix = basePathFix(base, localHome, r.ok ? r.stdout : '');
+  return fix ? { id: 'base', path: base, ok: false, fix } : { id: 'base', path: base, ok: true };
 }

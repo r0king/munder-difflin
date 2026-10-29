@@ -46,7 +46,8 @@ async function godPrompt(t, deviceIds) {
 test("god's prompt names the devices and says heavy work belongs there", async (t) => {
   const p = await godPrompt(t, ['my-lap']);
   assert.ok(p.includes('heavy work (type-checks, suites, builds) is best placed on a device'));
-  assert.ok(p.includes('`device` (my-lap)'));
+  assert.ok(p.includes('`device` (auto, my-lap)'));
+  assert.ok(p.includes('`"device": "auto"` picks the least-loaded machine'));
   // teardownPty keeps a device worker's worktree, so god must know to clean it up.
   assert.ok(p.includes("a device worker's worktree is kept"));
 });

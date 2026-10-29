@@ -1436,12 +1436,29 @@
       "tmux": "tmux",
       "sshfs": "sshfs",
       "mount": "Hive mounted",
-      "folder": "Folder {{path}}"
+      "folder": "Folder {{path}}",
+      "base": "Base folder {{path}}",
+      "wslSystemd": "systemd on in WSL",
+      "wslFuse": "/dev/fuse in WSL",
+      "wslIdle": "Windows keeps WSL running",
+      "wslSleep": "Windows never sleeps",
+      "engine": "{{name}} found"
     },
     "runsOn": "Runs on",
     "thisLaptop": "This laptop",
     "runsOnHint": "Its folder must exist on {{device}}; heavy work runs there.",
-    "restartsHint": "Changing it restarts the agent there with a fresh session.",
-    "offlineReconnecting": "offline · reconnecting"
+    "restartsHint": "Changing it restarts the agent there; its conversation is copied over.",
+    "offlineReconnecting": "offline · reconnecting",
+    "conversationStayed": "conversation stayed on {{device}} ({{reason}}); started fresh",
+    "stayedReason": {
+      "offline": "offline",
+      "missing": "not found",
+      "failed": "copy failed"
+    },
+    "auto": "Auto (least loaded)",
+    "autoHint": "Picks this laptop or a checked device with the most free memory at each fresh start. It never moves while running.",
+    "godWarning": "While {{device}} is offline the floor has no god: mail to it waits, and it pauses after the offline limit like any agent.",
+    "reminder": "Check by hand:",
+    "usageUnavailable": "usage not available on a device"
   }
 }

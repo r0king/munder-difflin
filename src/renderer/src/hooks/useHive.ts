@@ -1048,6 +1048,7 @@ export function useHive(config: HarnessConfig | null): void {
         tmuxTarget: '',
         cwd: rec.cwd,
         device: rec.device,
+        lastDevice: rec.lastDevice,
         status: 'idle',
         action: 'starting up',
         progress: 0,

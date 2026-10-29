@@ -20,6 +20,7 @@ import { useFleetTelemetry } from '@/hooks/useTelemetry';
 import { COMMAND_GROUPS } from '@shared/claudeCommands';
 import { roleForHiveSpawn } from '@shared/agentRole';
 import { useStore, triggerHistoryVisible, type Agent } from '@/store/store';
+import { effectiveDevice } from '@/store/devices';
 import { usePtyParser } from '@/hooks/usePtyParser';
 import {
   buildSpawnCommand,
@@ -444,7 +445,7 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
         if (!resumeSessionId) {
           giveUpOnResume('No recorded session ID; current process was left running.');
         // A device agent's transcript is on the device; main checks it there.
-        } else if (provider === 'claude' && !a.device && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
+        } else if (provider === 'claude' && !effectiveDevice(a.device, a.lastDevice) && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
           giveUpOnResume('Session transcript not found; current process was left running.');
         }
       }
@@ -482,7 +483,9 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
         provider,
         isGod: a.isGod,
         isAssistant: a.isAssistant,
-        role: roleForHiveSpawn(a)
+        role: roleForHiveSpawn(a),
+        // Auto picks again on a fresh restart, as restartAgent does.
+        device: a.device ?? ''
       };
       const res = await window.cth.spawnPty({
         id: a.ptyId,
@@ -528,8 +531,10 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
         // while the selector and the persisted agent kept the old one, and the
         // next restore relaunched the old command. `command` is rebuilt from the
         // selected model above, so on a genuine no-change restart this is a no-op.
+        const placed = res.device !== undefined ? { lastDevice: res.device } : {};
         const patch = resume
           ? {
+              ...placed,
               command: command.trim(),
               provider,
               model,
@@ -537,6 +542,7 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
               action: 'continuing…'
             }
           : {
+              ...placed,
               command: command.trim(),
               provider,
               model,

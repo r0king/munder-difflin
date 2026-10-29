@@ -26,12 +26,12 @@ test('Check: every item over the link, with a fix for each failure', async (t) =
 
   const items = await checkDevice(link, f.hive, [f.dir, '/no/such/folder']);
   assert.deepEqual(items.map((i) => [i.id, i.ok]), [
-    ['login', true], ['claude', true], ['node', true], ['tmux', true], ['sshfs', true],
+    ['login', true], ['base', true], ['claude', true], ['node', true], ['tmux', true], ['sshfs', true],
     ['mount', true], ['folder', true], ['folder', false]
   ]);
   assert.equal(items[0].fix, undefined, 'a pass carries no fix');
-  assert.equal(items[7].path, '/no/such/folder');
-  assert.match(items[7].fix, /^mkdir -p '\/no\/such\/folder'/);
+  assert.equal(items[8].path, '/no/such/folder');
+  assert.match(items[8].fix, /^mkdir -p '\/no\/such\/folder'/);
 });
 
 test('Check while offline: one failed login line with the reason', async () => {

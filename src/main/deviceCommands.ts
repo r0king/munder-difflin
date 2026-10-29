@@ -12,8 +12,10 @@
  * always `bash -lc '<cmd>'`: a known shell, with the device's login PATH,
  * where `~/.local/bin/claude` lives.
  */
-import { DEFAULT_PORT_BASE, isValidDeviceHost, isValidDeviceUser, normalizeDeviceId, type DeviceCheckItem, type DeviceConfig, type DeviceState } from '../shared/devices';
+import { AUTO_DEVICE, DEFAULT_PORT_BASE, isValidDeviceHost, isValidDeviceUser, LOCAL_DEVICE, normalizeDeviceId, type DeviceCheckItem, type DeviceConfig, type DeviceState } from '../shared/devices';
 import { projectKey } from './transcript';
+import { installInfoForProvider, type AgentProvider } from '../shared/agentProvider';
+import { posix } from 'node:path';
 
 /** POSIX single quotes: safe for any string, newlines and unicode included. */
 export function shq(s: string): string {
@@ -172,12 +174,22 @@ export function isDetach(state: DeviceState, hasSessionCode: number): boolean {
 export function rosterAgentsOn(
   roster: { agents?: unknown[]; restorable?: unknown[] } | null,
   deviceId: string
-): Array<{ id: string; cwd?: string }> {
-  const out: Array<{ id: string; cwd?: string }> = [];
+): Array<{ id: string; cwd?: string; provider?: string; command?: string }> {
+  const out: Array<{ id: string; cwd?: string; provider?: string; command?: string }> = [];
   for (const a of [...(roster?.agents ?? []), ...(roster?.restorable ?? [])]) {
     if (!a || typeof a !== 'object') continue;
-    const { id, cwd, device } = a as Record<string, unknown>;
-    if (typeof id === 'string' && device === deviceId) out.push(typeof cwd === 'string' ? { id, cwd } : { id });
+    const { id, cwd, device, lastDevice, provider, command } = a as Record<string, unknown>;
+    // An Auto agent lives where it last ran: reconcile must keep its session,
+    // and Check must cover its folder there.
+    const on = device === AUTO_DEVICE ? lastDevice : device;
+    if (typeof id !== 'string' || on !== deviceId) continue;
+    // Check also needs each agent's engine (devices phase 2, item 5).
+    out.push({
+      id,
+      ...(typeof cwd === 'string' ? { cwd } : {}),
+      ...(typeof provider === 'string' ? { provider } : {}),
+      ...(typeof command === 'string' ? { command } : {})
+    });
   }
   return out;
 }
@@ -348,7 +360,198 @@ export function validateSpawnDevice(device: unknown, states: Record<string, Devi
   if (device !== undefined && typeof device !== 'string') return { error: '"device" must be a device id' };
   const id = normalizeDeviceId(device);
   if (!id) return {};
+  // Placed when the worker starts (index.ts placeAuto).
+  if (id === AUTO_DEVICE) return { device: AUTO_DEVICE };
   if (!Object.hasOwn(states, id)) return { error: `unknown device "${id}"` };
   if (states[id] !== 'online') return { error: `device "${id}" is ${states[id]}` };
   return { device: id };
+}
+
+// ─── Moving an agent: its conversation file (devices phase 2, item 1) ────────
+
+/** readTranscriptCommand's exit code when the file is not there. */
+export const TRANSCRIPT_MISSING = 3;
+
+function projectDirSh(cwd: string): string {
+  return `"$HOME"/.claude/projects/${shq(projectKey(cwd))}`;
+}
+
+/** Print a session's transcript, or exit TRANSCRIPT_MISSING. */
+export function readTranscriptCommand(cwd: string, sessionId: string): string {
+  const f = `${projectDirSh(cwd)}/${shq(`${sessionId}.jsonl`)}`;
+  return `[ -f ${f} ] || exit ${TRANSCRIPT_MISSING}; cat ${f}`;
+}
+
+/** Write stdin as a session's transcript. It goes through a temp file, so a
+ *  link cut mid-copy never leaves half a conversation where `--resume`
+ *  would find it. */
+export function writeTranscriptCommand(cwd: string, sessionId: string): string {
+  const d = projectDirSh(cwd);
+  const part = `${d}/${shq(`.${sessionId}.jsonl.part`)}`;
+  return `mkdir -p ${d} && cat > ${part} && mv -f ${part} ${d}/${shq(`${sessionId}.jsonl`)}`;
+}
+
+// ─── Automatic placement (devices phase 2, item 2) ───────────────────────────
+
+/** One device's load, as the spec states it. */
+export const LOAD_COMMAND = 'cat /proc/loadavg; nproc; grep MemAvailable /proc/meminfo';
+
+/** One candidate machine. `id` is a device id, or 'local' for this laptop. */
+export interface LoadSample {
+  id: string;
+  load1: number;
+  cores: number;
+  /** Bytes. */
+  memAvailable: number;
+}
+
+export function parseLoad(id: string, out: string): LoadSample | null {
+  const lines = out.split('\n').map((l) => l.trim()).filter(Boolean);
+  const load1 = parseFloat((lines[0] ?? '').split(/\s+/)[0]);
+  const cores = parseInt(lines[1] ?? '', 10);
+  const kb = /^MemAvailable:\s+(\d+)\s*kB/.exec(lines[2] ?? '');
+  if (!Number.isFinite(load1) || !(cores > 0) || !kb) return null;
+  return { id, load1, cores, memAvailable: Number(kb[1]) * 1024 };
+}
+
+/** Candidates under 1.5 load per core qualify; the one with the most free
+ *  memory wins; if none qualifies, the most free memory overall. Ties go to
+ *  this laptop, so an agent never crosses the network for nothing. */
+export function pickDevice(samples: LoadSample[]): string {
+  const calm = samples.filter((x) => x.load1 / x.cores < 1.5);
+  const pool = calm.length ? calm : samples;
+  let best: LoadSample | undefined;
+  for (const x of pool) {
+    if (!best || x.memAvailable > best.memAvailable || (x.memAvailable === best.memAvailable && x.id === LOCAL_DEVICE)) best = x;
+  }
+  return best?.id ?? LOCAL_DEVICE;
+}
+
+// ─── The base folder (devices phase 2, item 3) ───────────────────────────────
+// The hive's own files hold absolute paths (PROTOCOL.md, fleet.json, task
+// cards, mail), so the device must have the same paths. A symlink there makes
+// them exist with no translation anywhere.
+
+/** The parent of the hive home: `/home/royal/Pro/Zensible` for a hive at
+ *  `/home/royal/Pro/Zensible/<home>/hive`. */
+export function baseFolder(hiveRoot: string): string {
+  return posix.dirname(posix.dirname(hiveRoot));
+}
+
+export const BASE_OK = 'MD_BASE_OK';
+
+/** Prints BASE_OK when the base folder exists (symlinks followed); else
+ *  `home:<device $HOME>` when the same layout exists under the device
+ *  user's home; else `missing`. */
+export function basePathCommand(base: string, localHome: string): string {
+  const rest = base === localHome ? '' : base.startsWith(`${localHome}/`) ? base.slice(localHome.length + 1) : null;
+  const same = rest === null ? '' : `elif [ -d "$HOME"/${shq(rest)} ]; then printf 'home:%s\\n' "$HOME"; `;
+  return `if [ -d ${shq(base)} ]; then echo ${BASE_OK}; ${same}else echo missing; fi`;
+}
+
+/** The command that makes the base folder exist on the device, or null when
+ *  it already does. `<their folder>` is left for the person to fill in: only
+ *  they know where the repos live on that machine. */
+export function basePathFix(base: string, localHome: string, probeOut: string): string | null {
+  if (probeOut.includes(BASE_OK)) return null;
+  const home = /^home:(.+)$/m.exec(probeOut);
+  if (home) return `sudo ln -s ${shq(home[1].trim())} ${shq(localHome)}`;
+  return `sudo mkdir -p ${shq(posix.dirname(base))} && sudo ln -s <their folder> ${shq(base)}`;
+}
+
+// ─── Windows through WSL2 (devices phase 2, item 6) ──────────────────────────
+
+const WSL_SEP = '__MD_WSL__';
+
+/** /proc/version, /etc/wsl.conf and /dev/fuse, in one round trip. */
+export const WSL_PROBE = `cat /proc/version 2>/dev/null; echo ${WSL_SEP}; cat /etc/wsl.conf 2>/dev/null; echo ${WSL_SEP}; [ -e /dev/fuse ] && echo fuse`;
+
+/** Is `systemd=true` set under `[boot]`? The last setting wins. */
+export function wslSystemdOn(conf: string): boolean {
+  let section = '';
+  let on = false;
+  for (const raw of conf.split('\n')) {
+    const line = raw.replace(/[#;].*$/, '').trim();
+    const head = /^\[(.+)\]$/.exec(line);
+    if (head) { section = head[1].trim().toLowerCase(); continue; }
+    const kv = /^([^=]+)=(.*)$/.exec(line);
+    if (section === 'boot' && kv && kv[1].trim().toLowerCase() === 'systemd') on = kv[2].trim().toLowerCase() === 'true';
+  }
+  return on;
+}
+
+export function parseWslProbe(out: string): { wsl: boolean; systemd: boolean; fuse: boolean } {
+  const [version = '', conf = '', fuse = ''] = out.split(`${WSL_SEP}\n`);
+  return { wsl: /microsoft/i.test(version), systemd: wslSystemdOn(conf), fuse: fuse.trim() === 'fuse' };
+}
+
+/** Check's WSL items; none on a plain Linux device. systemd keeps tailscaled
+ *  and our tmux running; /dev/fuse is what the hive mount needs. The two
+ *  Windows-side settings cannot be seen from inside WSL, so they are
+ *  reminders. */
+export function wslCheckItems(p: { wsl: boolean; systemd: boolean; fuse: boolean }): DeviceCheckItem[] {
+  if (!p.wsl) return [];
+  return [
+    p.systemd
+      ? { id: 'wslSystemd', ok: true }
+      : { id: 'wslSystemd', ok: false, fix: 'sudoedit /etc/wsl.conf   # under [boot] set systemd=true; then, in Windows: wsl --shutdown' },
+    p.fuse
+      ? { id: 'wslFuse', ok: true }
+      : { id: 'wslFuse', ok: false, fix: 'sudo apt install fuse3   # then, in Windows: wsl --shutdown' },
+    { id: 'wslIdle', ok: true, reminder: true, fix: 'In Windows, %UserProfile%\\.wslconfig: [wsl2] vmIdleTimeout=-1, then wsl --shutdown' },
+    { id: 'wslSleep', ok: true, reminder: true, fix: 'In Windows, an admin terminal: powercfg /change standby-timeout-ac 0 and powercfg /change hibernate-timeout-ac 0' }
+  ];
+}
+
+// ─── Other engines on a device (devices phase 2, item 5) ─────────────────────
+
+/** Is an engine's CLI on the device's login PATH, and how to install it. */
+export function engineCheck(provider: AgentProvider, bin: string): { cmd: string; fix: string } {
+  const info = installInfoForProvider(provider, 'linux');
+  return {
+    cmd: `command -v ${shq(bin)} >/dev/null`,
+    fix: info.nativeCommand ?? info.command ?? `install ${bin} on the device, on its login PATH`
+  };
+}
+
+/** The device's $HOME and the login shell's node: hook commands bake in both
+ *  as absolute paths, because engines run hooks with a stripped PATH. */
+export const REMOTE_ENV_PROBE = `printf 'home=%s\\nnode=%s\\n' "$HOME" "$(command -v node)"`;
+
+export function parseRemoteEnv(out: string): { home: string; node: string } | null {
+  const home = /^home=(.*)$/m.exec(out)?.[1].trim() ?? '';
+  const node = /^node=(.*)$/m.exec(out)?.[1].trim() ?? '';
+  return home.startsWith('/') && node.startsWith('/') ? { home, node } : null;
+}
+
+/** Write stdin to a file under the device's home, making its folders. */
+export function writeHomeFileCommand(rel: string): string {
+  return `f="$HOME"/${shq(rel)}; mkdir -p "$(dirname "$f")" && cat > "$f"`;
+}
+
+// The same rule installAgyHooks follows on this laptop: an unparseable or
+// non-object file becomes {}, every other key is kept, only `key` is set.
+const MERGE_JS = [
+  "const fs=require('fs'),p=require('path');",
+  "const f=p.join(require('os').homedir(),process.argv[1]),k=process.argv[2];let v='';",
+  "process.stdin.setEncoding('utf8').on('data',d=>{v+=d}).on('end',()=>{",
+  "let o={};try{o=JSON.parse(fs.readFileSync(f,'utf8'))}catch(e){}",
+  'if(!o||typeof o!=="object"||Array.isArray(o))o={};',
+  'o[k]=JSON.parse(v);fs.mkdirSync(p.dirname(f),{recursive:true});fs.writeFileSync(f,JSON.stringify(o,null,2))})'
+].join('');
+
+/** Set one key of a JSON file under the device's home to the JSON on stdin. */
+export function mergeHomeJsonCommand(rel: string, key: string): string {
+  return `node -e ${shq(MERGE_JS)} ${shq(rel)} ${shq(key)}`;
+}
+
+// ─── Proxy-tier engines on a device (devices phase 2, item 5) ────────────────
+
+/** The first proxy slot: base = SFTP, +1 hooks, +2 telemetry, then proxies. */
+export const PROXY_SLOT_FIRST = 3;
+
+/** Add or cancel one remote forward on the running master. A new master
+ *  starts with only its three, so the link re-adds these on every connect. */
+export function forwardArgs(ctl: string, target: string, op: 'forward' | 'cancel', devicePort: number, localPort: number): string[] {
+  return ['-S', ctl, '-O', op, '-R', `127.0.0.1:${devicePort}:127.0.0.1:${localPort}`, '--', target];
 }

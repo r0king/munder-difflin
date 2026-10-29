@@ -1436,12 +1436,29 @@
       "tmux": "tmux",
       "sshfs": "sshfs",
       "mount": "蜂巢已挂载",
-      "folder": "文件夹 {{path}}"
+      "folder": "文件夹 {{path}}",
+      "base": "基础文件夹 {{path}}",
+      "wslSystemd": "WSL 中已启用 systemd",
+      "wslFuse": "WSL 中存在 /dev/fuse",
+      "wslIdle": "Windows 保持 WSL 运行",
+      "wslSleep": "Windows 从不休眠",
+      "engine": "已找到 {{name}}"
     },
     "runsOn": "运行于",
     "thisLaptop": "这台笔记本",
     "runsOnHint": "它的文件夹必须存在于 {{device}} 上；繁重的工作在那里运行。",
-    "restartsHint": "更改后会在那里以新会话重启该智能体。",
-    "offlineReconnecting": "离线 · 正在重连"
+    "restartsHint": "更改后会在那里重启该智能体，并复制其对话。",
+    "offlineReconnecting": "离线 · 正在重连",
+    "conversationStayed": "对话留在了 {{device}}（{{reason}}）；已重新开始",
+    "stayedReason": {
+      "offline": "离线",
+      "missing": "未找到",
+      "failed": "复制失败"
+    },
+    "auto": "自动（负载最低）",
+    "autoHint": "每次全新启动时，从这台笔记本和已通过检查的设备中选出可用内存最多的一台；运行期间不会迁移。",
+    "godWarning": "{{device}} 离线期间，楼层没有 god：发给它的邮件会等待，超过离线时限后它会像其他智能体一样暂停。",
+    "reminder": "请手动确认：",
+    "usageUnavailable": "在设备上无法获取用量"
   }
 }

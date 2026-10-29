@@ -62,14 +62,15 @@ import { IntegrationBroker } from './integrationBroker';
 import * as integrations from './integrations';
 import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, INTEGRATION_TEMPLATES } from '../shared/integrations';
 import { RosterStore } from './roster';
-import { DeviceRegistry, checkDevice, remoteTerminal, type DeviceLink } from './devices';
+import { DeviceRegistry, checkDevice, copyTranscript, localLoad, readLoad, remoteTerminal, type DeviceLink } from './devices';
+import type { RemoteHome } from './hive';
 import { startSftpServer, type SftpServer } from './sftpServer';
 import {
   REMOTE_HOOK_COMMAND, TMUX_KILL_SERVER, TMUX_LS, dirExistsCommand, hasSessionCommand, isDetach,
-  killSessionCommand, parseTmuxLs, planReconcile, remoteAgentEnv, rosterAgentsOn, sessionName,
-  takePausedCommand, transcriptExistsCommand, validateSpawnDevice
+  engineCheck, killSessionCommand, mergeHomeJsonCommand, parseRemoteEnv, parseTmuxLs, planReconcile, REMOTE_ENV_PROBE, writeHomeFileCommand, remoteAgentEnv, rosterAgentsOn, sessionName,
+  pickDevice, takePausedCommand, transcriptExistsCommand, validateSpawnDevice, type LoadSample
 } from './deviceCommands';
-import { DEFAULT_OFFLINE_PAUSE_MIN, LOCAL_DEVICE, normalizeDeviceId, type DeviceStatus } from '../shared/devices';
+import { AUTO_DEVICE, DEFAULT_OFFLINE_PAUSE_MIN, DEVICE_PROVIDERS, LOCAL_DEVICE, normalizeDeviceId, type ConversationStayed, type DeviceCheckItem, type DeviceStatus } from '../shared/devices';
 import { buildWorkerLaunch } from './workerLaunch';
 import { CompactRequests } from './compactRequests';
 import { ControlRegistry } from './control';
@@ -553,6 +554,8 @@ function teardownPty(id: string): void {
     // W1 — kill this agent's proxy-bridge sidecar (qwen), if any, so a dead
     // PTY never leaves an orphan loopback listener. No-op for non-proxy agents.
     try { hive.stopProxyBridge(agentId); } catch (e) { console.error('[hive] stopProxyBridge failed:', e); }
+    // …and its forward to a device, if it ran on one.
+    for (const l of devices.all()) void l.removeForward(`proxy:${agentId}`);
     if (hive.enabled()) {
       try { hive.setArchived(agentId, true); } catch (e) { console.error('[hive] setArchived failed:', e); }
     }
@@ -2720,6 +2723,66 @@ function agentDevice(agentId: string): string | undefined {
   return normalizeDeviceId(hive.registry().agents[agentId]?.device);
 }
 
+/** Devices whose last Check passed. Only these, and this laptop, take Auto
+ *  agents (devices phase 2, item 2). */
+const deviceCheckOk = new Map<string, boolean>();
+
+/** Run Check on one device and remember whether every item passed. */
+async function runDeviceCheck(id: string): Promise<DeviceCheckItem[]> {
+  const root = hive.root();
+  if (!root) return [];
+  const agents = rosterAgentsOn(roster.read(), id);
+  const folders = [...new Set(agents.map((a) => a.cwd).filter((c): c is string => !!c))];
+  // Every other engine an agent here uses, once per binary.
+  const engines = new Map<string, AgentProvider>();
+  for (const a of agents) {
+    const provider = inferAgentProvider(a.command, a.provider as AgentProvider | undefined);
+    if (provider === 'claude') continue;
+    const bin = a.command?.trim().split(/\s+/)[0] || providerPreset(provider).defaultCommand;
+    if (bin) engines.set(bin, provider);
+  }
+  const items = await checkDevice(devices.get(id), root, folders, undefined, [...engines].map(([bin, provider]) => ({ provider, bin })));
+  deviceCheckOk.set(id, items.every((i) => i.ok));
+  return items;
+}
+// Every connect re-runs Check, so "last Check passed" holds after an app
+// restart, or after a fix made on the device, without anyone pressing Check.
+devices.on('online', (link: DeviceLink) => { void runDeviceCheck(link.id); });
+
+/** "Runs on: Auto". A restart that continues a conversation stays where it
+ *  last ran while that machine is up. Otherwise: the least-loaded of this
+ *  laptop and every online device whose last Check passed. Returns a device
+ *  id, or undefined for this laptop. */
+async function placeAuto(lastDevice: string | undefined, resuming: boolean): Promise<string | undefined> {
+  if (resuming) {
+    if (!lastDevice) return undefined;
+    if (devices.get(lastDevice)?.state === 'online') return lastDevice;
+  }
+  const links = devices.all().filter((l) => l.state === 'online' && deviceCheckOk.get(l.id) === true);
+  const remote = (await Promise.all(links.map(readLoad))).filter((x): x is LoadSample => !!x);
+  return normalizeDeviceId(pickDevice([localLoad(), ...remote]));
+}
+
+/** What ensureAgent needs to write a non-Claude engine's home-config hooks
+ *  on a device (devices phase 2, item 5). */
+async function remoteHomeFor(link: DeviceLink, agentId: string): Promise<RemoteHome> {
+  const r = await link.exec(REMOTE_ENV_PROBE);
+  const env = r.ok ? parseRemoteEnv(r.stdout) : null;
+  if (!env) throw new Error(`Could not find node on ${link.id}. Run Check in Settings → Devices.`);
+  return {
+    ...env,
+    // One forward per agent; teardownPty releases it.
+    forward: (localPort) => link.addForward(`proxy:${agentId}`, localPort),
+    write: async (files) => {
+      for (const f of files) {
+        const cmd = f.mergeKey ? mergeHomeJsonCommand(f.path, f.mergeKey) : writeHomeFileCommand(f.path);
+        const w = await link.exec(cmd, 30_000, f.content);
+        if (!w.ok) throw new Error(`Could not write ~/${f.path} on ${link.id}: ${w.error ?? (w.stderr.trim() || `exit ${w.code}`)}`);
+      }
+    }
+  };
+}
+
 /** Start the shared SFTP server (once) and one link per configured device. */
 async function startDevices(): Promise<void> {
   if (!hive.enabled()) return;
@@ -2858,7 +2921,7 @@ ipcMain.handle('pty:spawn', async (evt, opts: AgentSpawnOptions) => {
  *  it can ALSO be invoked by the god-triggered ephemeral-worker watcher (which has
  *  no renderer `evt`). `owner` is the window that should receive this PTY's output
  *  (null → the primary window). Behavior-identical to the prior inline handler. */
-async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebContents | null): Promise<{ ok: boolean; error?: string; cwd?: string; worktreePath?: string; resumeNotFound?: boolean; resumed?: boolean; seedPrompt?: string }> {
+async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebContents | null): Promise<{ ok: boolean; error?: string; cwd?: string; worktreePath?: string; resumeNotFound?: boolean; resumed?: boolean; seedPrompt?: string; conversationStayed?: ConversationStayed; device?: string }> {
   // ── cwd INGESTION — expand `~` exactly once, here ───────────────────────────
   // This is the single door every agent spawn comes through (`pty:spawn` IPC and
   // the god-triggered ephemeral-worker watcher), so it is where a user-typed
@@ -2881,14 +2944,32 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // An explicit `hive.device` wins ('' says "this laptop", which is how a move
   // back home is spelled); otherwise the agent stays where the registry last
   // had it, so the restore, revive and voice paths need not carry it.
-  const deviceId = opts.hive
+  // Where it ran last time (registry.json, written by the previous spawn).
+  // A different place is a move, and a move brings its conversation along
+  // (devices phase 2, item 1).
+  const prevDevice = opts.hive ? normalizeDeviceId(hive.registry().agents[opts.hive.id]?.device) : undefined;
+  const requested = opts.hive
     ? normalizeDeviceId(opts.hive.device !== undefined ? opts.hive.device : hive.registry().agents[opts.hive.id]?.device)
     : undefined;
+  // "Runs on: Auto" is decided here, once per start, and never again while
+  // the agent runs (devices phase 2, item 2). The registry then records the
+  // machine it picked, which is the next start's "last ran on".
+  const resuming = !!opts.hive && (!!opts.resumeSessionId?.trim() || (opts.resume === true && !!hive.lastSession(opts.hive.id)));
+  // god is never placed automatically and never moved by the app (spec §4);
+  // the renderer offers no Auto for it, and a hand-edited roster gets this.
+  if (requested === AUTO_DEVICE && opts.hive?.isGod) {
+    return { ok: false, error: 'god is never placed automatically: pick This laptop or a device.' };
+  }
+  const deviceId = requested === AUTO_DEVICE ? await placeAuto(prevDevice, resuming) : requested;
+  const moved = !!opts.hive && !!hive.registry().agents[opts.hive.id] && prevDevice !== deviceId;
+  let conversationStayed: ConversationStayed | undefined;
   let link: DeviceLink | undefined;
   if (opts.hive && deviceId) {
     link = devices.get(deviceId);
     if (!link) return { ok: false, error: `Unknown device "${deviceId}". Add it in Settings → Devices.` };
-    if (!claudeProvider) return { ok: false, error: `Only Claude Code runs on devices; a ${provider} agent runs on this laptop.` };
+    if (!DEVICE_PROVIDERS.includes(provider)) {
+      return { ok: false, error: `${providerPreset(provider).label} does not run on devices; run it on this laptop.` };
+    }
     if (link.state !== 'online') return { ok: false, error: `${deviceId} is offline` };
     // A restart's kill-session (teardownPty) must land before the new session
     // starts, or `new-session -A` would attach to the old one.
@@ -2896,8 +2977,24 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     if (!(await link.exec(dirExistsCommand(opts.cwd))).ok) {
       return { ok: false, error: `cwd does not exist on ${deviceId}: ${opts.cwd}` };
     }
+    // The engine's CLI must be there too, on the device's login PATH. (Check
+    // covers claude; the local auto-installer never runs for a device.)
+    if (!claudeProvider) {
+      const e = engineCheck(provider, opts.command);
+      if (!(await link.exec(e.cmd)).ok) {
+        return { ok: false, error: `${opts.command} is not installed on ${deviceId}. Install it there: ${e.fix}` };
+      }
+    }
   }
   if (opts.hive) opts.hive = { ...opts.hive, device: deviceId };
+  // A non-Claude engine's home-config hooks are written on the device; its
+  // $HOME and node are read once here. A device that cannot answer fails
+  // the spawn now rather than start an agent the floor cannot hear.
+  let remoteHome: RemoteHome | undefined;
+  if (link && !claudeProvider && opts.hive) {
+    try { remoteHome = await remoteHomeFor(link, opts.hive.id); }
+    catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+  }
   // Activation-funnel entry (v0.4.6): every spawn REQUEST, so (attempted − spawned)
   // measures the fallout the whole rebuild exists to see. Gated on !noAutoInstall so
   // the missing-CLI relaunch (the only re-entry, index.ts install-exit handler) does
@@ -3065,7 +3162,9 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
           // the OS sandbox must let it through (empty when memory is off).
           extraWritableDirs: [memory.env().MEMPALACE_PALACE_PATH].filter((p): p is string => !!p),
           // A device agent runs the device's own copy of the hook shim.
-          hookCommand: link ? REMOTE_HOOK_COMMAND : undefined
+          hookCommand: link ? REMOTE_HOOK_COMMAND : undefined,
+          // A non-Claude engine's home-config hooks go to the device's home.
+          remote: remoteHome
         }
       );
       opts.args = [...(opts.args ?? []), ...inj.args, ...caps.args];
@@ -3148,11 +3247,27 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     const explicitSid = typeof opts.resumeSessionId === 'string' ? opts.resumeSessionId.trim() : '';
     const sid = explicitSid || (opts.resume === true ? hive.lastSession(opts.hive.id) : undefined);
     if (sid && !args.includes('--resume')) {
+      // A move: copy the conversation from where it ran. When that fails (the
+      // old device is offline, the file is missing) the agent starts fresh
+      // and the floor says so, rather than resume an older copy that may sit
+      // on the new machine from an earlier stay.
+      let copied = true;
+      if (moved) {
+        const from = prevDevice ? devices.get(prevDevice) : undefined;
+        const c = prevDevice && !from
+          ? { ok: false as const, reason: 'offline' as const } // the device was removed from Settings
+          : await copyTranscript(from, link, opts.cwd, sid);
+        if (!c.ok) {
+          copied = false;
+          conversationStayed = { device: prevDevice ?? LOCAL_DEVICE, reason: c.reason };
+          console.warn(`[devices] conversation ${sid} stayed on ${prevDevice ?? 'this laptop'} (${c.reason}); starting fresh`);
+        }
+      }
       // On a device the transcript must already be there: copying one in from
       // another folder (seedSessionTranscript) is a laptop-only step.
-      const present = link
+      const present = copied && (link
         ? (await link.exec(transcriptExistsCommand(opts.cwd, sid))).ok
-        : seedSessionTranscript(opts.cwd, sid);
+        : seedSessionTranscript(opts.cwd, sid));
       if (present) {
         args.push('--resume', sid);
         didResume = true;
@@ -3175,7 +3290,9 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // Claude resume — incl. transcript seeding + only-attach-when-present — is
   // handled in the Claude-only block above; this generic flag path covers the
   // other CLIs (it must not blindly attach `--resume` when the seed failed).
-  if (opts.hive && !claudeProvider) {
+  // A moved non-Claude agent starts fresh: its engine's session store is not
+  // the file spec §1 copies, and resuming an id the new machine lacks fails.
+  if (opts.hive && !claudeProvider && !moved) {
     const preset = providerPreset(provider);
     const rf = preset.resumeFlag;
     const rsub = preset.resumeSubcommand;
@@ -3214,7 +3331,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
       }
     }
   }
-  if (opts.requireResume === true && !didResume) {
+  if (opts.requireResume === true && !didResume && !conversationStayed) {
     return {
       ok: false,
       error: 'Existing session could not be resumed; no replacement process was started.',
@@ -3299,7 +3416,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // Start/enable the daemon under this agent's isolated CODEX_HOME and connect
   // the TUI to it so the thread is visible in ChatGPT mobile. Best-effort: an
   // unavailable/older Codex install still gets a normal local terminal.
-  if (provider === 'codex' && opts.hive?.id) {
+  if (provider === 'codex' && opts.hive?.id && !link) {
     await enableCodexRemoteForSpawn(opts, opts.hive.id);
   }
   // A device agent's terminal is an ssh client of its tmux session there;
@@ -3315,7 +3432,9 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     try {
       remoteSpawn = remoteTerminal(link, hiveRoot, {
         ptyId: opts.id, agentId: opts.hive.id, cwd: opts.cwd,
-        env: opts.env ?? {}, args: opts.args ?? [], cols: opts.cols, rows: opts.rows
+        env: opts.env ?? {}, args: opts.args ?? [], cols: opts.cols, rows: opts.rows,
+        // The engine's own CLI; claude is found by the device's login PATH.
+        command: claudeProvider ? 'claude' : opts.command
       });
     } catch (e) {
       refused = e instanceof Error ? e.message : String(e);
@@ -3341,7 +3460,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   const worktreePath = worktreePaths.get(opts.id);
   // `cwd` echoes back the TILDE-EXPANDED absolute path so the renderer's agent
   // record matches what the registry and the PTY actually used.
-  return { ...res, cwd: opts.cwd, ...(worktreePath ? { worktreePath } : {}), ...(resumeNotFound ? { resumeNotFound: true } : {}), ...(didResume ? { resumed: true } : {}), ...(seedPrompt ? { seedPrompt } : {}) };
+  return { ...res, cwd: opts.cwd, ...(worktreePath ? { worktreePath } : {}), ...(resumeNotFound ? { resumeNotFound: true } : {}), ...(didResume ? { resumed: true } : {}), ...(seedPrompt ? { seedPrompt } : {}), ...(conversationStayed ? { conversationStayed } : {}), ...(opts.hive ? { device: deviceId ?? '' } : {}) };
 }
 ipcMain.handle('pty:write', (_evt, id: string, data: string) => {
   if (typeof id !== 'string' || typeof data !== 'string') return { ok: false, error: 'invalid args' };
@@ -3369,12 +3488,7 @@ ipcMain.handle('pty:list', () => ptyManager.list());
 // ─── IPC: devices ───────────────────────────────────────────────────────────
 ipcMain.handle('devices:list', () => devices.statuses());
 // Check covers each folder an agent on that device uses (floor + restore list).
-ipcMain.handle('devices:check', async (_evt, id: unknown) => {
-  const root = hive.root();
-  if (typeof id !== 'string' || !root) return [];
-  const folders = [...new Set(rosterAgentsOn(roster.read(), id).map((a) => a.cwd).filter((c): c is string => !!c))];
-  return checkDevice(devices.get(id), root, folders);
-});
+ipcMain.handle('devices:check', async (_evt, id: unknown) => (typeof id === 'string' ? runDeviceCheck(id) : []));
 // Every floor shows device states (Settings → Devices, agent cards), the
 // same way it hears about a saved config.
 devices.on('state', (s: DeviceStatus) => {
@@ -5078,6 +5192,10 @@ async function processSpawnRequest(filePath: string): Promise<void> {
   // the reason, rather than queueing work no machine will pick up.
   const placement = validateSpawnDevice(raw.device, Object.fromEntries(devices.statuses().map((s) => [s.id, s.state])));
   if (placement.error) { fail(placement.error); return; }
+  // "auto" is placed here, once, so the folder and CLI checks below run on
+  // the machine the worker will actually run on.
+  const auto = placement.device === AUTO_DEVICE;
+  if (auto) placement.device = await placeAuto(undefined, false);
   const link = placement.device ? devices.get(placement.device) : undefined;
   // A device's folder is checked on the device, by spawnAgentCore.
   if (!cwd || (!link && !existsSync(cwd))) { fail(`"cwd" missing or not found (${cwd || 'unset'})`); return; }
@@ -5165,7 +5283,8 @@ async function processSpawnRequest(filePath: string): Promise<void> {
       command: launch.command,
       role: meta.role,
       worktreePath: res.worktreePath,
-      device: placement.device,
+      device: auto ? AUTO_DEVICE : placement.device,
+      lastDevice: auto ? (placement.device ?? '') : undefined,
       character: typeof raw.character === 'string' ? raw.character : undefined,
       accent: typeof raw.accent === 'string' ? raw.accent : undefined
     });

@@ -44,10 +44,11 @@ if (a.includes('-M')) {
   process.exit(pid ? 0 : 255);
 } else {
   process.stdout.write('Welcome to my-lap! (login-shell noise)\\n');
-  const r = spawnSync('sh', ['-c', a[a.indexOf('--') + 1]], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const r = spawnSync('sh', ['-c', a[a.indexOf('--') + 1]], { stdio: ['inherit', 'pipe', 'inherit'], maxBuffer: 64 * 1024 * 1024 });
   process.stdout.write(r.stdout);
-  process.stdout.write('bye from .bash_logout\\n');
-  process.exit(r.status === null ? 255 : r.status);
+  // A pipe write is async: exit only once a big output (a transcript) has
+  // drained, or the reader gets a truncated stream.
+  process.stdout.write('bye from .bash_logout\\n', () => process.exit(r.status === null ? 255 : r.status));
 }
 `;
 

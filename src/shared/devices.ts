@@ -5,6 +5,7 @@
  *
  * This laptop is the implicit device `local` and is never stored.
  */
+import { bridgeOf, isClaudeProvider, type AgentProvider } from './agentProvider';
 
 export interface DeviceConfig {
   /** 'my-lap'; also the label on agent cards and part of the ControlPath. */
@@ -29,14 +30,23 @@ export interface DeviceStatus {
 
 /** One line of Settings → Devices → Check. `fix` is a command, shown on failure. */
 export interface DeviceCheckItem {
-  id: 'login' | 'claude' | 'node' | 'tmux' | 'sshfs' | 'mount' | 'folder';
-  /** The agent folder, for `folder` items. */
+  id: 'login' | 'base' | 'claude' | 'node' | 'tmux' | 'sshfs' | 'mount' | 'folder'
+    | 'wslSystemd' | 'wslFuse' | 'wslIdle' | 'wslSleep' | 'engine';
+  /** An engine's binary, for `engine` items. */
+  name?: string;
+  /** The agent folder, for `folder` items; the base folder, for `base`. */
   path?: string;
   ok: boolean;
   fix?: string;
+  /** Cannot be checked from the device (a Windows-side setting of a WSL2
+   *  device): shown with its instruction, and counted as passing. */
+  reminder?: boolean;
 }
 
 export const LOCAL_DEVICE = 'local';
+/** "Runs on: Auto" (devices phase 2, item 2): the place is picked at each
+ *  fresh start. Stored on the roster entry; never a device id. */
+export const AUTO_DEVICE = 'auto';
 export const DEFAULT_PORT_BASE = 47990;
 export const DEFAULT_OFFLINE_PAUSE_MIN = 10;
 
@@ -57,7 +67,7 @@ export function normalizeDeviceId(device: unknown): string | undefined {
 
 /** Can `id` name a new device, given the ids already taken? */
 export function isValidDeviceId(id: string, taken: string[] = []): boolean {
-  return ID_RE.test(id) && id !== LOCAL_DEVICE && !taken.includes(id);
+  return ID_RE.test(id) && id !== LOCAL_DEVICE && id !== AUTO_DEVICE && !taken.includes(id);
 }
 
 export function isValidDeviceHost(host: string): boolean {
@@ -84,4 +94,24 @@ export function normalizeDevices(raw: unknown): DeviceConfig[] {
     out.push(d);
   }
   return out;
+}
+
+/** A moved agent whose conversation could not follow it (devices phase 2,
+ *  item 1): where it stayed (`local` = this laptop) and why. The agent
+ *  started fresh, and the floor says so. */
+export interface ConversationStayed {
+  device: string;
+  reason: 'offline' | 'missing' | 'failed';
+}
+
+/** The engines that run on a device (devices phase 2, item 5). Each has its
+ *  CLI checked there, and its hook bridge set up for the device. */
+export const DEVICE_PROVIDERS: readonly AgentProvider[] = ['claude', 'codex', 'antigravity', 'grok', 'qwen', 'crush', 'custom'];
+
+/** Usage that would read wrong on a device. Claude's comes over the
+ *  forwarded OTLP port and a proxy engine's from its sidecar here; every
+ *  other engine's fallback reads conversation files on THIS laptop, which a
+ *  device agent never writes. */
+export function usageUnavailableOnDevice(provider: AgentProvider): boolean {
+  return !isClaudeProvider(provider) && bridgeOf(provider)?.kind !== 'proxy';
 }
