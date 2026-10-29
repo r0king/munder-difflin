@@ -2922,6 +2922,17 @@ ipcMain.handle('pty:spawn', async (evt, opts: AgentSpawnOptions) => {
   return spawnAgentCore(opts, owner);
 });
 
+/** Resolves once a connecting link leaves 'connecting' (online, or offline
+ *  after a failed attempt) or `ms` passes, whichever comes first. */
+function onlineWithin(link: DeviceLink, ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const done = (): void => { clearTimeout(t); link.off('state', onState); resolve(); };
+    const onState = (): void => { if (link.state !== 'connecting') done(); };
+    const t = setTimeout(done, ms);
+    link.on('state', onState);
+  });
+}
+
 /** Core agent-spawn logic — provider inference, the missing-CLI installer
  *  short-circuit, git-worktree isolation, hive provisioning, model/resume flags,
  *  and the final PTY spawn. Extracted VERBATIM from the `pty:spawn` IPC handler so
@@ -2977,6 +2988,9 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     if (!DEVICE_PROVIDERS.includes(provider)) {
       return { ok: false, error: `${providerPreset(provider).label} does not run on devices; run it on this laptop.` };
     }
+    // Restore runs seconds after launch, while the link is still mounting the
+    // hive: wait for it rather than refuse (oscar and kelly, 2026-10-29).
+    if (link.state === 'connecting') await onlineWithin(link, 60_000);
     if (link.state !== 'online') return { ok: false, error: `${deviceId} is offline` };
     // A restart's kill-session (teardownPty) must land before the new session
     // starts, or `new-session -A` would attach to the old one.

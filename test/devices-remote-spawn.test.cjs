@@ -136,3 +136,11 @@ test('a remote terminal starts although its folder exists only on the device', a
     'a local agent keeps the folder check'
   );
 });
+
+test('a spawn onto a device that is still connecting waits for it instead of refusing', () => {
+  // Restore runs seconds after launch, while the link is still mounting the
+  // hive; refusing there left oscar and kelly down after a restart (2026-10-29).
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'src', 'main', 'index.ts'), 'utf8');
+  assert.match(src, /if \(link\.state === 'connecting'\) await onlineWithin\(link, 60_000\);\s*\n\s*if \(link\.state !== 'online'\) return/);
+  assert.match(src, /function onlineWithin\(link: DeviceLink, ms: number\)[\s\S]{0,400}link\.off\('state', onState\)/);
+});
