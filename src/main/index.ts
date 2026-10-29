@@ -1372,7 +1372,9 @@ function writeFleetSnapshot(): void {
           lastTool: spans.length ? spans[spans.length - 1].tool : null,
           lastActiveSecAgo: u ? Math.round((now - u.ts) / 1000) : null,
           inboxBacklog: hive.inboxBacklog(id),
-          onHold: !!a.onHold
+          onHold: !!a.onHold,
+          // Where the agent runs: a device id, or 'local' for this laptop.
+          device: a.device ?? 'local'
         };
       });
     // `hooks` is the control plane's own health (#277): god and the operator

@@ -13,6 +13,7 @@ export type { HeroPayload } from '../shared/heroPayload';
 import type { ModelCatalog } from '../shared/modelCatalogPayload';
 export type { ModelCatalog, CatalogModel } from '../shared/modelCatalogPayload';
 import type { HookEvent } from '../shared/hookEvents';
+import type { DeviceConfig } from '../shared/devices';
 export type { HookEvent } from '../shared/hookEvents';
 import type { LocalSkill, CatalogSkill } from '../main/skills';
 export type { LocalSkill, CatalogSkill } from '../main/skills';
@@ -58,6 +59,8 @@ export interface HiveAgentMeta {
   isGod?: boolean;
   /** Michael's prep assistant — send-only; enriches prompts and forwards them. */
   isAssistant?: boolean;
+  /** The device this agent runs on; '' or absent = this laptop. Mirrors src/main/hive.ts. */
+  device?: string;
 }
 
 export interface HiveMessage {
@@ -268,6 +271,10 @@ export interface HarnessConfig {
   /** Recently-opened hive home folders (most-recent first). Mirrors src/main/config.ts. */
   recentHives?: string[];
   registeredRepos: string[];
+  /** Other machines agents can run on. Mirrors src/main/config.ts. */
+  devices?: DeviceConfig[];
+  /** Minutes cut off before a device's agents pause (default 10, 0 = never). Mirrors src/main/config.ts. */
+  deviceOfflinePauseMin?: number;
   autoMode: boolean;
   defaultCommand: string;
   defaultModel?: string;
