@@ -15,7 +15,7 @@
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir, userInfo } from 'node:os';
 import { dirname } from 'node:path';
 import { normalizeDevices, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
@@ -271,7 +271,10 @@ export function remoteTerminal(
   const launch = launchPath(hiveRoot, o.agentId);
   mkdirSync(dirname(launch), { recursive: true });
   // Owner-only: it carries the agent's env, capability tokens included.
+  // writeFileSync's mode applies only when it creates the file, so a launch.sh
+  // left wider (a copied or restored hive, another umask) is tightened here.
   writeFileSync(launch, launchScript({ cwd: o.cwd, env: o.env, command: 'claude', args: o.args }), { mode: 0o600 });
+  chmodSync(launch, 0o600);
   mkdirSync(dirname(tmuxConfPath(hiveRoot)), { recursive: true });
   writeFileSync(tmuxConfPath(hiveRoot), TMUX_CONF);
   return {

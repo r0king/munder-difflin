@@ -36,6 +36,11 @@ test('remoteTerminal writes launch.sh and tmux.conf, and returns the ssh spawn',
   assert.ok(fs.readFileSync(launch, 'utf8').endsWith("exec 'claude' '--model' 'm'\n"));
   assert.equal(fs.statSync(launch).mode & 0o077, 0, 'launch.sh carries tokens: owner-only');
   assert.equal(fs.readFileSync(dc.tmuxConfPath(hive), 'utf8'), dc.TMUX_CONF);
+
+  // A respawn over a launch.sh left world-readable must tighten it again.
+  fs.chmodSync(launch, 0o644);
+  remoteTerminal(link, hive, { ptyId: 'pty-a1', agentId: 'a1', cwd: '/x', env: { MD_BROKER_TOKEN: 'tok2' }, args: [] });
+  assert.equal(fs.statSync(launch).mode & 0o077, 0, 'an existing launch.sh is re-tightened');
 });
 
 test('a remote terminal starts although its folder exists only on the device', async () => {
