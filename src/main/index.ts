@@ -64,7 +64,11 @@ import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, IN
 import { RosterStore } from './roster';
 import { DeviceRegistry, remoteTerminal, type DeviceLink } from './devices';
 import { startSftpServer, type SftpServer } from './sftpServer';
-import { REMOTE_HOOK_COMMAND, dirExistsCommand, remoteAgentEnv, transcriptExistsCommand } from './deviceCommands';
+import {
+  REMOTE_HOOK_COMMAND, TMUX_KILL_SERVER, TMUX_LS, dirExistsCommand, hasSessionCommand, isDetach,
+  killSessionCommand, parseTmuxLs, planReconcile, remoteAgentEnv, rosterAgentsOn, sessionName,
+  takePausedCommand, transcriptExistsCommand
+} from './deviceCommands';
 import { DEFAULT_OFFLINE_PAUSE_MIN, LOCAL_DEVICE, normalizeDeviceId } from '../shared/devices';
 import { buildWorkerLaunch } from './workerLaunch';
 import { CompactRequests } from './compactRequests';
@@ -505,6 +509,21 @@ const preservedWorktrees = new Map<string, PreservedWorktree>();
  * handler or node-pty's onExit).
  */
 function teardownPty(id: string): void {
+  // A device agent: end its tmux session there (best effort; an offline
+  // device's leftover session is killed by the next reconcile). Kept as a
+  // promise: a restart waits for it, and so does the worktree removal below.
+  const remote = remotePtys.get(id);
+  const remoteLink = remote ? devices.get(remote.deviceId) : undefined;
+  let remoteKill: Promise<unknown> = Promise.resolve();
+  if (remote) {
+    remotePtys.delete(id);
+    if (remoteLink) {
+      const kill = remoteLink.exec(killSessionCommand(sessionName(remote.agentId)));
+      remoteKill = kill;
+      pendingRemoteKills.set(id, kill);
+      void kill.finally(() => { if (pendingRemoteKills.get(id) === kill) pendingRemoteKills.delete(id); });
+    }
+  }
   // Ephemeral-worker flag, read BEFORE the cleanup below deletes the entry. All
   // worker deaths (done-release, idle/token reap, manual stop, crash) funnel
   // through here, so this is the one place their floor card gets archived
@@ -549,7 +568,9 @@ function teardownPty(id: string): void {
       liveWorkers.delete(id);
       void finalizeWorkerWorktree(wtPath, origCwd, worker);
     } else {
-      void removeWorktree(origCwd, wtPath)
+      // On a device the worktree is there, and its agent must be gone first.
+      void remoteKill
+        .then(() => removeWorktree(origCwd, wtPath))
         .then(r => { if (!r.ok) console.error('[worktree] removeWorktree failed:', r.error); })
         .catch(e => console.error('[worktree] removeWorktree threw:', e));
     }
@@ -657,6 +678,12 @@ function removeWorkerScratch(workerId: string): void {
 // relaunch carries `noAutoInstall`, so the installer can never fire (let alone loop) a
 // second time — a binary that's somehow still missing just spawns and exits normally.
 ptyManager.setExitHandler((id, exitCode, info) => {
+  // A device agent's terminal is an ssh client of its tmux session there.
+  // Unless the agent itself ended, the terminal dying is only a detach (the
+  // link dropped, the window closed): the agent keeps working on the device
+  // and is reattached when the link is next online.
+  const remote = remotePtys.get(id);
+  if (remote) { void onRemotePtyExit(id, remote, exitCode, info); return; }
   // Record an ABNORMAL death before teardown — teardownPty drops the
   // pty->agent mapping, so after it runs we can no longer say WHOSE process
   // died. Only abnormal exits are recorded (recordAgentExit returns early on a
@@ -694,6 +721,28 @@ ptyManager.setExitHandler((id, exitCode, info) => {
   }
   teardownPty(id);
 });
+
+async function onRemotePtyExit(
+  id: string,
+  remote: RemotePty,
+  exitCode: number | undefined,
+  info?: { signal?: number; tail?: string; command?: string }
+): Promise<void> {
+  const link = devices.get(remote.deviceId);
+  const has = link?.state === 'online'
+    ? await link.exec(hasSessionCommand(sessionName(remote.agentId)), 5_000)
+    : null;
+  if (remotePtys.get(id) !== remote) return; // restarted meanwhile
+  if (isDetach(link?.state ?? 'offline', has?.code ?? -1)) {
+    remote.detached = true;
+    return;
+  }
+  // The agent ended on the device: the same path as a local exit.
+  try {
+    hive.recordAgentExit(remote.agentId, { exitCode, signal: info?.signal, tail: info?.tail, command: info?.command });
+  } catch (e) { console.error('[pty] recordAgentExit failed:', e); }
+  teardownPty(id);
+}
 
 /** Keep the system from suspending the harness while agents are running.
  *  Windows Modern Standby suspends desktop apps (and their child `claude`
@@ -2663,6 +2712,43 @@ async function startDevices(): Promise<void> {
   devices.sync(readConfig().devices ?? []);
 }
 
+const LINK_BACK_NUDGE = 'The link to the floor is back. Carry on where you left off.';
+
+devices.on('online', (link: DeviceLink) => { void onDeviceOnline(link); });
+
+/** A device came (back) online: settle its tmux sessions, reattach this
+ *  floor's terminals there, and nudge each agent that paused while cut off.
+ *  The wake beat then nudges agents with unread mail, as it always does. */
+async function onDeviceOnline(link: DeviceLink): Promise<void> {
+  // 1. Reconcile. A session belongs to an agent on this floor, or to one the
+  //    restore flow is bringing back (the roster). Every other md-* session
+  //    was left by a crash or by a quit while the device was offline.
+  const ls = await link.exec(TMUX_LS);
+  if (ls.ok) {
+    const keep = [
+      ...rosterAgentsOn(roster.read(), link.id).map((a) => a.id),
+      ...[...remotePtys.values()].filter((r) => r.deviceId === link.id).map((r) => r.agentId)
+    ];
+    for (const name of planReconcile(parseTmuxLs(ls.stdout), keep).kill) {
+      await link.exec(killSessionCommand(name));
+    }
+  }
+  for (const [ptyId, r] of [...remotePtys]) {
+    if (r.deviceId !== link.id) continue;
+    // 2. Reattach (`new-session -A`) a terminal that died while the link was down.
+    if (r.detached) {
+      if (r.owner?.isDestroyed()) continue; // its floor window closed; the session waits for a restore
+      r.detached = false;
+      try { (r.owner ?? liveWebContents())?.send(`pty:relaunch:${ptyId}`); } catch { /* window gone */ }
+      const res = ptyManager.spawn(r.spawn, r.owner);
+      if (!res.ok) { r.detached = true; console.error('[devices] reattach failed for', ptyId, res.error); continue; }
+    }
+    // 3. Paused while cut off: one nudge, once the TUI has repainted.
+    const p = await link.exec(takePausedCommand(r.agentId));
+    if (p.ok && p.stdout.includes('paused')) setTimeout(() => nudgeWorker(ptyId, LINK_BACK_NUDGE), 3_000);
+  }
+}
+
 // ─── IPC: pty lifecycle ─────────────────────────────────────────────────────
 /** Codex stores its rollout transcripts under a PER-AGENT CODEX_HOME
  *  (<hive>/agents/<id>/.codex/sessions/<Y>/<M>/<D>/rollout-*-<sessionId>.jsonl).
@@ -3968,7 +4054,7 @@ ipcMain.handle('history:search', (_evt, query: unknown, limit: unknown) =>
 // ─── IPC: quit confirmation ─────────────────────────────────────────────────
 /** Tear the harness down and quit. Shared by the hard "kill all & quit" path
  *  and the closing-time conclusion (after the god confirmed the floor saved). */
-function teardownAndQuit(): void {
+async function teardownAndQuit(): Promise<void> {
   allowQuit = true;
   // Each teardown step is best-effort: a throw here (e.g. a dying child or a
   // half-torn-down socket) must never abort the quit or pop a crash dialog.
@@ -3991,11 +4077,17 @@ function teardownAndQuit(): void {
   // here rather than waiting for will-quit. Idempotent.
   try { disposeFeatures(); } catch (e) { console.error('[quit] disposeFeatures:', e); }
   try { ptyManager.killAll(); } catch (e) { console.error('[quit] killAll:', e); }
+  // A device agent outlives its ssh terminal, so end the tmux sessions on
+  // every online device too: best effort, 3 s per device, all at once. An
+  // offline device's sessions are killed by its next reconcile.
+  try { await Promise.all(devices.all().map((l) => l.exec(TMUX_KILL_SERVER, 3_000))); } catch (e) { console.error('[quit] devices:', e); }
+  try { devices.stopAll(); } catch (e) { console.error('[quit] devices.stopAll:', e); }
+  try { sftp?.close(); } catch { /* noop */ }
   app.quit();
 }
 ipcMain.handle('app:confirmClose', () => {
   closingTime.cancel(); // a hard quit overrides a closing time in progress
-  teardownAndQuit();
+  void teardownAndQuit();
 });
 ipcMain.handle('app:cancelClose', () => {
   // The modal closes on the renderer side. The one thing main owes anybody here
@@ -5747,7 +5839,7 @@ app.on('window-all-closed', () => {
     // Full teardown, not a bare killAll: this path must also stop the proxy
     // sidecars and helper servers — on Windows a child is NOT killed when its
     // parent exits, so anything skipped here outlives the app.
-    teardownAndQuit();
+    void teardownAndQuit();
   }
 });
 
