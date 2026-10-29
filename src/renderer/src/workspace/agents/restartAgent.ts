@@ -31,6 +31,8 @@ import {
   type AgentProvider
 } from '@/store/config';
 import { roleForHiveSpawn } from '@shared/agentRole';
+import i18n from '@/i18n';
+import { conversationStayedText } from '@/store/devices';
 
 export interface RestartOptions {
   /** Model to run; defaults to the agent's current one. */
@@ -41,6 +43,10 @@ export interface RestartOptions {
   resume?: boolean;
   /** Resume if possible, else start fresh instead of failing. */
   resumeOptional?: boolean;
+  /** The agent changed device (Edit → Runs on). Main copies its
+   *  conversation from the old machine, so a transcript missing HERE is no
+   *  reason to give up before asking. */
+  moved?: boolean;
 }
 
 /** Which step refused. A caller that words its own errors (the orchestrator
@@ -109,7 +115,9 @@ export async function restartAgentProcess(agentId: string, opts: RestartOptions 
     const previousProvider = inferAgentProvider(a.command, a.provider);
     const provider = opts.provider ?? previousProvider;
     const model = opts.model !== undefined ? opts.model : a.model;
-    let resume = opts.resume === true && provider === previousProvider;
+    // A moved non-Claude agent starts fresh (main skips its resume: only
+    // Claude's transcript is copied); asking would make main refuse the spawn.
+    let resume = opts.resume === true && provider === previousProvider && !(opts.moved && provider !== 'claude');
     if (opts.resume && !resume && !opts.resumeOptional) {
       throw new RestartRefused('crossEngine');
     }
@@ -124,7 +132,7 @@ export async function restartAgentProcess(agentId: string, opts: RestartOptions 
       resumeSessionId = registry.agents[a.id]?.sessionId;
       if (!resumeSessionId) giveUp('noSession');
       // A device agent's transcript is on the device; main checks it there.
-      else if (provider === 'claude' && !a.device && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
+      else if (provider === 'claude' && !a.device && !opts.moved && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
         giveUp('noTranscript');
       }
     }
@@ -170,7 +178,9 @@ export async function restartAgentProcess(agentId: string, opts: RestartOptions 
       requireResume: resume
     });
     if (!res.ok) throw new RestartRefused('spawnFailed', res.error);
-    if (resume && res.resumed !== true) throw new RestartRefused('resumeRefused');
+    // A conversation that stayed on an unreachable machine is a fresh start
+    // main chose on purpose (and the caption says so), not a refusal.
+    if (resume && res.resumed !== true && !res.conversationStayed) throw new RestartRefused('resumeRefused');
 
     const { updateAgent } = useStore.getState();
     if (resume) {
@@ -185,11 +195,13 @@ export async function restartAgentProcess(agentId: string, opts: RestartOptions 
       provider,
       model,
       status: 'idle',
-      action: resume
-        ? 'continuing…'
-        : provider === previousProvider ? 'restarting…' : `switching to ${providerPreset(provider).label}…`
+      action: res.conversationStayed
+        ? conversationStayedText((k, o) => String(i18n.t(k, o)), res.conversationStayed)
+        : res.resumed === true
+          ? 'continuing…'
+          : provider === previousProvider ? 'restarting…' : `switching to ${providerPreset(provider).label}…`
     });
-    return { ok: true, resumed: resume };
+    return { ok: true, resumed: res.resumed === true };
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     const code = e instanceof RestartRefused ? e.code : undefined;

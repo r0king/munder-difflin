@@ -4,7 +4,7 @@
  * Settings → Devices and the agent cards share.
  */
 import { create } from 'zustand';
-import type { DeviceStatus } from '@shared/devices';
+import { LOCAL_DEVICE, type ConversationStayed, type DeviceStatus } from '@shared/devices';
 
 export const useDeviceStates = create<{ states: Record<string, DeviceStatus> }>(() => ({ states: {} }));
 
@@ -21,4 +21,15 @@ export function deviceInUse(agents: Array<{ device?: string }>, id: string): boo
 /** A card greys out ("offline · reconnecting") unless its device is online. */
 export function deviceOffline(device: string | undefined, states: Record<string, DeviceStatus>): boolean {
   return !!device && states[device]?.state !== 'online';
+}
+
+/** The card caption when a moved agent's conversation could not follow it. */
+export function conversationStayedText(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  s: ConversationStayed
+): string {
+  return t('devices.conversationStayed', {
+    device: s.device === LOCAL_DEVICE ? t('devices.thisLaptop') : s.device,
+    reason: t(`devices.stayedReason.${s.reason}`)
+  });
 }

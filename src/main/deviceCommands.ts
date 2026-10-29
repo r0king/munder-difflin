@@ -352,3 +352,27 @@ export function validateSpawnDevice(device: unknown, states: Record<string, Devi
   if (states[id] !== 'online') return { error: `device "${id}" is ${states[id]}` };
   return { device: id };
 }
+
+// ─── Moving an agent: its conversation file (devices phase 2, item 1) ────────
+
+/** readTranscriptCommand's exit code when the file is not there. */
+export const TRANSCRIPT_MISSING = 3;
+
+function projectDirSh(cwd: string): string {
+  return `"$HOME"/.claude/projects/${shq(projectKey(cwd))}`;
+}
+
+/** Print a session's transcript, or exit TRANSCRIPT_MISSING. */
+export function readTranscriptCommand(cwd: string, sessionId: string): string {
+  const f = `${projectDirSh(cwd)}/${shq(`${sessionId}.jsonl`)}`;
+  return `[ -f ${f} ] || exit ${TRANSCRIPT_MISSING}; cat ${f}`;
+}
+
+/** Write stdin as a session's transcript. It goes through a temp file, so a
+ *  link cut mid-copy never leaves half a conversation where `--resume`
+ *  would find it. */
+export function writeTranscriptCommand(cwd: string, sessionId: string): string {
+  const d = projectDirSh(cwd);
+  const part = `${d}/${shq(`.${sessionId}.jsonl.part`)}`;
+  return `mkdir -p ${d} && cat > ${part} && mv -f ${part} ${d}/${shq(`${sessionId}.jsonl`)}`;
+}

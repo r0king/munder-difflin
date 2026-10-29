@@ -1441,7 +1441,13 @@
     "runsOn": "Runs on",
     "thisLaptop": "This laptop",
     "runsOnHint": "Its folder must exist on {{device}}; heavy work runs there.",
-    "restartsHint": "Changing it restarts the agent there with a fresh session.",
-    "offlineReconnecting": "offline · reconnecting"
+    "restartsHint": "Changing it restarts the agent there; its conversation is copied over.",
+    "offlineReconnecting": "offline · reconnecting",
+    "conversationStayed": "conversation stayed on {{device}} ({{reason}}); started fresh",
+    "stayedReason": {
+      "offline": "offline",
+      "missing": "not found",
+      "failed": "copy failed"
+    }
   }
 }

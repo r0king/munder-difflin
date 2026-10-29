@@ -16,15 +16,16 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir, userInfo } from 'node:os';
-import { dirname, sep } from 'node:path';
-import { normalizeDevices, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir, userInfo } from 'node:os';
+import { dirname, join, sep } from 'node:path';
+import { normalizeDevices, type ConversationStayed, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
 import {
   backoffDelay, checkCommands, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
-  masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, sshTarget,
-  terminalArgs, TMUX_CONF, tmuxConfPath
+  masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, readTranscriptCommand, sshTarget,
+  terminalArgs, TMUX_CONF, tmuxConfPath, TRANSCRIPT_MISSING, writeTranscriptCommand
 } from './deviceCommands';
+import { projectKey } from './transcript';
 import type { SpawnOptions } from './pty';
 
 export interface ExecResult {
@@ -101,11 +102,11 @@ export class DeviceLink extends EventEmitter {
 
   /** Run one command on the device over the master, under `bash -lc` so it
    *  sees the login PATH. Fails at once while the device is not online. */
-  exec(cmd: string, timeoutMs = 15_000): Promise<ExecResult> {
+  exec(cmd: string, timeoutMs = 15_000, input?: string): Promise<ExecResult> {
     if (this.state !== 'online') {
       return Promise.resolve({ ok: false, code: -1, stdout: '', stderr: '', error: `${this.id} is offline` });
     }
-    return this.run(cmd, timeoutMs);
+    return this.run(cmd, timeoutMs, input);
   }
 
   private setState(state: DeviceState, error: string | undefined): void {
@@ -199,8 +200,8 @@ export class DeviceLink extends EventEmitter {
     this.retry = setTimeout(() => { this.retry = null; void this.connect(); }, delay);
   }
 
-  private async run(cmd: string, timeoutMs: number): Promise<ExecResult> {
-    const r = await this.spawnSsh(execArgs(this.ctl(), this.target(), cmd), timeoutMs);
+  private async run(cmd: string, timeoutMs: number, input?: string): Promise<ExecResult> {
+    const r = await this.spawnSsh(execArgs(this.ctl(), this.target(), cmd), timeoutMs, input);
     const fenced = parseFenced(r.stdout);
     if (!fenced) {
       return { ok: false, code: -1, stdout: '', stderr: r.stderr, error: r.stderr.trim().split('\n').pop() || `No answer from ${this.id}.` };
@@ -208,13 +209,21 @@ export class DeviceLink extends EventEmitter {
     return { ok: fenced.code === 0, code: fenced.code, stdout: fenced.out, stderr: r.stderr };
   }
 
-  private spawnSsh(args: string[], timeoutMs: number): Promise<{ code: number; stdout: string; stderr: string }> {
+  private spawnSsh(args: string[], timeoutMs: number, input?: string): Promise<{ code: number; stdout: string; stderr: string }> {
     return new Promise((resolve) => {
-      const p = spawn(this.sshBin, args, { stdio: ['ignore', 'pipe', 'pipe'], env: this.env.sshEnv });
+      const p = spawn(this.sshBin, args, { stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], env: this.env.sshEnv });
+      if (input !== undefined) {
+        // ssh may die before reading it all; its exit reports that, not this.
+        p.stdin?.on('error', () => { /* reported by close */ });
+        p.stdin?.end(input);
+      }
       let stdout = '';
       let stderr = '';
       const timer = setTimeout(() => { try { p.kill('SIGKILL'); } catch { /* gone */ } }, timeoutMs);
-      p.stdout?.on('data', (d) => { stdout += d.toString(); });
+      // One decoder for the whole stream: a multi-byte character split
+      // across two reads would become two U+FFFD with a per-chunk toString().
+      p.stdout?.setEncoding('utf8');
+      p.stdout?.on('data', (d: string) => { stdout += d; });
       p.stderr?.on('data', (d) => { stderr += d.toString(); });
       p.on('error', (e) => { clearTimeout(timer); resolve({ code: -1, stdout, stderr: `${stderr}${e.message}` }); });
       p.on('close', (code) => { clearTimeout(timer); resolve({ code: code ?? -1, stdout, stderr }); });
@@ -326,4 +335,56 @@ export async function checkDevice(link: DeviceLink | undefined, hiveRoot: string
     out.push({ id: c.item, ...(c.path ? { path: c.path } : {}), ok: r.ok, ...(r.ok ? {} : { fix: c.fix }) });
   }
   return out;
+}
+
+// ─── Moving an agent: its conversation file (devices phase 2, item 1) ────────
+
+export type TranscriptCopyResult = { ok: true } | { ok: false; reason: ConversationStayed['reason'] };
+
+/** Claude's session ids are UUIDs. Anything else never becomes a path. */
+const SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
+/** A transcript is a few MB; over Tailscale that takes seconds. */
+const COPY_TIMEOUT_MS = 120_000;
+
+function localTranscript(home: string, cwd: string, sessionId: string): string {
+  return join(home, '.claude', 'projects', projectKey(cwd), `${sessionId}.jsonl`);
+}
+
+/** Copy `~/.claude/projects/<projectKey(cwd)>/<sid>.jsonl` from where the
+ *  agent ran to where it is about to run: this laptop (`undefined`) or a
+ *  device, at the same path. Device to device passes through this laptop.
+ *  `home` is this laptop's home folder (a test seam). */
+export async function copyTranscript(
+  from: DeviceLink | undefined,
+  to: DeviceLink | undefined,
+  cwd: string,
+  sessionId: string,
+  home: string = homedir()
+): Promise<TranscriptCopyResult> {
+  if (!SESSION_ID.test(sessionId)) return { ok: false, reason: 'missing' };
+  let body: string;
+  if (from) {
+    if (from.state !== 'online') return { ok: false, reason: 'offline' };
+    const r = await from.exec(readTranscriptCommand(cwd, sessionId), COPY_TIMEOUT_MS);
+    if (r.code === TRANSCRIPT_MISSING) return { ok: false, reason: 'missing' };
+    // -1: the command never ran or never finished, i.e. the link went down.
+    if (!r.ok) return { ok: false, reason: r.code === -1 ? 'offline' : 'failed' };
+    body = r.stdout;
+  } else {
+    try { body = readFileSync(localTranscript(home, cwd, sessionId), 'utf8'); }
+    catch { return { ok: false, reason: 'missing' }; }
+  }
+  if (to) {
+    const w = await to.exec(writeTranscriptCommand(cwd, sessionId), COPY_TIMEOUT_MS, body);
+    return w.ok ? { ok: true } : { ok: false, reason: 'failed' };
+  }
+  try {
+    const dest = localTranscript(home, cwd, sessionId);
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(`${dest}.part`, body);
+    renameSync(`${dest}.part`, dest);
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'failed' };
+  }
 }

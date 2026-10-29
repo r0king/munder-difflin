@@ -62,14 +62,14 @@ import { IntegrationBroker } from './integrationBroker';
 import * as integrations from './integrations';
 import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, INTEGRATION_TEMPLATES } from '../shared/integrations';
 import { RosterStore } from './roster';
-import { DeviceRegistry, checkDevice, remoteTerminal, type DeviceLink } from './devices';
+import { DeviceRegistry, checkDevice, copyTranscript, remoteTerminal, type DeviceLink } from './devices';
 import { startSftpServer, type SftpServer } from './sftpServer';
 import {
   REMOTE_HOOK_COMMAND, TMUX_KILL_SERVER, TMUX_LS, dirExistsCommand, hasSessionCommand, isDetach,
   killSessionCommand, parseTmuxLs, planReconcile, remoteAgentEnv, rosterAgentsOn, sessionName,
   takePausedCommand, transcriptExistsCommand, validateSpawnDevice
 } from './deviceCommands';
-import { DEFAULT_OFFLINE_PAUSE_MIN, LOCAL_DEVICE, normalizeDeviceId, type DeviceStatus } from '../shared/devices';
+import { DEFAULT_OFFLINE_PAUSE_MIN, LOCAL_DEVICE, normalizeDeviceId, type ConversationStayed, type DeviceStatus } from '../shared/devices';
 import { buildWorkerLaunch } from './workerLaunch';
 import { CompactRequests } from './compactRequests';
 import { ControlRegistry } from './control';
@@ -2858,7 +2858,7 @@ ipcMain.handle('pty:spawn', async (evt, opts: AgentSpawnOptions) => {
  *  it can ALSO be invoked by the god-triggered ephemeral-worker watcher (which has
  *  no renderer `evt`). `owner` is the window that should receive this PTY's output
  *  (null → the primary window). Behavior-identical to the prior inline handler. */
-async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebContents | null): Promise<{ ok: boolean; error?: string; cwd?: string; worktreePath?: string; resumeNotFound?: boolean; resumed?: boolean; seedPrompt?: string }> {
+async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebContents | null): Promise<{ ok: boolean; error?: string; cwd?: string; worktreePath?: string; resumeNotFound?: boolean; resumed?: boolean; seedPrompt?: string; conversationStayed?: ConversationStayed }> {
   // ── cwd INGESTION — expand `~` exactly once, here ───────────────────────────
   // This is the single door every agent spawn comes through (`pty:spawn` IPC and
   // the god-triggered ephemeral-worker watcher), so it is where a user-typed
@@ -2884,6 +2884,12 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   const deviceId = opts.hive
     ? normalizeDeviceId(opts.hive.device !== undefined ? opts.hive.device : hive.registry().agents[opts.hive.id]?.device)
     : undefined;
+  // Where it ran last time (registry.json, written by the previous spawn).
+  // A different place is a move, and a move brings its conversation along
+  // (devices phase 2, item 1).
+  const prevDevice = opts.hive ? normalizeDeviceId(hive.registry().agents[opts.hive.id]?.device) : undefined;
+  const moved = !!opts.hive && !!hive.registry().agents[opts.hive.id] && prevDevice !== deviceId;
+  let conversationStayed: ConversationStayed | undefined;
   let link: DeviceLink | undefined;
   if (opts.hive && deviceId) {
     link = devices.get(deviceId);
@@ -3148,11 +3154,27 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     const explicitSid = typeof opts.resumeSessionId === 'string' ? opts.resumeSessionId.trim() : '';
     const sid = explicitSid || (opts.resume === true ? hive.lastSession(opts.hive.id) : undefined);
     if (sid && !args.includes('--resume')) {
+      // A move: copy the conversation from where it ran. When that fails (the
+      // old device is offline, the file is missing) the agent starts fresh
+      // and the floor says so, rather than resume an older copy that may sit
+      // on the new machine from an earlier stay.
+      let copied = true;
+      if (moved) {
+        const from = prevDevice ? devices.get(prevDevice) : undefined;
+        const c = prevDevice && !from
+          ? { ok: false as const, reason: 'offline' as const } // the device was removed from Settings
+          : await copyTranscript(from, link, opts.cwd, sid);
+        if (!c.ok) {
+          copied = false;
+          conversationStayed = { device: prevDevice ?? LOCAL_DEVICE, reason: c.reason };
+          console.warn(`[devices] conversation ${sid} stayed on ${prevDevice ?? 'this laptop'} (${c.reason}); starting fresh`);
+        }
+      }
       // On a device the transcript must already be there: copying one in from
       // another folder (seedSessionTranscript) is a laptop-only step.
-      const present = link
+      const present = copied && (link
         ? (await link.exec(transcriptExistsCommand(opts.cwd, sid))).ok
-        : seedSessionTranscript(opts.cwd, sid);
+        : seedSessionTranscript(opts.cwd, sid));
       if (present) {
         args.push('--resume', sid);
         didResume = true;
@@ -3175,7 +3197,9 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // Claude resume — incl. transcript seeding + only-attach-when-present — is
   // handled in the Claude-only block above; this generic flag path covers the
   // other CLIs (it must not blindly attach `--resume` when the seed failed).
-  if (opts.hive && !claudeProvider) {
+  // A moved non-Claude agent starts fresh: its engine's session store is not
+  // the file spec §1 copies, and resuming an id the new machine lacks fails.
+  if (opts.hive && !claudeProvider && !moved) {
     const preset = providerPreset(provider);
     const rf = preset.resumeFlag;
     const rsub = preset.resumeSubcommand;
@@ -3214,7 +3238,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
       }
     }
   }
-  if (opts.requireResume === true && !didResume) {
+  if (opts.requireResume === true && !didResume && !conversationStayed) {
     return {
       ok: false,
       error: 'Existing session could not be resumed; no replacement process was started.',
@@ -3341,7 +3365,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   const worktreePath = worktreePaths.get(opts.id);
   // `cwd` echoes back the TILDE-EXPANDED absolute path so the renderer's agent
   // record matches what the registry and the PTY actually used.
-  return { ...res, cwd: opts.cwd, ...(worktreePath ? { worktreePath } : {}), ...(resumeNotFound ? { resumeNotFound: true } : {}), ...(didResume ? { resumed: true } : {}), ...(seedPrompt ? { seedPrompt } : {}) };
+  return { ...res, cwd: opts.cwd, ...(worktreePath ? { worktreePath } : {}), ...(resumeNotFound ? { resumeNotFound: true } : {}), ...(didResume ? { resumed: true } : {}), ...(seedPrompt ? { seedPrompt } : {}), ...(conversationStayed ? { conversationStayed } : {}) };
 }
 ipcMain.handle('pty:write', (_evt, id: string, data: string) => {
   if (typeof id !== 'string' || typeof data !== 'string') return { ok: false, error: 'invalid args' };

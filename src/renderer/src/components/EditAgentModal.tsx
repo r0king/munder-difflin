@@ -108,11 +108,12 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
       device: device || undefined
     });
     onClose();
-    // A move restarts the agent on its new device with a fresh session. The
-    // conversation stays where it ran; memory.md is in the shared hive, so it
-    // carries over. Stopping it on the old device is the restart's own kill.
+    // A move restarts the agent on its new device and continues its
+    // conversation: main copies the transcript across (devices phase 2,
+    // item 1), or starts fresh and says why. Stopping it on the old device
+    // is the restart's own kill.
     if (moving && agent.ptyId) {
-      void restartAgentProcess(agent.id);
+      void restartAgentProcess(agent.id, { resume: true, resumeOptional: true, moved: true });
     }
   };
 

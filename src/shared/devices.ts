@@ -85,3 +85,11 @@ export function normalizeDevices(raw: unknown): DeviceConfig[] {
   }
   return out;
 }
+
+/** A moved agent whose conversation could not follow it (devices phase 2,
+ *  item 1): where it stayed (`local` = this laptop) and why. The agent
+ *  started fresh, and the floor says so. */
+export interface ConversationStayed {
+  device: string;
+  reason: 'offline' | 'missing' | 'failed';
+}

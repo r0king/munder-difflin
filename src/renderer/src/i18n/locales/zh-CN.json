@@ -1441,7 +1441,13 @@
     "runsOn": "运行于",
     "thisLaptop": "这台笔记本",
     "runsOnHint": "它的文件夹必须存在于 {{device}} 上；繁重的工作在那里运行。",
-    "restartsHint": "更改后会在那里以新会话重启该智能体。",
-    "offlineReconnecting": "离线 · 正在重连"
+    "restartsHint": "更改后会在那里重启该智能体，并复制其对话。",
+    "offlineReconnecting": "离线 · 正在重连",
+    "conversationStayed": "对话留在了 {{device}}（{{reason}}）；已重新开始",
+    "stayedReason": {
+      "offline": "离线",
+      "missing": "未找到",
+      "failed": "复制失败"
+    }
   }
 }

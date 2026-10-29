@@ -1441,7 +1441,13 @@
     "runsOn": "يعمل على",
     "thisLaptop": "هذا الحاسوب",
     "runsOnHint": "يجب أن يوجد مجلده على {{device}}؛ العمل الثقيل يجري هناك.",
-    "restartsHint": "تغييره يعيد تشغيل الوكيل هناك بجلسة جديدة.",
-    "offlineReconnecting": "غير متصل · جارٍ إعادة الاتصال"
+    "restartsHint": "تغييره يعيد تشغيل الوكيل هناك، وتُنسخ محادثته معه.",
+    "offlineReconnecting": "غير متصل · جارٍ إعادة الاتصال",
+    "conversationStayed": "بقيت المحادثة على {{device}} ({{reason}})؛ بدأ من جديد",
+    "stayedReason": {
+      "offline": "غير متصل",
+      "missing": "غير موجودة",
+      "failed": "فشل النسخ"
+    }
   }
 }
