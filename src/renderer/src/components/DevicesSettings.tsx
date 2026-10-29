@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import type { HarnessConfig } from '@/store/config';
 import { useStore } from '@/store/store';
 import { deviceInUse, useDeviceStates } from '@/store/devices';
-import { isValidDeviceHost, isValidDeviceId, type DeviceCheckItem, type DeviceConfig } from '@shared/devices';
+import { isValidDeviceHost, isValidDeviceId, isValidDeviceUser, type DeviceCheckItem, type DeviceConfig } from '@shared/devices';
 import { PixelButton } from './PixelButton';
 
 const DOT: Record<string, string> = { online: 'var(--cth-mint)', connecting: 'var(--cth-lemon)', offline: 'var(--cth-coral)' };
@@ -36,9 +36,16 @@ export function DevicesSettings({ config }: { config: HarnessConfig }) {
   const agents = useStore((s) => s.agents);
   const restorable = useStore((s) => s.restorableAgents);
 
-  const save = async (next: DeviceConfig[]): Promise<void> => {
-    const saved = await window.cth.updateConfig({ devices: next });
-    setDevices(saved.devices ?? []);
+  /** True when saved; a refusal from main shows in the error line. */
+  const save = async (next: DeviceConfig[]): Promise<boolean> => {
+    try {
+      const saved = await window.cth.updateConfig({ devices: next });
+      setDevices(saved.devices ?? []);
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      return false;
+    }
   };
   const add = async (): Promise<void> => {
     const id = form.id.trim();
@@ -46,9 +53,9 @@ export function DevicesSettings({ config }: { config: HarnessConfig }) {
     const user = form.user.trim();
     if (!isValidDeviceId(id, devices.map((d) => d.id))) { setError(t('devices.errId')); return; }
     if (!isValidDeviceHost(host)) { setError(t('devices.errHost')); return; }
+    if (user && !isValidDeviceUser(user)) { setError(t('devices.errUser')); return; }
     setError(undefined);
-    await save([...devices, { id, host, ...(user ? { user } : {}) }]);
-    setForm({ id: '', host: '', user: '' });
+    if (await save([...devices, { id, host, ...(user ? { user } : {}) }])) setForm({ id: '', host: '', user: '' });
   };
   const check = async (id: string): Promise<void> => {
     setChecks((c) => ({ ...c, [id]: 'running' }));

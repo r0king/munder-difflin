@@ -6,6 +6,7 @@ import { PixelButton } from './PixelButton';
 import { SpritePortrait } from './SpritePortrait';
 import { ProviderLogo } from './ProviderLogo';
 import { useStore, type Agent } from '@/store/store';
+import { deviceOffline, useDeviceStates } from '@/store/devices';
 import { OFFICE_CAST, type OfficeCharacterName } from '@/scene/office/cast';
 import { type AccentColorName } from '@/design/tokens';
 import {
@@ -45,6 +46,7 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
   const [description, setDescription] = useState(agent.description);
   const [goal, setGoal] = useState(agent.goal ?? '');
   const [device, setDevice] = useState(agent.device ?? '');
+  const [moveError, setMoveError] = useState<string>();
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -61,10 +63,13 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
     setDescription(agent.description);
     setGoal(agent.goal ?? '');
     setDevice(agent.device ?? '');
+    setMoveError(undefined);
   }, [agent.id]);
 
   const pickProvider = (id: AgentProvider) => {
     setProvider(id);
+    // Only Claude runs on a device in v1; another engine goes home.
+    if (!isClaudeProvider(id)) setDevice('');
     if (!config) {
       setModel(undefined);
       return;
@@ -76,6 +81,14 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
   const preset = providerPreset(provider);
 
   const save = () => {
+    // A move kills the agent before main can refuse it, so refuse here first:
+    // a device that is not online would leave it dead with the new device
+    // stored. Moving back to this laptop is always allowed.
+    const moving = (device || undefined) !== (agent.device || undefined);
+    if (moving && deviceOffline(device || undefined, useDeviceStates.getState().states)) {
+      setMoveError(t('devices.errOffline', { device }));
+      return;
+    }
     const trimmedName = name.trim() || agent.name;
     const trimmedDescription = description.trim() || 'a fresh harness';
     const trimmedGoal = goal.trim();
@@ -98,7 +111,7 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
     // A move restarts the agent on its new device with a fresh session. The
     // conversation stays where it ran; memory.md is in the shared hive, so it
     // carries over. Stopping it on the old device is the restart's own kill.
-    if ((device || undefined) !== (agent.device || undefined) && agent.ptyId) {
+    if (moving && agent.ptyId) {
       void restartAgentProcess(agent.id);
     }
   };
@@ -267,14 +280,15 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
               </span>
             </Section>
 
-            {(config?.devices ?? []).length > 0 && (
+            {isClaudeProvider(provider) && (config?.devices ?? []).length > 0 && (
               <Section label={t('addAgent.sections.workspace.label')} hint={t('devices.restartsHint')}>
                 <Row label={t('devices.runsOn')}>
-                  <select value={device} onChange={(e) => setDevice(e.target.value)} style={inputStyle}>
+                  <select value={device} onChange={(e) => { setDevice(e.target.value); setMoveError(undefined); }} style={inputStyle}>
                     <option value="">{t('devices.thisLaptop')}</option>
                     {(config?.devices ?? []).map((d) => <option key={d.id} value={d.id}>{d.id}</option>)}
                   </select>
                 </Row>
+                {moveError && <span style={{ fontSize: 12, color: 'var(--cth-coral)', lineHeight: '16px' }}>{moveError}</span>}
               </Section>
             )}
 
