@@ -32,6 +32,12 @@ test('Check: every item over the link, with a fix for each failure', async (t) =
   assert.equal(items[0].fix, undefined, 'a pass carries no fix');
   assert.equal(items[8].path, '/no/such/folder');
   assert.match(items[8].fix, /^mkdir -p '\/no\/such\/folder'/);
+
+  // Mounted means listed in the mount table, not that a stat works.
+  fs.writeFileSync(link.mountsFile, '');
+  const mount = (await checkDevice(link, f.hive, [])).find((i) => i.id === 'mount');
+  assert.equal(mount.ok, false);
+  assert.match(mount.fix, /^mv /);
 });
 
 test('Check while offline: one failed login line with the reason', async () => {

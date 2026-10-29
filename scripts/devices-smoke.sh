@@ -92,7 +92,8 @@ check "tmux: the session outlives the ssh session that made it" r "tmux -L md-sm
 # Cut the link: the master, and every forward with it, goes away.
 ssh -S "$CTL" -O exit "$TARGET" >/dev/null 2>&1
 sleep 1
-check "cut: the mount stays" r_direct "mountpoint -q $RTMP/mnt"
+# The mount table, not mountpoint: a stat on a cut sshfs mount fails with EIO.
+check "cut: the mount stays" r_direct "awk -v m=$RTMP/mnt '\$2==m{f=1} END{exit !f}' /proc/self/mounts"
 check "cut: reads fail at once (under 2 s)" \
   r_direct "s=\$(date +%s%N); ! ls $RTMP/mnt >/dev/null 2>&1; rc=\$?; e=\$(date +%s%N); [ \$rc = 0 ] && [ \$(( (e - s) / 1000000 )) -lt 2000 ]"
 check "cut: writes fail" r_direct "! sh -c 'echo x > $RTMP/mnt/written-while-cut' 2>/dev/null"

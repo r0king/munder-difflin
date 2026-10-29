@@ -206,25 +206,36 @@ export function terminalArgs(ctl: string, target: string, hiveRoot: string, agen
 
 export const NOT_EMPTY = 'MD_HIVE_NOT_EMPTY';
 
+/** Exits 0 when `hiveRoot` is in the mount table. Never a stat: a live sshfs
+ *  mount answers EIO to one while the link is cut or not yet reconnected.
+ *  The table escapes a space as \040, so a hive path with one never matches
+ *  and is remounted each time: safe, just not lazy. */
+export function mountListedCommand(hiveRoot: string, mounts = '/proc/self/mounts'): string {
+  return `awk -v m=${shq(hiveRoot)} '$2==m{f=1} END{exit !f}' ${shq(mounts)}`;
+}
+
 /** Mount this laptop's hive at the same path on the device, through the
- *  forwarded SFTP port. sshfs reconnects by itself, so this only acts when
- *  `mountpoint` says the mount is gone. A non-empty folder there is refused:
- *  the mount would hide it, and whatever an agent wrote into it while
- *  unmounted would silently disappear from view.
+ *  forwarded SFTP port. sshfs reconnects by itself (`reconnect`: the next
+ *  access after the master is back reconnects it), so a listed mount that
+ *  `ls` can read is left alone; agents keep their open files and working
+ *  folders in it. A non-empty folder there is refused: the mount would hide
+ *  it, and whatever an agent wrote into it while unmounted would silently
+ *  disappear from view.
  *
- *  A dead mount (sshfs killed: every stat fails with "Transport endpoint is
- *  not connected") also reads as "not mounted", and `mkdir -p` fails on it
- *  for good. So a lazy unmount runs first; on a plain folder it just fails,
- *  quietly. fusermount3 is fuse3's name, fusermount fuse2's.
+ *  A dead mount (sshfs killed: listed, but every access fails with
+ *  "Transport endpoint is not connected") makes `mkdir -p` fail for good, so
+ *  it is lazily unmounted first. fusermount3 is fuse3's name, fusermount
+ *  fuse2's. `mounts` is the mount table (a test seam).
  *
  *  No caching: sshfs keeps directory listings and attributes for 20 s by
  *  default, so an agent woken for new mail could list its inbox and not see
  *  the file yet, and a launch.sh rewritten at another length within 20 s
  *  could be read at its stale size (a truncated or padded script). */
-export function mountCommand(hiveRoot: string, base: number): string {
+export function mountCommand(hiveRoot: string, base: number, mounts = '/proc/self/mounts'): string {
   const h = shq(hiveRoot);
+  const listed = mountListedCommand(hiveRoot, mounts);
   const hint = shq(`Cannot create ${hiveRoot} on the device. If it is a dead mount, run there: fusermount3 -uz ${h} (or fusermount -uz); otherwise check the permissions of its parent folder.`);
-  return `mountpoint -q ${h} || { fusermount3 -uz ${h} 2>/dev/null || fusermount -uz ${h} 2>/dev/null; mkdir -p ${h} || { printf '%s\\n' ${hint} >&2; exit 2; }; [ -z "$(ls -A ${h})" ] || { echo ${NOT_EMPTY}; exit 3; }; sshfs -o directport=${base},reconnect,ServerAliveInterval=15,dir_cache=no,entry_timeout=0,attr_timeout=0,negative_timeout=0 127.0.0.1:${h} ${h}; }`;
+  return `{ ${listed} && ls ${h} >/dev/null 2>&1; } || { if ${listed}; then fusermount3 -uz ${h} 2>/dev/null || fusermount -uz ${h} 2>/dev/null; fi; mkdir -p ${h} || { printf '%s\\n' ${hint} >&2; exit 2; }; [ -z "$(ls -A ${h})" ] || { echo ${NOT_EMPTY}; exit 3; }; sshfs -o directport=${base},reconnect,ServerAliveInterval=15,dir_cache=no,entry_timeout=0,attr_timeout=0,negative_timeout=0 127.0.0.1:${h} ${h}; }`;
 }
 
 // ─── Hooks on the device ─────────────────────────────────────────────────────
@@ -330,7 +341,8 @@ export function launchScript(o: { cwd: string; env: Record<string, string>; comm
 /** The setup checks, in display order, each with the command that fixes it. */
 export function checkCommands(
   hiveRoot: string,
-  folders: string[]
+  folders: string[],
+  mounts?: string
 ): Array<{ item: DeviceCheckItem['id']; path?: string; cmd: string; fix: string }> {
   return [
     { item: 'login', cmd: 'true', fix: 'sudo tailscale up --ssh   # on the device; and give it "action": "accept" in the Tailscale SSH policy' },
@@ -338,7 +350,7 @@ export function checkCommands(
     { item: 'node', cmd: 'command -v node >/dev/null', fix: 'sudo pacman -S --needed nodejs   # Debian/Ubuntu: sudo apt install nodejs' },
     { item: 'tmux', cmd: 'command -v tmux >/dev/null', fix: 'sudo pacman -S --needed tmux   # Debian/Ubuntu: sudo apt install tmux' },
     { item: 'sshfs', cmd: 'command -v sshfs >/dev/null', fix: 'sudo pacman -S --needed sshfs   # Debian/Ubuntu: sudo apt install sshfs' },
-    { item: 'mount', cmd: `mountpoint -q ${shq(hiveRoot)}`, fix: `mv ${shq(hiveRoot)} ${shq(`${hiveRoot}.local`)}   # on the device, only if that folder is not empty; the link then mounts it` },
+    { item: 'mount', cmd: `${mountListedCommand(hiveRoot, mounts)} && ls ${shq(hiveRoot)} >/dev/null 2>&1`, fix: `mv ${shq(hiveRoot)} ${shq(`${hiveRoot}.local`)}   # on the device, only if that folder is not empty; the link then mounts it` },
     ...folders.map((f) => ({ item: 'folder' as const, path: f, cmd: dirExistsCommand(f), fix: `mkdir -p ${shq(f)}   # or clone the repo there, on the device` }))
   ];
 }

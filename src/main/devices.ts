@@ -53,6 +53,8 @@ export interface LinkEnv {
   backoff?: (attempt: number) => number;
   /** This laptop's home folder, for the base-path fix (a test seam). */
   localHome?: string;
+  /** The device's mount table (a test seam; default /proc/self/mounts). */
+  mountsFile?: string;
 }
 
 /** /run/user/<uid> keeps the ControlPath short; a Unix socket path must be under 108 bytes. */
@@ -78,6 +80,7 @@ export class DeviceLink extends EventEmitter {
   get id(): string { return this.device.id; }
   get portBase(): number { return portBase(this.device); }
   get sshBin(): string { return this.env.sshBin ?? 'ssh'; }
+  get mountsFile(): string | undefined { return this.env.mountsFile; }
   ctl(): string { return controlPath(this.id, this.env.runDir ?? defaultRunDir()); }
   target(): string { return sshTarget(this.device, userInfo().username); }
   status(): DeviceStatus {
@@ -157,7 +160,7 @@ export class DeviceLink extends EventEmitter {
     m.on('close', gone);
 
     if (!(await this.waitForMaster(m))) return;
-    const mount = await this.run(`${mountCommand(this.env.hiveRoot, this.portBase)} && ${installShimCommand(this.env.hiveRoot)}`, 30_000);
+    const mount = await this.run(`${mountCommand(this.env.hiveRoot, this.portBase, this.env.mountsFile)} && ${installShimCommand(this.env.hiveRoot)}`, 30_000);
     if (this.master !== m) return;
     if (!mount.ok) {
       // mkdir failed (exit 2): usually this laptop's base folder does not
@@ -352,7 +355,7 @@ export async function checkDevice(
     return [{ id: 'login', ok: false, fix: link?.error ?? 'Not connected yet. Check the host, and that Tailscale SSH is on for this device.' }];
   }
   const out: DeviceCheckItem[] = [];
-  for (const c of checkCommands(hiveRoot, folders)) {
+  for (const c of checkCommands(hiveRoot, folders, link.mountsFile)) {
     const r = await link.exec(c.cmd, 20_000);
     out.push({ id: c.item, ...(c.path ? { path: c.path } : {}), ok: r.ok, ...(r.ok ? {} : { fix: c.fix }) });
     // Right after login: the base folder, which every path the hive holds needs.

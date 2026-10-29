@@ -113,25 +113,35 @@ test('login-shell noise around a fenced command is dropped and its exit code kep
   assert.equal(dc.parseFenced('Welcome to my-lap\n'), null, 'no fence = the command never ran');
 });
 
+// "Is it mounted" comes from the mount table, never from a stat: a live sshfs
+// mount answers EIO to a stat while the link is cut, and reconnects by itself.
+function mounts(s, ...paths) {
+  const f = path.join(s.dir, 'mounts');
+  fs.writeFileSync(f, paths.map((p) => `127.0.0.1:${p} ${p} fuse.sshfs rw,nosuid,nodev 0 0\n`).join(''));
+  return f;
+}
+
 test('the hive mounts only on an empty folder; a non-empty one is refused, not hidden', (t) => {
   const s = sandbox(t);
-  s.fake('mountpoint', 'process.exit(1);\n'); // not mounted yet
   s.fake('sshfs');
+  s.fake('fusermount3');
+  s.fake('fusermount');
   const hive = path.join(s.dir, 'home', 'hive');
+  const table = mounts(s, '/elsewhere'); // not listed: mount, with no unmount
 
-  let r = s.sh(dc.mountCommand(hive, 47990));
+  let r = s.sh(dc.mountCommand(hive, 47990, table));
   assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(s.calls()[0].argv, ['-o', 'directport=47990,reconnect,ServerAliveInterval=15,dir_cache=no,entry_timeout=0,attr_timeout=0,negative_timeout=0', `127.0.0.1:${hive}`, hive]);
+  assert.deepEqual(s.calls().map((c) => c.argv), [['-o', 'directport=47990,reconnect,ServerAliveInterval=15,dir_cache=no,entry_timeout=0,attr_timeout=0,negative_timeout=0', `127.0.0.1:${hive}`, hive]]);
 
   fs.writeFileSync(path.join(hive, 'stray-mail.json'), '{}');
-  r = s.sh(dc.mountCommand(hive, 47990));
+  r = s.sh(dc.mountCommand(hive, 47990, table));
   assert.equal(r.status, 3);
   assert.ok(r.stdout.includes(dc.NOT_EMPTY));
   assert.equal(s.calls().length, 1, 'sshfs must not mount over a non-empty folder');
 
-  s.fake('mountpoint', 'process.exit(0);\n'); // already mounted: nothing to do
-  s.fake('fusermount3');
-  assert.equal(s.sh(dc.mountCommand(hive, 47990)).status, 0);
+  // Listed and readable: a live mount (maybe just reconnected) is left alone.
+  mounts(s, '/elsewhere', hive);
+  assert.equal(s.sh(dc.mountCommand(hive, 47990, table)).status, 0);
   assert.equal(s.calls().length, 1, 'a live mount is left alone: no unmount, no sshfs');
 });
 
@@ -139,7 +149,7 @@ test('a dead sshfs mount is lazily unmounted, then mounted again', (t) => {
   const s = sandbox(t);
   const hive = path.join(s.dir, 'home', 'hive');
   const unmounted = path.join(s.dir, 'unmounted');
-  s.fake('mountpoint', 'process.exit(1);\n'); // a dead FUSE mount: stat fails, so "not mounted"
+  const table = mounts(s, hive); // listed, but ls fails: sshfs is dead
   s.fake('sshfs');
   // mkdir fails the way it does on a dead mount until something unmounts it.
   s.fake('mkdir', `const fs = require('fs');
@@ -148,7 +158,7 @@ fs.mkdirSync(process.argv[3], { recursive: true });\n`);
   // fusermount3 missing its setuid bit fails; the fusermount fallback works.
   s.fake('fusermount3', DUMP + 'process.exit(1);\n');
   s.fake('fusermount', `${DUMP}require('fs').writeFileSync(${JSON.stringify(unmounted)}, '');\n`);
-  const r = s.sh(dc.mountCommand(hive, 47990));
+  const r = s.sh(dc.mountCommand(hive, 47990, table));
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(s.calls().map((c) => c.argv), [
     ['-uz', hive],
@@ -158,8 +168,9 @@ fs.mkdirSync(process.argv[3], { recursive: true });\n`);
 
   // Still unable to create the folder: exit 2, with the fix in the message.
   fs.rmSync(unmounted);
+  fs.rmSync(hive, { recursive: true }); // dead again: ls fails
   s.fake('fusermount', 'process.exit(1);\n');
-  const r2 = s.sh(dc.mountCommand(hive, 47990));
+  const r2 = s.sh(dc.mountCommand(hive, 47990, table));
   assert.equal(r2.status, 2);
   assert.ok(r2.stderr.includes(`fusermount3 -uz '${hive}'`), r2.stderr);
 });

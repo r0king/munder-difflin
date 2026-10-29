@@ -64,10 +64,11 @@ function fakeDevice(t, opts = {}) {
   const ssh = path.join(bin, 'ssh');
   fs.writeFileSync(ssh, FAKE_SSH, { mode: 0o755 });
   const tool = (name, body) => fs.writeFileSync(path.join(bin, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
-  // The fake mount: sshfs marks the folder and puts the hive's shim in it (as
-  // the real mount would show it); mountpoint reads the mark.
-  tool('mountpoint', '[ -e "$2/.fake-mounted" ]');
-  tool('sshfs', 'touch "$4/.fake-mounted" && mkdir -p "$4/bin" && echo "// shim" > "$4/bin/cth-hook.cjs"');
+  // The fake mount: sshfs marks the folder, puts the hive's shim in it (as
+  // the real mount would show it) and lists it in a fake mount table.
+  const mounts = path.join(dir, 'mounts');
+  fs.writeFileSync(mounts, '');
+  tool('sshfs', `touch "$4/.fake-mounted" && mkdir -p "$4/bin" && echo "// shim" > "$4/bin/cth-hook.cjs" && echo "$3 $4 fuse.sshfs rw 0 0" >> '${mounts}'`);
   const env = {
     hiveRoot: hive,
     hookSock: path.join(dir, 'hooks.sock'),
@@ -76,7 +77,8 @@ function fakeDevice(t, opts = {}) {
     sshBin: ssh,
     runDir: dir,
     sshEnv: { ...process.env, PATH: `${bin}:${process.env.PATH}`, HOME: home, FAKE_SSH_LOG: log, FAKE_SSH_MODE: opts.mode ?? '' },
-    backoff: opts.backoff ?? (() => 20)
+    backoff: opts.backoff ?? (() => 20),
+    mountsFile: mounts
   };
   const calls = () => (fs.existsSync(log)
     ? fs.readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l))
