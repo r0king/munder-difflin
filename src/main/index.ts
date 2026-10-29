@@ -3252,30 +3252,41 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     // actually present (already or after the copy); otherwise fall back to a fresh
     // session rather than launching a `--resume` against a missing id.
     const explicitSid = typeof opts.resumeSessionId === 'string' ? opts.resumeSessionId.trim() : '';
-    const sid = explicitSid || (opts.resume === true ? hive.lastSession(opts.hive.id) : undefined);
-    if (sid && !args.includes('--resume')) {
-      // A move: copy the conversation from where it ran. When that fails (the
-      // old device is offline, the file is missing) the agent starts fresh
-      // and the floor says so, rather than resume an older copy that may sit
-      // on the new machine from an earlier stay.
-      let copied = true;
-      if (moved) {
-        const from = prevDevice ? devices.get(prevDevice) : undefined;
-        const c = prevDevice && !from
-          ? { ok: false as const, reason: 'offline' as const } // the device was removed from Settings
-          : await copyTranscript(from, link, opts.cwd, sid);
-        if (!c.ok) {
-          copied = false;
-          conversationStayed = { device: prevDevice ?? LOCAL_DEVICE, reason: c.reason };
-          console.warn(`[devices] conversation ${sid} stayed on ${prevDevice ?? 'this laptop'} (${c.reason}); starting fresh`);
+    // A typed id is tried alone; a recorded one falls back to this agent's
+    // earlier ids (hive.resumeCandidates says why).
+    const candidates = explicitSid ? [explicitSid] : opts.resume === true ? hive.resumeCandidates(opts.hive.id) : [];
+    if (candidates.length && !args.includes('--resume')) {
+      let sid: string | undefined;
+      let stayed: ConversationStayed | undefined;
+      for (const c of candidates) {
+        // A move: copy the conversation from where it ran. When that fails (the
+        // old device is offline, the file is missing) the agent starts fresh
+        // and the floor says so, rather than resume an older copy that may sit
+        // on the new machine from an earlier stay.
+        let copied = true;
+        if (moved) {
+          const from = prevDevice ? devices.get(prevDevice) : undefined;
+          const r = prevDevice && !from
+            ? { ok: false as const, reason: 'offline' as const } // the device was removed from Settings
+            : await copyTranscript(from, link, opts.cwd, c);
+          if (!r.ok) {
+            copied = false;
+            stayed ??= { device: prevDevice ?? LOCAL_DEVICE, reason: r.reason };
+            if (r.reason === 'offline') break; // no older id will copy either
+          }
         }
+        // On a device the transcript must already be there: copying one in from
+        // another folder (seedSessionTranscript) is a laptop-only step.
+        const present = copied && (link
+          ? (await link.exec(transcriptExistsCommand(opts.cwd, c))).ok
+          : seedSessionTranscript(opts.cwd, c));
+        if (present) { sid = c; break; }
       }
-      // On a device the transcript must already be there: copying one in from
-      // another folder (seedSessionTranscript) is a laptop-only step.
-      const present = copied && (link
-        ? (await link.exec(transcriptExistsCommand(opts.cwd, sid))).ok
-        : seedSessionTranscript(opts.cwd, sid));
-      if (present) {
+      if (!sid && stayed) {
+        conversationStayed = stayed;
+        console.warn(`[devices] conversation ${candidates[0]} stayed on ${stayed.device} (${stayed.reason}); starting fresh`);
+      }
+      if (sid) {
         args.push('--resume', sid);
         didResume = true;
       } else if (explicitSid) {

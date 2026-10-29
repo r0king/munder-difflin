@@ -1304,6 +1304,29 @@ export class HiveManager {
     return this.registry().agents[agentId]?.sessionId;
   }
 
+  /** Session ids to try for a resume, newest first: lastSession(), then the
+   *  earlier ones from log.jsonl. A resumed Claude reports a fresh id before
+   *  its first turn and that id has no transcript, so a restart before that
+   *  turn must fall back to an older id or the conversation is lost
+   *  (oscar on 2026-10-29: four restarts, four fresh starts). */
+  resumeCandidates(agentId: string, max = 10): string[] {
+    const out: string[] = [];
+    const add = (s: unknown): void => { if (typeof s === 'string' && s && !out.includes(s)) out.push(s); };
+    add(this.lastSession(agentId));
+    const root = this.root();
+    try {
+      const lines = root ? readFileSync(join(root, 'log.jsonl'), 'utf8').split('\n') : [];
+      for (let i = lines.length - 1; i >= 0 && out.length < max; i--) {
+        if (!lines[i].includes('"session"') || !lines[i].includes(agentId)) continue;
+        try {
+          const e = JSON.parse(lines[i]) as { kind?: string; agentId?: string; sessionId?: unknown };
+          if (e.kind === 'session' && e.agentId === agentId) add(e.sessionId);
+        } catch { /* a torn line */ }
+      }
+    } catch { /* no log yet */ }
+    return out.slice(0, max);
+  }
+
   /** Claude Code settings that route every relevant hook through the shim, plus
    *  (W3) the default MCP bundle merged into this PER-SESSION settings file. cwd
    *  scopes the filesystem/git servers; cfg (the consent map) gates which servers
