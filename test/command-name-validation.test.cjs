@@ -121,6 +121,7 @@ test('index.ts validates the bin at the spawn-request intake', () => {
   // and it does so BEFORE isCommandAvailable(bin) (which itself calls the resolver).
   assert.match(src, /if \(!isSafeCommandName\(bin\) && !isAbsolute\(bin\)\) \{/);
   const guardAt = src.indexOf('if (!isSafeCommandName(bin) && !isAbsolute(bin)) {');
-  const availAt = src.indexOf('if (!ptyManager.isCommandAvailable(bin))');
+  // Devices: on a device the CLI is the device's, so the check is skipped there.
+  const availAt = src.indexOf('if (!link && !ptyManager.isCommandAvailable(bin))');
   assert.ok(guardAt > 0 && availAt > guardAt, 'the guard must precede isCommandAvailable(bin)');
 });

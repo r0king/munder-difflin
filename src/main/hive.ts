@@ -453,6 +453,21 @@ export class HiveManager {
     return this._maySpawn;
   }
 
+  /** The configured device ids, mirrored like the spawn gate above (hive.ts
+   *  does not import config), so god's prompt can name them. */
+  private _deviceIds: string[] = [];
+  setDeviceIds(ids: string[]): void {
+    this._deviceIds = [...ids];
+  }
+  /** god's one line about devices (spec: god), on the spawn instructions. A
+   *  device worker's worktree outlives it (teardownPty keeps it, since the
+   *  unintegrated-work gate cannot run there), so god is told to clean it up. */
+  private deviceSpawnHint(): string {
+    return this._deviceIds.length
+      ? ` Optional \`device\` (${this._deviceIds.join(', ')}) runs the worker on that machine instead of this laptop: heavy work (type-checks, suites, builds) is best placed on a device. An unknown or offline device fails the request with the reason. Only Claude Code runs on a device, and a device worker's worktree is kept on the device after it finishes: integrate its branch and remove the worktree, or ask the human.`
+      : '';
+  }
+
   // — paths —
   root(): string | null {
     const home = this.getHome();
@@ -1614,7 +1629,7 @@ export class HiveManager {
     // saying nothing, and COMMANDS.md documents it either way for the case where
     // the operator turns it on after god was already running.
     const spawnQueueLine = meta.isGod && this.orchestratorMaySpawn()
-      ? `SPAWNING A WORKER: you can start an ephemeral worker yourself by writing ONE JSON file into ${inRoot('spawn-requests')}/<id>.json. Required: \`objective\` (what the worker must do) and \`cwd\` (the repo it runs in). Optional: \`name\`, \`command\` (overrides the provider default), \`provider\` (selects its default CLI when command is omitted), \`model\`, \`isolate\` (default true = its own git worktree), \`tokenCap\`, and \`slack\` ({channel, thread_ts}) to route its failures back to a thread. The harness polls that directory, spawns \`worker-<id>\`, and moves the request to \`spawn-requests/.done/\` on success or \`.failed/\` with a reason. This is the ONLY way you can spawn; a hire manifest under research/hires/ needs the human to confirm it in the UI, so it is not a route you can complete on your own. Reuse an existing agent first, as above — a worker is a fresh spend every time.`
+      ? `SPAWNING A WORKER: you can start an ephemeral worker yourself by writing ONE JSON file into ${inRoot('spawn-requests')}/<id>.json. Required: \`objective\` (what the worker must do) and \`cwd\` (the repo it runs in). Optional: \`name\`, \`command\` (overrides the provider default), \`provider\` (selects its default CLI when command is omitted), \`model\`, \`isolate\` (default true = its own git worktree), \`tokenCap\`, and \`slack\` ({channel, thread_ts}) to route its failures back to a thread. The harness polls that directory, spawns \`worker-<id>\`, and moves the request to \`spawn-requests/.done/\` on success or \`.failed/\` with a reason. This is the ONLY way you can spawn; a hire manifest under research/hires/ needs the human to confirm it in the UI, so it is not a route you can complete on your own. Reuse an existing agent first, as above — a worker is a fresh spend every time.` + this.deviceSpawnHint()
       : '';
     // Not gated: a compaction spends nothing new.
     const compactQueueLine = meta.isGod
@@ -3109,7 +3124,8 @@ the hive root:
   "tokenCap": 0,
   "slack": { "channel": "C…", "thread_ts": "…" },
   "character": "meredith",
-  "accent": "coral"
+  "accent": "coral",
+  "device": "my-lap"
 }
 \`\`\`
 
@@ -3118,6 +3134,12 @@ The harness polls that directory, spawns \`worker-<id>\`, and moves the request 
 defaults to true, giving the worker its own git worktree. \`slack\` routes its failures back to a
 thread. This is the ONLY spawn route you can complete on your own: a hire manifest under
 \`research/hires/\` needs the human to confirm it in the UI.
+
+\`device\` (optional) runs the worker on another machine from Settings → Devices instead of this
+laptop; heavy work (type-checks, suites, builds) is best placed there. Only Claude Code runs on a
+device. An unknown or offline device fails the request into \`spawn-requests/.failed/\` with the reason.
+A device worker's worktree is kept on the device after it finishes: integrate its branch and remove
+the worktree, or ask the human.
 
 \`character\` and \`accent\` set how the worker looks on the office floor, and both are optional.
 Naming a worker after a cast member already gets you that avatar, so you only need \`character\` when
