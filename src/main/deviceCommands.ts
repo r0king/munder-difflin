@@ -12,7 +12,7 @@
  * always `bash -lc '<cmd>'`: a known shell, with the device's login PATH,
  * where `~/.local/bin/claude` lives.
  */
-import { DEFAULT_PORT_BASE, type DeviceCheckItem, type DeviceConfig } from '../shared/devices';
+import { DEFAULT_PORT_BASE, isValidDeviceHost, isValidDeviceUser, type DeviceCheckItem, type DeviceConfig } from '../shared/devices';
 import { projectKey } from './transcript';
 
 /** POSIX single quotes: safe for any string, newlines and unicode included. */
@@ -26,8 +26,17 @@ export function portBase(d: DeviceConfig): number {
   return d.portBase ?? DEFAULT_PORT_BASE;
 }
 
+/** `user@host`, for every ssh argv. config.json can be edited by hand and
+ *  a host or user starting with '-' would be read by ssh as an option
+ *  (`-oProxyCommand=…` runs a command here), so this refuses anything
+ *  normalizeDevices would have dropped, whoever built the DeviceConfig. */
 export function sshTarget(d: DeviceConfig, localUser: string): string {
-  return `${d.user ?? localUser}@${d.host}`;
+  if (!isValidDeviceHost(d.host)) throw new Error(`${JSON.stringify(d.host)} is not a valid host for device ${d.id}.`);
+  const user = d.user ?? localUser;
+  if ((d.user !== undefined && !isValidDeviceUser(d.user)) || user.startsWith('-')) {
+    throw new Error(`${JSON.stringify(user)} is not a valid user for device ${d.id}.`);
+  }
+  return `${user}@${d.host}`;
 }
 
 /** A Unix socket path must stay under 108 bytes, hence /run/user/<uid>. */
@@ -54,12 +63,15 @@ export function masterArgs(
     '-R', `127.0.0.1:${base}:127.0.0.1:${ports.sftp}`,
     '-R', `127.0.0.1:${base + 1}:${ports.hookSock}`,
     ...(ports.telemetry ? ['-R', `127.0.0.1:${base + 2}:127.0.0.1:${ports.telemetry}`] : []),
-    sshTarget(d, localUser)
+    // '--' ends ssh's options before the destination. Only where no command
+    // follows: after '--' ssh no longer strips a second '--' before the
+    // command, so exec and terminal argv rely on sshTarget's check alone.
+    '--', sshTarget(d, localUser)
   ];
 }
 
 export function controlArgs(ctl: string, target: string, op: 'check' | 'exit'): string[] {
-  return ['-S', ctl, '-O', op, target];
+  return ['-S', ctl, '-O', op, '--', target];
 }
 
 /** Why the master exited, in words a person can act on. `fallback` is the
@@ -169,10 +181,16 @@ export const NOT_EMPTY = 'MD_HIVE_NOT_EMPTY';
  *  forwarded SFTP port. sshfs reconnects by itself, so this only acts when
  *  `mountpoint` says the mount is gone. A non-empty folder there is refused:
  *  the mount would hide it, and whatever an agent wrote into it while
- *  unmounted would silently disappear from view. */
+ *  unmounted would silently disappear from view.
+ *
+ *  A dead mount (sshfs killed: every stat fails with "Transport endpoint is
+ *  not connected") also reads as "not mounted", and `mkdir -p` fails on it
+ *  for good. So a lazy unmount runs first; on a plain folder it just fails,
+ *  quietly. fusermount3 is fuse3's name, fusermount fuse2's. */
 export function mountCommand(hiveRoot: string, base: number): string {
   const h = shq(hiveRoot);
-  return `mountpoint -q ${h} || { mkdir -p ${h} || exit 2; [ -z "$(ls -A ${h})" ] || { echo ${NOT_EMPTY}; exit 3; }; sshfs -o directport=${base},reconnect,ServerAliveInterval=15 127.0.0.1:${h} ${h}; }`;
+  const hint = shq(`Cannot create ${hiveRoot} on the device. If it is a dead mount, run there: fusermount3 -uz ${h} (or fusermount -uz); otherwise check the permissions of its parent folder.`);
+  return `mountpoint -q ${h} || { fusermount3 -uz ${h} 2>/dev/null || fusermount -uz ${h} 2>/dev/null; mkdir -p ${h} || { printf '%s\\n' ${hint} >&2; exit 2; }; [ -z "$(ls -A ${h})" ] || { echo ${NOT_EMPTY}; exit 3; }; sshfs -o directport=${base},reconnect,ServerAliveInterval=15 127.0.0.1:${h} ${h}; }`;
 }
 
 // ─── Hooks on the device ─────────────────────────────────────────────────────

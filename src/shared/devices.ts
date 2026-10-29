@@ -64,6 +64,10 @@ export function isValidDeviceHost(host: string): boolean {
   return HOST_RE.test(host);
 }
 
+export function isValidDeviceUser(user: string): boolean {
+  return USER_RE.test(user);
+}
+
 /** Keep the well-formed entries of a device list, drop the rest. A bad
  *  optional field is dropped on its own; the device stays. */
 export function normalizeDevices(raw: unknown): DeviceConfig[] {
@@ -75,7 +79,7 @@ export function normalizeDevices(raw: unknown): DeviceConfig[] {
     if (typeof id !== 'string' || !isValidDeviceId(id, out.map((d) => d.id))) continue;
     if (typeof host !== 'string' || !isValidDeviceHost(host)) continue;
     const d: DeviceConfig = { id, host };
-    if (typeof user === 'string' && USER_RE.test(user)) d.user = user;
+    if (typeof user === 'string' && isValidDeviceUser(user)) d.user = user;
     if (typeof portBase === 'number' && Number.isInteger(portBase) && portBase >= 1024 && portBase <= 65533) d.portBase = portBase;
     out.push(d);
   }

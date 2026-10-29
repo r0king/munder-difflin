@@ -1,0 +1,258 @@
+/**
+ * Devices: one SSH link per configured device (spec: "Device link").
+ *
+ * A link owns one ControlMaster `ssh` that carries three reverse forwards
+ * (hive SFTP, hooks, telemetry). It mounts this laptop's hive on the device
+ * through the first, and runs every other remote command as a short-lived
+ * client of that master (`exec`). When the master exits, the device goes
+ * offline and the link reconnects on a backoff of 2 s, 5 s, 15 s, 30 s, then
+ * every 60 s. Agents' terminals are `ssh -tt` clients of the same master
+ * (remoteTerminal below), so a dead link ends them too; index.ts reattaches
+ * them when the link emits `online` again.
+ *
+ * Events: 'state' (DeviceStatus) on every change; 'online' once the hive is
+ * mounted, which is the moment a device can take agents.
+ */
+import { spawn, type ChildProcess } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir, userInfo } from 'node:os';
+import { dirname } from 'node:path';
+import { normalizeDevices, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
+import {
+  backoffDelay, controlArgs, controlPath, execArgs, installShimCommand, masterArgs,
+  masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, sshTarget
+} from './deviceCommands';
+
+export interface ExecResult {
+  /** The command ran on the device and exited 0. */
+  ok: boolean;
+  /** Its exit code, or -1 when it never ran (offline, timeout, ssh failed). */
+  code: number;
+  stdout: string;
+  stderr: string;
+  error?: string;
+}
+
+/** What a link needs from the app around it. The last four are test seams. */
+export interface LinkEnv {
+  hiveRoot: string;
+  hookSock: string;
+  /** The shared SFTP server's port, or null when it could not start. */
+  sftpPort: number | null;
+  sftpError?: string;
+  /** The OTLP collector's port, or null when telemetry is off. */
+  telemetryPort: number | null;
+  sshBin?: string;
+  sshEnv?: NodeJS.ProcessEnv;
+  runDir?: string;
+  backoff?: (attempt: number) => number;
+}
+
+/** /run/user/<uid> keeps the ControlPath short; a Unix socket path must be under 108 bytes. */
+function defaultRunDir(): string {
+  const d = `/run/user/${userInfo().uid}`;
+  return existsSync(d) ? d : tmpdir();
+}
+
+export class DeviceLink extends EventEmitter {
+  state: DeviceState = 'offline';
+  error: string | undefined;
+  private master: ChildProcess | null = null;
+  private running = false;
+  private attempt = 0;
+  private retry: NodeJS.Timeout | null = null;
+  /** Set when the link ends the master itself, so the exit says why. */
+  private killReason: string | undefined;
+
+  constructor(readonly device: DeviceConfig, private readonly env: LinkEnv) {
+    super();
+  }
+
+  get id(): string { return this.device.id; }
+  get portBase(): number { return portBase(this.device); }
+  get sshBin(): string { return this.env.sshBin ?? 'ssh'; }
+  ctl(): string { return controlPath(this.id, this.env.runDir ?? defaultRunDir()); }
+  target(): string { return sshTarget(this.device, userInfo().username); }
+  status(): DeviceStatus {
+    return this.error ? { id: this.id, state: this.state, error: this.error } : { id: this.id, state: this.state };
+  }
+
+  /** Idempotent: a link never runs two masters. */
+  start(): void {
+    if (this.running) return;
+    this.running = true;
+    void this.connect();
+  }
+
+  stop(): void {
+    this.running = false;
+    if (this.retry) clearTimeout(this.retry);
+    this.retry = null;
+    const m = this.master;
+    this.master = null;
+    if (m) { try { m.kill(); } catch { /* already gone */ } }
+    rmSync(this.ctl(), { force: true });
+    this.setState('offline', undefined);
+  }
+
+  /** Run one command on the device over the master, under `bash -lc` so it
+   *  sees the login PATH. Fails at once while the device is not online. */
+  exec(cmd: string, timeoutMs = 15_000): Promise<ExecResult> {
+    if (this.state !== 'online') {
+      return Promise.resolve({ ok: false, code: -1, stdout: '', stderr: '', error: `${this.id} is offline` });
+    }
+    return this.run(cmd, timeoutMs);
+  }
+
+  private setState(state: DeviceState, error: string | undefined): void {
+    this.state = state;
+    this.error = error;
+    this.emit('state', this.status());
+  }
+
+  private async connect(): Promise<void> {
+    if (!this.running || this.master) return;
+    if (this.env.sftpPort === null) {
+      // Nothing to retry: the SFTP server is this laptop's, and it did not start.
+      this.setState('offline', this.env.sftpError ?? 'No SFTP server on this laptop.');
+      return;
+    }
+    try {
+      this.target();
+    } catch (e) {
+      // A host or user ssh would read as an option. Nothing to retry, and
+      // no ssh is ever spawned for it (sshTarget is in every argv).
+      this.setState('offline', (e as Error).message);
+      return;
+    }
+    // Keep the last error showing while we try again.
+    this.setState('connecting', this.error);
+    await this.clearStaleControlPath();
+    if (!this.running) return;
+    mkdirSync(dirname(this.ctl()), { recursive: true });
+    let stderr = '';
+    const m = spawn(this.sshBin, masterArgs(this.device, this.ctl(), userInfo().username, {
+      sftp: this.env.sftpPort,
+      hookSock: this.env.hookSock,
+      telemetry: this.env.telemetryPort
+    }), { stdio: ['ignore', 'ignore', 'pipe'], env: this.env.sshEnv });
+    this.master = m;
+    const gone = (): void => {
+      if (this.master !== m) return; // stop(), or already handled
+      this.master = null;
+      const why = masterExitReason(stderr, this.id, this.killReason);
+      this.killReason = undefined;
+      this.setState('offline', why);
+      this.scheduleReconnect();
+    };
+    m.stderr?.on('data', (d) => { stderr = (stderr + d.toString()).slice(-4000); });
+    m.on('error', (e) => { stderr += `\n${e.message}`; gone(); });
+    m.on('close', gone);
+
+    if (!(await this.waitForMaster(m))) return;
+    const mount = await this.run(`${mountCommand(this.env.hiveRoot, this.portBase)} && ${installShimCommand(this.env.hiveRoot)}`, 30_000);
+    if (this.master !== m) return;
+    if (!mount.ok) {
+      this.killReason = mount.stdout.includes(NOT_EMPTY)
+        ? `The hive folder on ${this.id} is not empty, so it was not mounted. Move it aside on ${this.id}: mv ${this.env.hiveRoot} ${this.env.hiveRoot}.local`
+        : `Could not mount the hive on ${this.id}: ${mount.error ?? (mount.stderr.trim() || `exit ${mount.code}`)}`;
+      m.kill();
+      return;
+    }
+    this.attempt = 0;
+    this.setState('online', undefined);
+    this.emit('online');
+  }
+
+  /** The master gives no "ready" signal, so ask it (`-O check`) until it answers. */
+  private async waitForMaster(m: ChildProcess, timeoutMs = 20_000): Promise<boolean> {
+    const until = Date.now() + timeoutMs;
+    while (this.master === m && Date.now() < until) {
+      const r = await this.spawnSsh(controlArgs(this.ctl(), this.target(), 'check'), 5_000);
+      if (r.code === 0) return this.master === m;
+      await new Promise((res) => setTimeout(res, 300));
+    }
+    if (this.master === m) {
+      this.killReason = `${this.id} did not answer within ${timeoutMs / 1000} s.`;
+      m.kill();
+    }
+    return false;
+  }
+
+  /** A ControlPath left by a crashed app makes a new `ssh -M` quietly run as
+   *  a plain client ("ControlSocket … already exists, disabling
+   *  multiplexing") that never answers `-O check`. Ask any old master to exit
+   *  (its forwards point at ports of an app that is gone), then remove it. */
+  private async clearStaleControlPath(): Promise<void> {
+    if (!existsSync(this.ctl())) return;
+    await this.spawnSsh(controlArgs(this.ctl(), this.target(), 'exit'), 3_000);
+    rmSync(this.ctl(), { force: true });
+  }
+
+  private scheduleReconnect(): void {
+    if (!this.running) return;
+    const delay = (this.env.backoff ?? backoffDelay)(this.attempt++);
+    this.retry = setTimeout(() => { this.retry = null; void this.connect(); }, delay);
+  }
+
+  private async run(cmd: string, timeoutMs: number): Promise<ExecResult> {
+    const r = await this.spawnSsh(execArgs(this.ctl(), this.target(), cmd), timeoutMs);
+    const fenced = parseFenced(r.stdout);
+    if (!fenced) {
+      return { ok: false, code: -1, stdout: '', stderr: r.stderr, error: r.stderr.trim().split('\n').pop() || `No answer from ${this.id}.` };
+    }
+    return { ok: fenced.code === 0, code: fenced.code, stdout: fenced.out, stderr: r.stderr };
+  }
+
+  private spawnSsh(args: string[], timeoutMs: number): Promise<{ code: number; stdout: string; stderr: string }> {
+    return new Promise((resolve) => {
+      const p = spawn(this.sshBin, args, { stdio: ['ignore', 'pipe', 'pipe'], env: this.env.sshEnv });
+      let stdout = '';
+      let stderr = '';
+      const timer = setTimeout(() => { try { p.kill('SIGKILL'); } catch { /* gone */ } }, timeoutMs);
+      p.stdout?.on('data', (d) => { stdout += d.toString(); });
+      p.stderr?.on('data', (d) => { stderr += d.toString(); });
+      p.on('error', (e) => { clearTimeout(timer); resolve({ code: -1, stdout, stderr: `${stderr}${e.message}` }); });
+      p.on('close', (code) => { clearTimeout(timer); resolve({ code: code ?? -1, stdout, stderr }); });
+    });
+  }
+}
+
+/** The running links, one per configured device. */
+export class DeviceRegistry extends EventEmitter {
+  private links = new Map<string, DeviceLink>();
+
+  constructor(private readonly env: () => LinkEnv) {
+    super();
+  }
+
+  /** Match the running links to the configured devices: start new ones, stop
+   *  removed ones, and restart one whose host, user or ports changed. */
+  sync(raw: DeviceConfig[]): void {
+    // readConfig() does not validate devices, and config.json can be edited
+    // by hand: drop anything that is not a well-formed device here.
+    const devices = normalizeDevices(raw);
+    const want = new Map(devices.map((d) => [d.id, d]));
+    for (const [id, link] of this.links) {
+      const d = want.get(id);
+      if (d && JSON.stringify(d) === JSON.stringify(link.device)) continue;
+      link.stop();
+      link.removeAllListeners();
+      this.links.delete(id);
+    }
+    for (const d of devices) {
+      if (this.links.has(d.id)) continue;
+      const link = new DeviceLink(d, this.env());
+      link.on('state', (s: DeviceStatus) => this.emit('state', s));
+      link.on('online', () => this.emit('online', link));
+      this.links.set(d.id, link);
+      link.start();
+    }
+  }
+
+  get(id: string): DeviceLink | undefined { return this.links.get(id); }
+  all(): DeviceLink[] { return [...this.links.values()]; }
+  statuses(): DeviceStatus[] { return this.all().map((l) => l.status()); }
+  stopAll(): void { for (const l of this.links.values()) l.stop(); }
+}
