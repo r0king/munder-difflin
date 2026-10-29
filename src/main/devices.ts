@@ -23,7 +23,7 @@ import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { LOCAL_DEVICE, normalizeDevices, type ConversationStayed, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
 import {
-  backoffDelay, baseFolder, engineCheck, basePathCommand, basePathFix, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, hostKeyFailed, installShimCommand, launchPath, launchScript,
+  backoffDelay, baseFolder, busyForwardPorts, freeSelfConnectedCommand, engineCheck, basePathCommand, basePathFix, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, hostKeyFailed, installShimCommand, launchPath, launchScript,
   forwardArgs, masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, PROXY_SLOT_FIRST, readTranscriptCommand, sshTarget,
   terminalArgs, TMUX_CONF, tmuxConfPath, TRANSCRIPT_MISSING, writeTranscriptCommand, parseWslProbe, WSL_PROBE, wslCheckItems
 } from './deviceCommands';
@@ -189,8 +189,17 @@ export class DeviceLink extends EventEmitter {
       const why = masterExitReason(stderr, this.id, this.killReason, this.target());
       this.killReason = undefined;
       this.setState('offline', why);
+      // A port held by a device process connected to itself never frees
+      // itself (see freeSelfConnectedCommand): end it over a plain ssh (the
+      // master is gone), and retry at once if that was the cause.
+      const busy = busyForwardPorts(stderr);
+      if (busy.length) {
+        void this.run(freeSelfConnectedCommand(busy), 15_000).then((r) => {
+          if (r.stdout.includes('freed')) this.attempt = 0;
+          this.scheduleReconnect();
+        });
       // A refused host key never fixes itself: wait for a Check (reconnect).
-      if (!hostKeyFailed(stderr)) this.scheduleReconnect();
+      } else if (!hostKeyFailed(stderr)) this.scheduleReconnect();
     };
     m.stderr?.on('data', (d) => { stderr = (stderr + d.toString()).slice(-4000); });
     m.on('error', (e) => { stderr += `\n${e.message}`; gone(); });

@@ -66,6 +66,8 @@ test('a device-side port in use: offline with a message naming the port', async 
   link.start();
   const s = await waitForState(link, 'offline');
   assert.match(s.error, /^Port 47991 is already in use on my-lap\. .*portBase/);
+  // The retry waits for the self-connect cleanup; nothing was freed here.
+  for (let i = 0; i < 150 && !attempts.length; i++) await new Promise((r) => setTimeout(r, 20));
   assert.deepEqual(attempts, [0], 'it still retries, on the backoff, with the reason showing');
 });
 

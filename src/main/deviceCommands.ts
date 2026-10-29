@@ -106,6 +106,22 @@ export function hostKeyFailed(stderr: string): boolean {
   return /Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED|No \S+ host key is known for/.test(stderr);
 }
 
+/** The device ports the master could not forward because something holds them. */
+export function busyForwardPorts(stderr: string): number[] {
+  return [...stderr.matchAll(/remote port forwarding failed for listen port (\d+)/g)].map((m) => Number(m[1]));
+}
+
+/** End whatever holds `ports` through a TCP connection to ITSELF, printing
+ *  `freed` if anything was. Our ports sit in Linux's ephemeral range, so a
+ *  client that keeps reconnecting to one while nothing listens (sshfs
+ *  `reconnect`, after the app quits) can be given that same port as its
+ *  source and connect to itself. It then holds the port, and no master can
+ *  forward it again. Such a socket is never useful; anything else is left. */
+export function freeSelfConnectedCommand(ports: number[]): string {
+  const list = ports.map((p) => `ss -Htnp state established '( sport = :${p} and dport = :${p} )'`).join('; ');
+  return `pids=$({ ${list}; } | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u); [ -z "$pids" ] || { kill -9 $pids && echo freed; }`;
+}
+
 const BACKOFF_MS = [2_000, 5_000, 15_000, 30_000, 60_000];
 
 /** Reconnect delay after the `attempt`-th failure in a row (0-based). */

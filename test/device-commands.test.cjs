@@ -145,6 +145,25 @@ test('the hive mounts only on an empty folder; a non-empty one is refused, not h
   assert.equal(s.calls().length, 1, 'a live mount is left alone: no unmount, no sshfs');
 });
 
+test('a port held by a process connected to itself is freed; nothing else is touched', async (t) => {
+  const stderr = 'Warning: remote port forwarding failed for listen port 47990\nWarning: remote port forwarding failed for listen port 47992\n';
+  assert.deepEqual(dc.busyForwardPorts(stderr), [47990, 47992]);
+  const s = sandbox(t);
+  const stuck = require('node:child_process').spawn('sleep', ['60']); // stands in for the stuck sshfs
+  t.after(() => stuck.kill());
+  // ss lists the stuck process only for a socket whose two ends are both :47990.
+  s.fake('ss', `if (process.argv.join(' ').includes('sport = :47990 and dport = :47990'))
+  console.log('ESTAB 0 0 127.0.0.1:47990 127.0.0.1:47990 users:(("sshfs",pid=${stuck.pid},fd=3))');\n`);
+  let r = s.sh(dc.freeSelfConnectedCommand([47991]));
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, '', 'nothing self-connected on 47991: nothing killed');
+  assert.equal(stuck.exitCode ?? stuck.signalCode, null);
+  r = s.sh(dc.freeSelfConnectedCommand([47990, 47991]));
+  assert.equal(r.stdout.trim(), 'freed', r.stderr);
+  const died = await Promise.race([new Promise((res) => stuck.once('exit', () => res(true))), new Promise((res) => setTimeout(res, 2000, false))]);
+  assert.equal(died && stuck.signalCode, 'SIGKILL', 'the self-connected process is gone');
+});
+
 test('a dead sshfs mount is lazily unmounted, then mounted again', (t) => {
   const s = sandbox(t);
   const hive = path.join(s.dir, 'home', 'hive');
