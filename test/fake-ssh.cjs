@@ -6,7 +6,9 @@
  *
  *   -M …           a ControlMaster: writes its pid to the ControlPath and
  *                  waits for SIGTERM. FAKE_SSH_MODE=portbusy fails the way
- *                  ExitOnForwardFailure does. A ControlPath that already
+ *                  ExitOnForwardFailure does; hostkey-new and
+ *                  hostkey-changed the way BatchMode does on an untrusted
+ *                  or changed host key. A ControlPath that already
  *                  exists makes it run as a plain client, as real ssh does.
  *   -O check|exit  answers for the pid in the ControlPath.
  *   … -- <cmd>     prints login-shell noise around running <cmd>.
@@ -29,6 +31,14 @@ const masterPid = () => {
 if (a.includes('-M')) {
   if (process.env.FAKE_SSH_MODE === 'portbusy') {
     process.stderr.write('Error: remote port forwarding failed for listen port 47991\\n');
+    process.exit(255);
+  }
+  if (process.env.FAKE_SSH_MODE === 'hostkey-new') {
+    process.stderr.write('No ED25519 host key is known for 100.65.189.1 and you have requested strict checking.\\nHost key verification failed.\\n');
+    process.exit(255);
+  }
+  if (process.env.FAKE_SSH_MODE === 'hostkey-changed') {
+    process.stderr.write('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\\n@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\\nHost key verification failed.\\n');
     process.exit(255);
   }
   if (fs.existsSync(ctl)) {
@@ -64,10 +74,11 @@ function fakeDevice(t, opts = {}) {
   const ssh = path.join(bin, 'ssh');
   fs.writeFileSync(ssh, FAKE_SSH, { mode: 0o755 });
   const tool = (name, body) => fs.writeFileSync(path.join(bin, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
-  // The fake mount: sshfs marks the folder and puts the hive's shim in it (as
-  // the real mount would show it); mountpoint reads the mark.
-  tool('mountpoint', '[ -e "$2/.fake-mounted" ]');
-  tool('sshfs', 'touch "$4/.fake-mounted" && mkdir -p "$4/bin" && echo "// shim" > "$4/bin/cth-hook.cjs"');
+  // The fake mount: sshfs marks the folder, puts the hive's shim in it (as
+  // the real mount would show it) and lists it in a fake mount table.
+  const mounts = path.join(dir, 'mounts');
+  fs.writeFileSync(mounts, '');
+  tool('sshfs', `touch "$4/.fake-mounted" && mkdir -p "$4/bin" && echo "// shim" > "$4/bin/cth-hook.cjs" && echo "$3 $4 fuse.sshfs rw 0 0" >> '${mounts}'`);
   const env = {
     hiveRoot: hive,
     hookSock: path.join(dir, 'hooks.sock'),
@@ -76,7 +87,8 @@ function fakeDevice(t, opts = {}) {
     sshBin: ssh,
     runDir: dir,
     sshEnv: { ...process.env, PATH: `${bin}:${process.env.PATH}`, HOME: home, FAKE_SSH_LOG: log, FAKE_SSH_MODE: opts.mode ?? '' },
-    backoff: opts.backoff ?? (() => 20)
+    backoff: opts.backoff ?? (() => 20),
+    mountsFile: mounts
   };
   const calls = () => (fs.existsSync(log)
     ? fs.readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l))

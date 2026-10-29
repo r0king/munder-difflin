@@ -6,8 +6,8 @@
  * through the first, and runs every other remote command as a short-lived
  * client of that master (`exec`). When the master exits, the device goes
  * offline and the link reconnects on a backoff of 2 s, 5 s, 15 s, 30 s, then
- * every 60 s. Agents' terminals are `ssh -tt` clients of the same master
- * (remoteTerminal below), so a dead link ends them too; index.ts reattaches
+ * every 60 s; after a refused host key it waits for a Check instead. Agents'
+ * terminals are `ssh -tt` clients of the same master (remoteTerminal below), so a dead link ends them too; index.ts reattaches
  * them when the link emits `online` again.
  *
  * Events: 'state' (DeviceStatus) on every change; 'online' once the hive is
@@ -21,7 +21,7 @@ import { cpus, freemem, homedir, loadavg, tmpdir, userInfo } from 'node:os';
 import { dirname, join, sep } from 'node:path';
 import { LOCAL_DEVICE, normalizeDevices, type ConversationStayed, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
 import {
-  backoffDelay, baseFolder, engineCheck, basePathCommand, basePathFix, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
+  backoffDelay, baseFolder, engineCheck, basePathCommand, basePathFix, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, hostKeyFailed, installShimCommand, launchPath, launchScript,
   forwardArgs, masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, PROXY_SLOT_FIRST, readTranscriptCommand, sshTarget,
   terminalArgs, TMUX_CONF, tmuxConfPath, TRANSCRIPT_MISSING, writeTranscriptCommand, parseWslProbe, WSL_PROBE, wslCheckItems
 } from './deviceCommands';
@@ -54,6 +54,8 @@ export interface LinkEnv {
   backoff?: (attempt: number) => number;
   /** This laptop's home folder, for the base-path fix (a test seam). */
   localHome?: string;
+  /** The device's mount table (a test seam; default /proc/self/mounts). */
+  mountsFile?: string;
 }
 
 /** /run/user/<uid> keeps the ControlPath short; a Unix socket path must be under 108 bytes. */
@@ -82,6 +84,7 @@ export class DeviceLink extends EventEmitter {
   get id(): string { return this.device.id; }
   get portBase(): number { return portBase(this.device); }
   get sshBin(): string { return this.env.sshBin ?? 'ssh'; }
+  get mountsFile(): string | undefined { return this.env.mountsFile; }
   ctl(): string { return controlPath(this.id, this.env.runDir ?? defaultRunDir()); }
   target(): string { return sshTarget(this.device, userInfo().username); }
   status(): DeviceStatus {
@@ -104,6 +107,13 @@ export class DeviceLink extends EventEmitter {
     if (m) { try { m.kill(); } catch { /* already gone */ } }
     rmSync(this.ctl(), { force: true });
     this.setState('offline', undefined);
+  }
+
+  /** Try once now, for a link that stopped retrying (a refused host key, a
+   *  bad host). No-op while connected, connecting or waiting on the backoff. */
+  async reconnect(): Promise<void> {
+    if (!this.running || this.master || this.retry) return;
+    await this.connect();
   }
 
   /** Run one command on the device over the master, under `bash -lc` so it
@@ -174,17 +184,18 @@ export class DeviceLink extends EventEmitter {
     const gone = (): void => {
       if (this.master !== m) return; // stop(), or already handled
       this.master = null;
-      const why = masterExitReason(stderr, this.id, this.killReason);
+      const why = masterExitReason(stderr, this.id, this.killReason, this.target());
       this.killReason = undefined;
       this.setState('offline', why);
-      this.scheduleReconnect();
+      // A refused host key never fixes itself: wait for a Check (reconnect).
+      if (!hostKeyFailed(stderr)) this.scheduleReconnect();
     };
     m.stderr?.on('data', (d) => { stderr = (stderr + d.toString()).slice(-4000); });
     m.on('error', (e) => { stderr += `\n${e.message}`; gone(); });
     m.on('close', gone);
 
     if (!(await this.waitForMaster(m))) return;
-    const mount = await this.run(`${mountCommand(this.env.hiveRoot, this.portBase)} && ${installShimCommand(this.env.hiveRoot)}`, 30_000);
+    const mount = await this.run(`${mountCommand(this.env.hiveRoot, this.portBase, this.env.mountsFile)} && ${installShimCommand(this.env.hiveRoot)}`, 30_000);
     if (this.master !== m) return;
     if (!mount.ok) {
       // mkdir failed (exit 2): usually this laptop's base folder does not
@@ -371,8 +382,9 @@ export function remoteTerminal(
 
 /** Settings → Devices → Check: each setup item over the link, pass or fail,
  *  with the command that fixes a failure. The in-app twin of
- *  scripts/devices-smoke.sh. Offline, the only answer is the login line,
- *  carrying the link's own reason. Fix texts stay English (built in main,
+ *  scripts/devices-smoke.sh. Offline, it first tries once to connect (a link
+ *  stopped by a refused host key waits for this); still offline, the only
+ *  answer is the login line, carrying the link's own reason. Fix texts stay English (built in main,
  *  like masterExitReason): they are shell commands and tool output. */
 export async function checkDevice(
   link: DeviceLink | undefined,
@@ -381,11 +393,12 @@ export async function checkDevice(
   localHome: string = homedir(),
   engines: Array<{ provider: AgentProvider; bin: string }> = []
 ): Promise<DeviceCheckItem[]> {
+  if (link?.state === 'offline') await link.reconnect();
   if (!link || link.state !== 'online') {
     return [{ id: 'login', ok: false, fix: link?.error ?? 'Not connected yet. Check the host, and that Tailscale SSH is on for this device.' }];
   }
   const out: DeviceCheckItem[] = [];
-  for (const c of checkCommands(hiveRoot, folders)) {
+  for (const c of checkCommands(hiveRoot, folders, link.mountsFile)) {
     const r = await link.exec(c.cmd, 20_000);
     out.push({ id: c.item, ...(c.path ? { path: c.path } : {}), ok: r.ok, ...(r.ok ? {} : { fix: c.fix }) });
     // Right after login: the base folder, which every path the hive holds needs.

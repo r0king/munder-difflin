@@ -11,7 +11,7 @@ const path = require('node:path');
 const loadTs = require('./load-ts.cjs');
 const { fakeDevice, waitForState } = require('./fake-ssh.cjs');
 
-const { DeviceLink, DeviceRegistry } = loadTs('src/main/devices.ts');
+const { DeviceLink, DeviceRegistry, checkDevice } = loadTs('src/main/devices.ts');
 const DEV = { id: 'my-lap', host: '100.65.189.1' };
 const isMaster = (argv) => argv.includes('-M');
 
@@ -144,3 +144,29 @@ test('a hand-edited host that ssh would read as an option never reaches ssh', as
   assert.equal(f.calls().filter((a) => a.some((x) => x.includes('ProxyCommand'))).length, 0);
   assert.ok(!fs.existsSync(marker));
 });
+
+for (const [mode, re] of [['hostkey-new', /ssh royal@100\.65\.189\.1/], ['hostkey-changed', /ssh-keygen -R 100\.65\.189\.1/]]) {
+  test(`${mode}: offline with the fix, no retry loop, and a Check tries again`, async (t) => {
+    const attempts = [];
+    const f = fakeDevice(t, { mode, backoff: (n) => { attempts.push(n); return 20; } });
+    const link = new DeviceLink({ ...DEV, user: 'royal' }, f.env);
+    t.after(() => link.stop());
+    link.start();
+    const s = await waitForState(link, 'offline');
+    assert.match(s.error, re);
+    await new Promise((r) => setTimeout(r, 200));
+    assert.deepEqual(attempts, [], 'it will not fix itself: no backoff retries');
+    assert.equal(f.calls().filter(isMaster).length, 1);
+
+    const [login] = await checkDevice(link, f.hive, []);
+    assert.deepEqual([login.id, login.ok], ['login', false]);
+    assert.match(login.fix, re, 'the Check says the same');
+    assert.equal(f.calls().filter(isMaster).length, 2, 'a manual Check tries once more');
+
+    // Key accepted in a terminal: the next Check connects.
+    f.env.sshEnv.FAKE_SSH_MODE = '';
+    const items = await checkDevice(link, f.hive, []);
+    assert.equal(link.state, 'online');
+    assert.deepEqual(items[0], { id: 'login', ok: true });
+  });
+}
