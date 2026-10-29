@@ -348,7 +348,7 @@ export function validateSpawnDevice(device: unknown, states: Record<string, Devi
   if (device !== undefined && typeof device !== 'string') return { error: '"device" must be a device id' };
   const id = normalizeDeviceId(device);
   if (!id) return {};
-  if (!(id in states)) return { error: `unknown device "${id}"` };
+  if (!Object.hasOwn(states, id)) return { error: `unknown device "${id}"` };
   if (states[id] !== 'online') return { error: `device "${id}" is ${states[id]}` };
   return { device: id };
 }

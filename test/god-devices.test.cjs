@@ -26,6 +26,8 @@ test('spawn-request device: default this laptop; unknown or offline fails with t
   assert.deepEqual(validateSpawnDevice('local', states), {});
   assert.deepEqual(validateSpawnDevice('my-lap', states), { device: 'my-lap' });
   assert.deepEqual(validateSpawnDevice('nope', states), { error: 'unknown device "nope"' });
+  // Object.prototype keys are not devices.
+  assert.deepEqual(validateSpawnDevice('constructor', states), { error: 'unknown device "constructor"' });
   assert.deepEqual(validateSpawnDevice('big-box', states), { error: 'device "big-box" is offline' });
   assert.deepEqual(validateSpawnDevice('mid', states), { error: 'device "mid" is connecting' });
   assert.deepEqual(validateSpawnDevice(7, states), { error: '"device" must be a device id' });

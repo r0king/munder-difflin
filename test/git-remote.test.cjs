@@ -84,3 +84,14 @@ test('node_modules is linked into a device worktree once', async (t) => {
   assert.deepEqual(await linkWorktreeDeps(r, wt, device), { ok: true, skipped: true });
   assert.ok(seen.some((c) => c.includes('ln -s')), 'linked through the device');
 });
+
+test('a failed exec on the device comes back as that error', async () => {
+  // git's own failure (stderr), and a link that never answered (error).
+  const fatal = { exec: async () => ({ ok: false, code: 128, stdout: '', stderr: 'fatal: x\n' }) };
+  const silent = { exec: async () => ({ ok: false, code: -1, stdout: '', stderr: '', error: 'no answer' }) };
+  for (const [dev, error] of [[fatal, 'fatal: x'], [silent, 'no answer']]) {
+    assert.deepEqual(await addWorktree('/r', '/r/wt', 'main', dev), { ok: false, error });
+    assert.deepEqual(await getBranch('/r', dev), { error });
+    assert.deepEqual(await linkWorktreeDeps('/r', '/r/wt', dev), { ok: false, error });
+  }
+});
