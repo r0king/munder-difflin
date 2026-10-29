@@ -1436,7 +1436,8 @@
       "tmux": "tmux",
       "sshfs": "sshfs",
       "mount": "蜂巢已挂载",
-      "folder": "文件夹 {{path}}"
+      "folder": "文件夹 {{path}}",
+      "base": "基础文件夹 {{path}}"
     },
     "runsOn": "运行于",
     "thisLaptop": "这台笔记本",

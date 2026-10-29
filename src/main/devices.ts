@@ -21,7 +21,7 @@ import { cpus, freemem, homedir, loadavg, tmpdir, userInfo } from 'node:os';
 import { dirname, join, sep } from 'node:path';
 import { LOCAL_DEVICE, normalizeDevices, type ConversationStayed, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
 import {
-  backoffDelay, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
+  backoffDelay, baseFolder, basePathCommand, basePathFix, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
   masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, readTranscriptCommand, sshTarget,
   terminalArgs, TMUX_CONF, tmuxConfPath, TRANSCRIPT_MISSING, writeTranscriptCommand
 } from './deviceCommands';
@@ -51,6 +51,8 @@ export interface LinkEnv {
   sshEnv?: NodeJS.ProcessEnv;
   runDir?: string;
   backoff?: (attempt: number) => number;
+  /** This laptop's home folder, for the base-path fix (a test seam). */
+  localHome?: string;
 }
 
 /** /run/user/<uid> keeps the ControlPath short; a Unix socket path must be under 108 bytes. */
@@ -158,15 +160,30 @@ export class DeviceLink extends EventEmitter {
     const mount = await this.run(`${mountCommand(this.env.hiveRoot, this.portBase)} && ${installShimCommand(this.env.hiveRoot)}`, 30_000);
     if (this.master !== m) return;
     if (!mount.ok) {
+      // mkdir failed (exit 2): usually this laptop's base folder does not
+      // exist there (another user, another layout). Say how to make it exist.
+      const fix = mount.code === 2 ? await this.baseFix() : null;
+      if (this.master !== m) return;
       this.killReason = mount.stdout.includes(NOT_EMPTY)
         ? `The hive folder on ${this.id} is not empty, so it was not mounted. Move it aside on ${this.id}: mv ${this.env.hiveRoot} ${this.env.hiveRoot}.local`
-        : `Could not mount the hive on ${this.id}: ${mount.error ?? (mount.stderr.trim() || `exit ${mount.code}`)}`;
+        : fix
+          ? `${baseFolder(this.env.hiveRoot)} does not exist on ${this.id}, so the hive cannot be mounted at the same path. On ${this.id}, run: ${fix}`
+          : `Could not mount the hive on ${this.id}: ${mount.error ?? (mount.stderr.trim() || `exit ${mount.code}`)}`;
       m.kill();
       return;
     }
     this.attempt = 0;
     this.setState('online', undefined);
     this.emit('online');
+  }
+
+  /** The command that makes this laptop's base folder exist on the device,
+   *  or null when it exists or the probe got no answer. */
+  private async baseFix(): Promise<string | null> {
+    const base = baseFolder(this.env.hiveRoot);
+    const home = this.env.localHome ?? homedir();
+    const r = await this.run(basePathCommand(base, home), 10_000);
+    return r.ok ? basePathFix(base, home, r.stdout) : null;
   }
 
   /** The master gives no "ready" signal, so ask it (`-O check`) until it answers. */
@@ -325,7 +342,12 @@ export function remoteTerminal(
  *  scripts/devices-smoke.sh. Offline, the only answer is the login line,
  *  carrying the link's own reason. Fix texts stay English (built in main,
  *  like masterExitReason): they are shell commands and tool output. */
-export async function checkDevice(link: DeviceLink | undefined, hiveRoot: string, folders: string[]): Promise<DeviceCheckItem[]> {
+export async function checkDevice(
+  link: DeviceLink | undefined,
+  hiveRoot: string,
+  folders: string[],
+  localHome: string = homedir()
+): Promise<DeviceCheckItem[]> {
   if (!link || link.state !== 'online') {
     return [{ id: 'login', ok: false, fix: link?.error ?? 'Not connected yet. Check the host, and that Tailscale SSH is on for this device.' }];
   }
@@ -333,6 +355,8 @@ export async function checkDevice(link: DeviceLink | undefined, hiveRoot: string
   for (const c of checkCommands(hiveRoot, folders)) {
     const r = await link.exec(c.cmd, 20_000);
     out.push({ id: c.item, ...(c.path ? { path: c.path } : {}), ok: r.ok, ...(r.ok ? {} : { fix: c.fix }) });
+    // Right after login: the base folder, which every path the hive holds needs.
+    if (c.item === 'login') out.push(await checkBase(link, hiveRoot, localHome));
   }
   return out;
 }
@@ -400,4 +424,12 @@ export async function readLoad(link: DeviceLink): Promise<LoadSample | null> {
 /** This laptop's load, the same three numbers. */
 export function localLoad(): LoadSample {
   return { id: LOCAL_DEVICE, load1: loadavg()[0], cores: cpus().length || 1, memAvailable: freemem() };
+}
+
+/** Check's base-folder item (devices phase 2, item 3). */
+async function checkBase(link: DeviceLink, hiveRoot: string, localHome: string): Promise<DeviceCheckItem> {
+  const base = baseFolder(hiveRoot);
+  const r = await link.exec(basePathCommand(base, localHome), 20_000);
+  const fix = basePathFix(base, localHome, r.ok ? r.stdout : '');
+  return fix ? { id: 'base', path: base, ok: false, fix } : { id: 'base', path: base, ok: true };
 }

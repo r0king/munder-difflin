@@ -1436,7 +1436,8 @@
       "tmux": "tmux",
       "sshfs": "sshfs",
       "mount": "Hive mounted",
-      "folder": "Folder {{path}}"
+      "folder": "Folder {{path}}",
+      "base": "Base folder {{path}}"
     },
     "runsOn": "Runs on",
     "thisLaptop": "This laptop",

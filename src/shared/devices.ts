@@ -29,8 +29,8 @@ export interface DeviceStatus {
 
 /** One line of Settings → Devices → Check. `fix` is a command, shown on failure. */
 export interface DeviceCheckItem {
-  id: 'login' | 'claude' | 'node' | 'tmux' | 'sshfs' | 'mount' | 'folder';
-  /** The agent folder, for `folder` items. */
+  id: 'login' | 'base' | 'claude' | 'node' | 'tmux' | 'sshfs' | 'mount' | 'folder';
+  /** The agent folder, for `folder` items; the base folder, for `base`. */
   path?: string;
   ok: boolean;
   fix?: string;

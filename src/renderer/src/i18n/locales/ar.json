@@ -1436,7 +1436,8 @@
       "tmux": "tmux",
       "sshfs": "sshfs",
       "mount": "تركيب مجلد الخلية",
-      "folder": "المجلد {{path}}"
+      "folder": "المجلد {{path}}",
+      "base": "المجلد الأساسي {{path}}"
     },
     "runsOn": "يعمل على",
     "thisLaptop": "هذا الحاسوب",

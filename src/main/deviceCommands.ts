@@ -14,6 +14,7 @@
  */
 import { AUTO_DEVICE, DEFAULT_PORT_BASE, isValidDeviceHost, isValidDeviceUser, LOCAL_DEVICE, normalizeDeviceId, type DeviceCheckItem, type DeviceConfig, type DeviceState } from '../shared/devices';
 import { projectKey } from './transcript';
+import { posix } from 'node:path';
 
 /** POSIX single quotes: safe for any string, newlines and unicode included. */
 export function shq(s: string): string {
@@ -416,4 +417,36 @@ export function pickDevice(samples: LoadSample[]): string {
     if (!best || x.memAvailable > best.memAvailable || (x.memAvailable === best.memAvailable && x.id === LOCAL_DEVICE)) best = x;
   }
   return best?.id ?? LOCAL_DEVICE;
+}
+
+// ─── The base folder (devices phase 2, item 3) ───────────────────────────────
+// The hive's own files hold absolute paths (PROTOCOL.md, fleet.json, task
+// cards, mail), so the device must have the same paths. A symlink there makes
+// them exist with no translation anywhere.
+
+/** The parent of the hive home: `/home/royal/Pro/Zensible` for a hive at
+ *  `/home/royal/Pro/Zensible/<home>/hive`. */
+export function baseFolder(hiveRoot: string): string {
+  return posix.dirname(posix.dirname(hiveRoot));
+}
+
+export const BASE_OK = 'MD_BASE_OK';
+
+/** Prints BASE_OK when the base folder exists (symlinks followed); else
+ *  `home:<device $HOME>` when the same layout exists under the device
+ *  user's home; else `missing`. */
+export function basePathCommand(base: string, localHome: string): string {
+  const rest = base === localHome ? '' : base.startsWith(`${localHome}/`) ? base.slice(localHome.length + 1) : null;
+  const same = rest === null ? '' : `elif [ -d "$HOME"/${shq(rest)} ]; then printf 'home:%s\\n' "$HOME"; `;
+  return `if [ -d ${shq(base)} ]; then echo ${BASE_OK}; ${same}else echo missing; fi`;
+}
+
+/** The command that makes the base folder exist on the device, or null when
+ *  it already does. `<their folder>` is left for the person to fill in: only
+ *  they know where the repos live on that machine. */
+export function basePathFix(base: string, localHome: string, probeOut: string): string | null {
+  if (probeOut.includes(BASE_OK)) return null;
+  const home = /^home:(.+)$/m.exec(probeOut);
+  if (home) return `sudo ln -s ${shq(home[1].trim())} ${shq(localHome)}`;
+  return `sudo mkdir -p ${shq(posix.dirname(base))} && sudo ln -s <their folder> ${shq(base)}`;
 }
