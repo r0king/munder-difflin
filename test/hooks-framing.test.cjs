@@ -138,14 +138,16 @@ test('ordinary fragmented frame retains existing one-request behavior', async (t
   assert.equal(result.response, '{}');
 });
 
-test('oversized incomplete frame is rejected without routing a payload', async (t) => {
+test('oversized incomplete frame is answered with {} without routing a payload', async (t) => {
   const { sock, routed, logs } = await openServer(t);
 
   const result = await sendChunks(sock, [Buffer.alloc(MAX_HOOK_FRAME_BYTES + 1, 0x78)], 0, 400);
 
   assert.equal(result.didClose, true, 'server retained an oversized incomplete frame');
   assert.deepEqual(routed, []);
-  assert.equal(result.response, '');
+  // A device shim reads a reply-less close as "floor unreachable" and starts
+  // its pause clock, so the rejection still answers with a no-op reply.
+  assert.equal(result.response, '{}');
   // The server also records its own bind in the same log (#277); only the
   // rejection entries are this test's concern.
   assert.deepEqual(logs.filter((l) => l.kind === 'hook-frame-rejected'), [{
@@ -168,7 +170,7 @@ test('payload exactly at the byte limit is accepted', async (t) => {
   assert.equal(result.response, '{}');
 });
 
-test('payload one byte above the limit is rejected', async (t) => {
+test('payload one byte above the limit is answered with {} and not routed', async (t) => {
   const { sock, routed, logs } = await openServer(t);
   const frame = framedPayloadWithByteLength(MAX_HOOK_FRAME_BYTES + 1);
 
@@ -176,7 +178,9 @@ test('payload one byte above the limit is rejected', async (t) => {
 
   assert.equal(result.didClose, true);
   assert.deepEqual(routed, []);
-  assert.equal(result.response, '');
+  // A device shim reads a reply-less close as "floor unreachable" and starts
+  // its pause clock, so the rejection still answers with a no-op reply.
+  assert.equal(result.response, '{}');
   // The server also records its own bind in the same log (#277); only the
   // rejection entries are this test's concern.
   assert.deepEqual(logs.filter((l) => l.kind === 'hook-frame-rejected'), [{
