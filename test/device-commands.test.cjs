@@ -130,8 +130,38 @@ test('the hive mounts only on an empty folder; a non-empty one is refused, not h
   assert.equal(s.calls().length, 1, 'sshfs must not mount over a non-empty folder');
 
   s.fake('mountpoint', 'process.exit(0);\n'); // already mounted: nothing to do
+  s.fake('fusermount3');
   assert.equal(s.sh(dc.mountCommand(hive, 47990)).status, 0);
-  assert.equal(s.calls().length, 1);
+  assert.equal(s.calls().length, 1, 'a live mount is left alone: no unmount, no sshfs');
+});
+
+test('a dead sshfs mount is lazily unmounted, then mounted again', (t) => {
+  const s = sandbox(t);
+  const hive = path.join(s.dir, 'home', 'hive');
+  const unmounted = path.join(s.dir, 'unmounted');
+  s.fake('mountpoint', 'process.exit(1);\n'); // a dead FUSE mount: stat fails, so "not mounted"
+  s.fake('sshfs');
+  // mkdir fails the way it does on a dead mount until something unmounts it.
+  s.fake('mkdir', `const fs = require('fs');
+if (!fs.existsSync(${JSON.stringify(unmounted)})) { process.stderr.write('mkdir: Transport endpoint is not connected\\n'); process.exit(1); }
+fs.mkdirSync(process.argv[3], { recursive: true });\n`);
+  // fusermount3 missing its setuid bit fails; the fusermount fallback works.
+  s.fake('fusermount3', DUMP + 'process.exit(1);\n');
+  s.fake('fusermount', `${DUMP}require('fs').writeFileSync(${JSON.stringify(unmounted)}, '');\n`);
+  const r = s.sh(dc.mountCommand(hive, 47990));
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(s.calls().map((c) => c.argv), [
+    ['-uz', hive],
+    ['-uz', hive],
+    ['-o', 'directport=47990,reconnect,ServerAliveInterval=15', `127.0.0.1:${hive}`, hive]
+  ]);
+
+  // Still unable to create the folder: exit 2, with the fix in the message.
+  fs.rmSync(unmounted);
+  s.fake('fusermount', 'process.exit(1);\n');
+  const r2 = s.sh(dc.mountCommand(hive, 47990));
+  assert.equal(r2.status, 2);
+  assert.ok(r2.stderr.includes(`fusermount3 -uz '${hive}'`), r2.stderr);
 });
 
 test('the master carries the three forwards, and drops telemetry when it is off', () => {
@@ -145,7 +175,7 @@ test('the master carries the three forwards, and drops telemetry when it is off'
       '-R', '127.0.0.1:47990:127.0.0.1:40001',
       '-R', '127.0.0.1:47991:/h/hive/hooks.sock',
       '-R', '127.0.0.1:47992:127.0.0.1:40002',
-      'royal@100.65.189.1'
+      '--', 'royal@100.65.189.1'
     ]
   );
   const off = dc.masterArgs({ ...d, user: 'me', portBase: 50000 }, '/c', 'royal', { sftp: 1, hookSock: '/s', telemetry: null });
