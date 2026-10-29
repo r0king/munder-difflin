@@ -57,6 +57,12 @@ const EPS = 1e-9;
  *  fold simply resumes on the next call. */
 const MAX_BYTES_PER_PASS = 8 * 1024 * 1024;
 
+/** A timestamp's local calendar day, `YYYY-MM-DD`, which sorts as a string. */
+function localDay(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export class CostLedgerTotals {
   /** Bytes of the ledger already folded. */
   private offset = 0;
@@ -65,6 +71,10 @@ export class CostLedgerTotals {
   private tail: Buffer = Buffer.alloc(0);
   /** `agentId \t sessionId` → fold state. */
   private readonly seg = new Map<string, Segment>();
+  /** `agentId \t sessionId` → the local day of its newest row, and the
+   *  segment's running total (committed + peak) just before that day's first
+   *  row. Today's spend is the running total now minus that base. */
+  private readonly day = new Map<string, { day: string; base: number }>();
   /** agentId → lifetime usd. Recomputed after each pass. */
   private totals = new Map<string, number>();
   /** One pass at a time; a timer must never stack folds on itself. */
@@ -78,6 +88,22 @@ export class CostLedgerTotals {
   usdFor(agentId: string): number | null {
     if (!this.warm) return null;
     return this.totals.get(agentId) ?? 0;
+  }
+
+  /** Spend today (local time) for one agent, or null when the ledger has not
+   *  been folded yet (the control page shows "unknown", never a cold $0).
+   *  `committed + peak` only ever climbs, resets included, so the climb since
+   *  the last row before midnight is exactly today's spend. */
+  usdTodayFor(agentId: string, now: number = Date.now()): number | null {
+    if (!this.warm) return null;
+    const today = localDay(now);
+    let usd = 0;
+    for (const [key, d] of this.day) {
+      if (d.day !== today || key.slice(0, key.indexOf('\t')) !== agentId) continue;
+      const s = this.seg.get(key);
+      if (s) usd += s.committed + s.peak - d.base;
+    }
+    return usd;
   }
 
   /** Every agent's lifetime usd. Empty until the first pass completes. */
@@ -168,6 +194,10 @@ export class CostLedgerTotals {
     const key = `${row.agent_id}\t${row.session_id ?? ''}`;
     let s = this.seg.get(key);
     if (!s) { s = { committed: 0, peak: 0 }; this.seg.set(key, s); }
+    // The first row of a newer day fixes that day's base: the total so far.
+    const day = localDay(typeof (row as { ts?: unknown }).ts === 'number' ? (row as { ts: number }).ts : 0);
+    const seen = this.day.get(key);
+    if (!seen || day > seen.day) this.day.set(key, { day, base: s.committed + s.peak });
 
     if (usd < s.peak - EPS) {
       // Counter went backwards: the previous segment ended at its peak.
@@ -191,6 +221,7 @@ export class CostLedgerTotals {
     this.offset = 0;
     this.tail = Buffer.alloc(0);
     this.seg.clear();
+    this.day.clear();
     this.totals = new Map();
     this.warm = false;
   }
