@@ -157,6 +157,22 @@ export function planReconcile(sessions: string[], keepAgentIds: string[]): { kee
   return { keep: sessions.filter((s) => want.has(s)), kill: sessions.filter((s) => !want.has(s)) };
 }
 
+/** The roster's agents on a device, on the floor or waiting in the restore
+ *  list, for reconcile and Check. The roster's agent shape is the renderer's
+ *  (roster.ts keeps it opaque), so it is read defensively. */
+export function rosterAgentsOn(
+  roster: { agents?: unknown[]; restorable?: unknown[] } | null,
+  deviceId: string
+): Array<{ id: string; cwd?: string }> {
+  const out: Array<{ id: string; cwd?: string }> = [];
+  for (const a of [...(roster?.agents ?? []), ...(roster?.restorable ?? [])]) {
+    if (!a || typeof a !== 'object') continue;
+    const { id, cwd, device } = a as Record<string, unknown>;
+    if (typeof id === 'string' && device === deviceId) out.push(typeof cwd === 'string' ? { id, cwd } : { id });
+  }
+  return out;
+}
+
 export function tmuxConfPath(hiveRoot: string): string {
   return `${hiveRoot}/devices/tmux.conf`;
 }

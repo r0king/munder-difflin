@@ -14,13 +14,14 @@
  * mounted, which is the moment a device can take agents.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir, userInfo } from 'node:os';
 import { dirname } from 'node:path';
-import { normalizeDevices, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
+import { normalizeDevices, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
 import {
-  backoffDelay, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
+  backoffDelay, checkCommands, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
   masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, sshTarget,
   terminalArgs, TMUX_CONF, tmuxConfPath
 } from './deviceCommands';
@@ -259,6 +260,22 @@ export class DeviceRegistry extends EventEmitter {
   stopAll(): void { for (const l of this.links.values()) l.stop(); }
 }
 
+/** Write `file` as a new file and rename it into place. Agents can write in
+ *  the hive, and the app is unsandboxed: writeFileSync/chmodSync on a path an
+ *  agent swapped for a symlink would overwrite and chmod the link's target.
+ *  The temp file is created exclusively ('wx', so never through a planted
+ *  link), and rename replaces a link at `file` itself, never what it points to. */
+function replaceFile(file: string, data: string, mode: number): void {
+  const tmp = `${file}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`;
+  try {
+    writeFileSync(tmp, data, { flag: 'wx', mode });
+    renameSync(tmp, file);
+  } catch (e) {
+    rmSync(tmp, { force: true });
+    throw e;
+  }
+}
+
 /** Write what a device agent's terminal runs (its launch.sh, and the shared
  *  tmux.conf, both in the hive, which the device sees through the mount) and
  *  return the pty spawn: `ssh -tt … tmux new-session -A …`. pty.ts stays the
@@ -270,13 +287,12 @@ export function remoteTerminal(
 ): SpawnOptions {
   const launch = launchPath(hiveRoot, o.agentId);
   mkdirSync(dirname(launch), { recursive: true });
-  // Owner-only: it carries the agent's env, capability tokens included.
-  // writeFileSync's mode applies only when it creates the file, so a launch.sh
-  // left wider (a copied or restored hive, another umask) is tightened here.
-  writeFileSync(launch, launchScript({ cwd: o.cwd, env: o.env, command: 'claude', args: o.args }), { mode: 0o600 });
-  chmodSync(launch, 0o600);
+  // Owner-only: it carries the agent's env, capability tokens included. A
+  // fresh file each time, so a launch.sh left wider (a copied or restored
+  // hive) never keeps its old mode.
+  replaceFile(launch, launchScript({ cwd: o.cwd, env: o.env, command: 'claude', args: o.args }), 0o600);
   mkdirSync(dirname(tmuxConfPath(hiveRoot)), { recursive: true });
-  writeFileSync(tmuxConfPath(hiveRoot), TMUX_CONF);
+  replaceFile(tmuxConfPath(hiveRoot), TMUX_CONF, 0o644);
   return {
     id: o.ptyId,
     cwd: o.cwd,
@@ -286,4 +302,21 @@ export function remoteTerminal(
     rows: o.rows,
     remote: true
   };
+}
+
+/** Settings → Devices → Check: each setup item over the link, pass or fail,
+ *  with the command that fixes a failure. The in-app twin of
+ *  scripts/devices-smoke.sh. Offline, the only answer is the login line,
+ *  carrying the link's own reason. Fix texts stay English (built in main,
+ *  like masterExitReason): they are shell commands and tool output. */
+export async function checkDevice(link: DeviceLink | undefined, hiveRoot: string, folders: string[]): Promise<DeviceCheckItem[]> {
+  if (!link || link.state !== 'online') {
+    return [{ id: 'login', ok: false, fix: link?.error ?? 'Not connected yet. Check the host, and that Tailscale SSH is on for this device.' }];
+  }
+  const out: DeviceCheckItem[] = [];
+  for (const c of checkCommands(hiveRoot, folders)) {
+    const r = await link.exec(c.cmd, 20_000);
+    out.push({ id: c.item, ...(c.path ? { path: c.path } : {}), ok: r.ok, ...(r.ok ? {} : { fix: c.fix }) });
+  }
+  return out;
 }
