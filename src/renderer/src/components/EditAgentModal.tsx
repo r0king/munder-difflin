@@ -291,6 +291,11 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
                     {!agent.isGod && <option value={AUTO_DEVICE}>{t('devices.auto')}</option>}
                     {(config?.devices ?? []).map((d) => <option key={d.id} value={d.id}>{d.id}</option>)}
                   </select>
+                  {agent.isGod && device && (
+                    <span style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-coral)' }}>
+                      {t('devices.godWarning', { device })}
+                    </span>
+                  )}
                 </Row>
                 {moveError && <span style={{ fontSize: 12, color: 'var(--cth-coral)', lineHeight: '16px' }}>{moveError}</span>}
               </Section>

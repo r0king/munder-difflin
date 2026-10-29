@@ -2923,6 +2923,11 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // the agent runs (devices phase 2, item 2). The registry then records the
   // machine it picked, which is the next start's "last ran on".
   const resuming = !!opts.hive && (!!opts.resumeSessionId?.trim() || (opts.resume === true && !!hive.lastSession(opts.hive.id)));
+  // god is never placed automatically and never moved by the app (spec §4);
+  // the renderer offers no Auto for it, and a hand-edited roster gets this.
+  if (requested === AUTO_DEVICE && opts.hive?.isGod) {
+    return { ok: false, error: 'god is never placed automatically: pick This laptop or a device.' };
+  }
   const deviceId = requested === AUTO_DEVICE ? await placeAuto(prevDevice, resuming) : requested;
   const moved = !!opts.hive && !!hive.registry().agents[opts.hive.id] && prevDevice !== deviceId;
   let conversationStayed: ConversationStayed | undefined;
