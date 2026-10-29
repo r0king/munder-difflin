@@ -1437,7 +1437,11 @@
       "sshfs": "sshfs",
       "mount": "Hive mounted",
       "folder": "Folder {{path}}",
-      "base": "Base folder {{path}}"
+      "base": "Base folder {{path}}",
+      "wslSystemd": "systemd on in WSL",
+      "wslFuse": "/dev/fuse in WSL",
+      "wslIdle": "Windows keeps WSL running",
+      "wslSleep": "Windows never sleeps"
     },
     "runsOn": "Runs on",
     "thisLaptop": "This laptop",
@@ -1452,6 +1456,7 @@
     },
     "auto": "Auto (least loaded)",
     "autoHint": "Picks this laptop or a checked device with the most free memory at each fresh start. It never moves while running.",
-    "godWarning": "While {{device}} is offline the floor has no god: mail to it waits, and it pauses after the offline limit like any agent."
+    "godWarning": "While {{device}} is offline the floor has no god: mail to it waits, and it pauses after the offline limit like any agent.",
+    "reminder": "Check by hand:"
   }
 }

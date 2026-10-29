@@ -29,11 +29,15 @@ export interface DeviceStatus {
 
 /** One line of Settings → Devices → Check. `fix` is a command, shown on failure. */
 export interface DeviceCheckItem {
-  id: 'login' | 'base' | 'claude' | 'node' | 'tmux' | 'sshfs' | 'mount' | 'folder';
+  id: 'login' | 'base' | 'claude' | 'node' | 'tmux' | 'sshfs' | 'mount' | 'folder'
+    | 'wslSystemd' | 'wslFuse' | 'wslIdle' | 'wslSleep';
   /** The agent folder, for `folder` items; the base folder, for `base`. */
   path?: string;
   ok: boolean;
   fix?: string;
+  /** Cannot be checked from the device (a Windows-side setting of a WSL2
+   *  device): shown with its instruction, and counted as passing. */
+  reminder?: boolean;
 }
 
 export const LOCAL_DEVICE = 'local';

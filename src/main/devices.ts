@@ -23,7 +23,7 @@ import { LOCAL_DEVICE, normalizeDevices, type ConversationStayed, type DeviceChe
 import {
   backoffDelay, baseFolder, basePathCommand, basePathFix, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
   masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, readTranscriptCommand, sshTarget,
-  terminalArgs, TMUX_CONF, tmuxConfPath, TRANSCRIPT_MISSING, writeTranscriptCommand
+  terminalArgs, TMUX_CONF, tmuxConfPath, TRANSCRIPT_MISSING, writeTranscriptCommand, parseWslProbe, WSL_PROBE, wslCheckItems
 } from './deviceCommands';
 import { projectKey } from './transcript';
 import type { SpawnOptions } from './pty';
@@ -358,6 +358,8 @@ export async function checkDevice(
     // Right after login: the base folder, which every path the hive holds needs.
     if (c.item === 'login') out.push(await checkBase(link, hiveRoot, localHome));
   }
+  // A Windows machine through WSL2 (devices phase 2, item 6).
+  out.push(...wslCheckItems(parseWslProbe((await link.exec(WSL_PROBE, 20_000)).stdout)));
   return out;
 }
 

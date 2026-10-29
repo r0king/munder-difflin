@@ -96,11 +96,14 @@ export function DevicesSettings({ config }: { config: HarnessConfig }) {
               <ul style={{ listStyle: 'none', padding: 0, margin: '6px 0 0' }}>
                 {result.map((it, i) => (
                   <li key={i} style={{ fontSize: 12, lineHeight: '18px', color: 'var(--cth-ink-900)' }}>
-                    <span style={{ color: it.ok ? 'var(--cth-mint)' : 'var(--cth-coral)' }}>{it.ok ? '✓' : '✗'}</span>{' '}
+                    <span style={{ color: it.reminder ? 'var(--cth-ink-500)' : it.ok ? 'var(--cth-mint)' : 'var(--cth-coral)' }}>
+                      {it.reminder ? 'ℹ' : it.ok ? '✓' : '✗'}
+                    </span>{' '}
                     {t(`devices.items.${it.id}`, { path: it.path })}
-                    {!it.ok && it.fix && (
+                    {/* A reminder always shows its instruction: Check cannot see it. */}
+                    {(!it.ok || it.reminder) && it.fix && (
                       <div style={{ ...mono, color: 'var(--cth-ink-700)', marginInlineStart: 16, userSelect: 'text' }}>
-                        {t('devices.fix')} {it.fix}
+                        {it.reminder ? t('devices.reminder') : t('devices.fix')} {it.fix}
                       </div>
                     )}
                   </li>

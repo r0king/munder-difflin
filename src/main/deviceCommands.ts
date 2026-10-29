@@ -450,3 +450,47 @@ export function basePathFix(base: string, localHome: string, probeOut: string): 
   if (home) return `sudo ln -s ${shq(home[1].trim())} ${shq(localHome)}`;
   return `sudo mkdir -p ${shq(posix.dirname(base))} && sudo ln -s <their folder> ${shq(base)}`;
 }
+
+// ─── Windows through WSL2 (devices phase 2, item 6) ──────────────────────────
+
+const WSL_SEP = '__MD_WSL__';
+
+/** /proc/version, /etc/wsl.conf and /dev/fuse, in one round trip. */
+export const WSL_PROBE = `cat /proc/version 2>/dev/null; echo ${WSL_SEP}; cat /etc/wsl.conf 2>/dev/null; echo ${WSL_SEP}; [ -e /dev/fuse ] && echo fuse`;
+
+/** Is `systemd=true` set under `[boot]`? The last setting wins. */
+export function wslSystemdOn(conf: string): boolean {
+  let section = '';
+  let on = false;
+  for (const raw of conf.split('\n')) {
+    const line = raw.replace(/[#;].*$/, '').trim();
+    const head = /^\[(.+)\]$/.exec(line);
+    if (head) { section = head[1].trim().toLowerCase(); continue; }
+    const kv = /^([^=]+)=(.*)$/.exec(line);
+    if (section === 'boot' && kv && kv[1].trim().toLowerCase() === 'systemd') on = kv[2].trim().toLowerCase() === 'true';
+  }
+  return on;
+}
+
+export function parseWslProbe(out: string): { wsl: boolean; systemd: boolean; fuse: boolean } {
+  const [version = '', conf = '', fuse = ''] = out.split(`${WSL_SEP}\n`);
+  return { wsl: /microsoft/i.test(version), systemd: wslSystemdOn(conf), fuse: fuse.trim() === 'fuse' };
+}
+
+/** Check's WSL items; none on a plain Linux device. systemd keeps tailscaled
+ *  and our tmux running; /dev/fuse is what the hive mount needs. The two
+ *  Windows-side settings cannot be seen from inside WSL, so they are
+ *  reminders. */
+export function wslCheckItems(p: { wsl: boolean; systemd: boolean; fuse: boolean }): DeviceCheckItem[] {
+  if (!p.wsl) return [];
+  return [
+    p.systemd
+      ? { id: 'wslSystemd', ok: true }
+      : { id: 'wslSystemd', ok: false, fix: 'sudoedit /etc/wsl.conf   # under [boot] set systemd=true; then, in Windows: wsl --shutdown' },
+    p.fuse
+      ? { id: 'wslFuse', ok: true }
+      : { id: 'wslFuse', ok: false, fix: 'sudo apt install fuse3   # then, in Windows: wsl --shutdown' },
+    { id: 'wslIdle', ok: true, reminder: true, fix: 'In Windows, %UserProfile%\\.wslconfig: [wsl2] vmIdleTimeout=-1, then wsl --shutdown' },
+    { id: 'wslSleep', ok: true, reminder: true, fix: 'In Windows, an admin terminal: powercfg /change standby-timeout-ac 0 and powercfg /change hibernate-timeout-ac 0' }
+  ];
+}
