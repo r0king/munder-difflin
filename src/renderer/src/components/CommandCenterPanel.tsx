@@ -443,7 +443,8 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
         resumeSessionId = registry.agents[a.id]?.sessionId;
         if (!resumeSessionId) {
           giveUpOnResume('No recorded session ID; current process was left running.');
-        } else if (provider === 'claude' && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
+        // A device agent's transcript is on the device; main checks it there.
+        } else if (provider === 'claude' && !a.device && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
           giveUpOnResume('Session transcript not found; current process was left running.');
         }
       }

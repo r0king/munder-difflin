@@ -4,6 +4,7 @@ import { AgentCard } from './AgentCard';
 import { PixelButton } from './PixelButton';
 import { Icon } from './Icon';
 import { useStore, type Agent } from '@/store/store';
+import { deviceOffline, useDeviceStates } from '@/store/devices';
 import { type HarnessConfig } from '@/store/config';
 import { useRestoreTeam } from '@/hooks/useRestoreTeam';
 import { useRtl } from '@/i18n/useDirection';
@@ -15,6 +16,7 @@ export interface AgentStripProps {
 }
 
 export function AgentStrip({ config }: AgentStripProps) {
+  const deviceStates = useDeviceStates((s) => s.states);
   const { t } = useTranslation();
   const rtl = useRtl();
   const agents = useStore(s => s.agents);
@@ -154,6 +156,8 @@ export function AgentStrip({ config }: AgentStripProps) {
             }}
             note={a.note}
             onEditNote={a.isGod ? undefined : () => setNoteEditId(a.id)}
+            device={a.device}
+            deviceOffline={deviceOffline(a.device, deviceStates)}
           />
           {/* The note itself lives INSIDE the card (its own row above the gauge).
               This is the transient EDITOR: a fixed popover ABOVE the card —

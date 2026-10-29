@@ -1,4 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
+import { restartAgentProcess } from '@/workspace/agents/restartAgent';
 import { PixelPanel } from './PixelPanel';
 import { PixelButton } from './PixelButton';
 import { SpritePortrait } from './SpritePortrait';
@@ -42,6 +44,8 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
   const [model, setModel] = useState<string | undefined>(agent.model);
   const [description, setDescription] = useState(agent.description);
   const [goal, setGoal] = useState(agent.goal ?? '');
+  const [device, setDevice] = useState(agent.device ?? '');
+  const { t } = useTranslation();
 
   useEffect(() => {
     void window.cth.getConfig().then(setConfig).catch(() => setConfig(null));
@@ -56,6 +60,7 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
     setModel(agent.model);
     setDescription(agent.description);
     setGoal(agent.goal ?? '');
+    setDevice(agent.device ?? '');
   }, [agent.id]);
 
   const pickProvider = (id: AgentProvider) => {
@@ -86,9 +91,16 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
       model,
       command,
       description: trimmedDescription,
-      goal: trimmedGoal || undefined
+      goal: trimmedGoal || undefined,
+      device: device || undefined
     });
     onClose();
+    // A move restarts the agent on its new device with a fresh session. The
+    // conversation stays where it ran; memory.md is in the shared hive, so it
+    // carries over. Stopping it on the old device is the restart's own kill.
+    if ((device || undefined) !== (agent.device || undefined) && agent.ptyId) {
+      void restartAgentProcess(agent.id);
+    }
   };
 
   return (
@@ -254,6 +266,17 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
                 Engine changes are saved for the next restart. Use Command Center → Floor to restart a live session onto a new provider/model now.
               </span>
             </Section>
+
+            {(config?.devices ?? []).length > 0 && (
+              <Section label={t('addAgent.sections.workspace.label')} hint={t('devices.restartsHint')}>
+                <Row label={t('devices.runsOn')}>
+                  <select value={device} onChange={(e) => setDevice(e.target.value)} style={inputStyle}>
+                    <option value="">{t('devices.thisLaptop')}</option>
+                    {(config?.devices ?? []).map((d) => <option key={d.id} value={d.id}>{d.id}</option>)}
+                  </select>
+                </Row>
+              </Section>
+            )}
 
               </div>
               <div style={{ minWidth: 0 }}>
