@@ -7,6 +7,7 @@ import { SpritePortrait } from './SpritePortrait';
 import { ProviderLogo } from './ProviderLogo';
 import { useStore, type Agent } from '@/store/store';
 import { deviceOffline, useDeviceStates } from '@/store/devices';
+import { AUTO_DEVICE } from '@shared/devices';
 import { OFFICE_CAST, type OfficeCharacterName } from '@/scene/office/cast';
 import { type AccentColorName } from '@/design/tokens';
 import {
@@ -287,7 +288,7 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
                   <select value={device} onChange={(e) => { setDevice(e.target.value); setMoveError(undefined); }} style={inputStyle}>
                     <option value="">{t('devices.thisLaptop')}</option>
                     {/* god is never placed automatically (spec §4). */}
-                    {!agent.isGod && <option value="auto">{t('devices.auto')}</option>}
+                    {!agent.isGod && <option value={AUTO_DEVICE}>{t('devices.auto')}</option>}
                     {(config?.devices ?? []).map((d) => <option key={d.id} value={d.id}>{d.id}</option>)}
                   </select>
                 </Row>

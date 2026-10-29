@@ -30,9 +30,11 @@ export function deviceLabel(device: string | undefined, lastDevice: string | und
   return `${lastDevice || thisLaptop} (auto)`;
 }
 
-/** A card greys out ("offline · reconnecting") unless its device is online. */
+/** A card greys out ("offline · reconnecting") unless its device is online.
+ *  Auto is never offline: it is not a machine, and main picks an online one
+ *  (Edit's move guard would otherwise refuse every switch to Auto). */
 export function deviceOffline(device: string | undefined, states: Record<string, DeviceStatus>): boolean {
-  return !!device && states[device]?.state !== 'online';
+  return !!device && device !== AUTO_DEVICE && states[device]?.state !== 'online';
 }
 
 /** The card caption when a moved agent's conversation could not follow it. */

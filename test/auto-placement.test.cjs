@@ -75,6 +75,7 @@ test('an Auto agent counts as on the device it last ran on', () => {
   const states = { 'my-lap': { id: 'my-lap', state: 'online' } };
   assert.equal(deviceOffline(effectiveDevice('auto', 'my-lap'), states), false);
   assert.equal(deviceOffline(effectiveDevice('auto', undefined), states), false, 'Auto on this laptop is never offline');
+  assert.equal(deviceOffline('auto', {}), false, "Edit's move guard lets you switch to Auto");
 });
 
 test('the card tag says where Auto put it', () => {

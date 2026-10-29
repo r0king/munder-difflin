@@ -32,7 +32,7 @@ import {
 } from '@/store/config';
 import { roleForHiveSpawn } from '@shared/agentRole';
 import i18n from '@/i18n';
-import { conversationStayedText } from '@/store/devices';
+import { conversationStayedText, effectiveDevice } from '@/store/devices';
 
 export interface RestartOptions {
   /** Model to run; defaults to the agent's current one. */
@@ -132,7 +132,7 @@ export async function restartAgentProcess(agentId: string, opts: RestartOptions 
       resumeSessionId = registry.agents[a.id]?.sessionId;
       if (!resumeSessionId) giveUp('noSession');
       // A device agent's transcript is on the device; main checks it there.
-      else if (provider === 'claude' && !a.device && !opts.moved && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
+      else if (provider === 'claude' && !effectiveDevice(a.device, a.lastDevice) && !opts.moved && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
         giveUp('noTranscript');
       }
     }

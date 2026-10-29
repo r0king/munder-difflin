@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { useStore, type Agent } from '@/store/store';
+import { effectiveDevice } from '@/store/devices';
 import { buildSpawnCommand, inferAgentProvider, tokenizeCommand, type HarnessConfig } from '@/store/config';
 import { roleForHiveSpawn } from '@shared/agentRole';
 
@@ -123,7 +124,7 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
           let worktreeGone = false;
           if (a.worktreePath) {
             // A device's worktree is on the device; main checks the folder there.
-            if (a.device || await window.cth.gitIsRepo(a.worktreePath)) {
+            if (effectiveDevice(a.device, a.lastDevice) || await window.cth.gitIsRepo(a.worktreePath)) {
               cwd = a.worktreePath;
             } else {
               worktreeGone = true;
@@ -154,6 +155,9 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
             restored++;
             return {
                 ...a,
+                // Where it runs now: Auto picks again when its last device is
+                // down or there is no session to continue.
+                ...(res.device !== undefined ? { lastDevice: res.device } : {}),
                 provider,
                 ptyId,
                 archived: false,
