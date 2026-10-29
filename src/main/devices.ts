@@ -19,6 +19,8 @@ import { EventEmitter } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { cpus, freemem, homedir, loadavg, tmpdir, userInfo } from 'node:os';
 import { dirname, join, sep } from 'node:path';
+import { promisify } from 'node:util';
+import { gzip } from 'node:zlib';
 import { LOCAL_DEVICE, normalizeDevices, type ConversationStayed, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
 import {
   backoffDelay, baseFolder, engineCheck, basePathCommand, basePathFix, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, hostKeyFailed, installShimCommand, launchPath, launchScript,
@@ -118,7 +120,7 @@ export class DeviceLink extends EventEmitter {
 
   /** Run one command on the device over the master, under `bash -lc` so it
    *  sees the login PATH. Fails at once while the device is not online. */
-  exec(cmd: string, timeoutMs = 15_000, input?: string): Promise<ExecResult> {
+  exec(cmd: string, timeoutMs = 15_000, input?: string | Buffer): Promise<ExecResult> {
     if (this.state !== 'online') {
       return Promise.resolve({ ok: false, code: -1, stdout: '', stderr: '', error: `${this.id} is offline` });
     }
@@ -260,7 +262,7 @@ export class DeviceLink extends EventEmitter {
     this.retry = setTimeout(() => { this.retry = null; void this.connect(); }, delay);
   }
 
-  private async run(cmd: string, timeoutMs: number, input?: string): Promise<ExecResult> {
+  private async run(cmd: string, timeoutMs: number, input?: string | Buffer): Promise<ExecResult> {
     const r = await this.spawnSsh(execArgs(this.ctl(), this.target(), cmd), timeoutMs, input);
     const fenced = parseFenced(r.stdout);
     if (!fenced) {
@@ -269,7 +271,7 @@ export class DeviceLink extends EventEmitter {
     return { ok: fenced.code === 0, code: fenced.code, stdout: fenced.out, stderr: r.stderr };
   }
 
-  private spawnSsh(args: string[], timeoutMs: number, input?: string): Promise<{ code: number; stdout: string; stderr: string }> {
+  private spawnSsh(args: string[], timeoutMs: number, input?: string | Buffer): Promise<{ code: number; stdout: string; stderr: string }> {
     return new Promise((resolve) => {
       const p = spawn(this.sshBin, args, { stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], env: this.env.sshEnv });
       if (input !== undefined) {
@@ -422,8 +424,13 @@ export type TranscriptCopyResult = { ok: true } | { ok: false; reason: Conversat
 
 /** Claude's session ids are UUIDs. Anything else never becomes a path. */
 const SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
-/** A transcript is a few MB; over Tailscale that takes seconds. */
-const COPY_TIMEOUT_MS = 120_000;
+/** A transcript runs to 200 MB, and a Tailscale relay can carry ~1 MB/s, so
+ *  the write goes gzipped (about a tenth the size) and the timeout leaves
+ *  room for a whole floor moving at once.
+ *  ponytail: the read (device → here) still goes plain; gzip it too if moves
+ *  off a device time out. */
+const COPY_TIMEOUT_MS = 15 * 60_000;
+const gzipAsync = promisify(gzip);
 
 function localTranscript(home: string, cwd: string, sessionId: string): string {
   return join(home, '.claude', 'projects', projectKey(cwd), `${sessionId}.jsonl`);
@@ -454,7 +461,8 @@ export async function copyTranscript(
     catch { return { ok: false, reason: 'missing' }; }
   }
   if (to) {
-    const w = await to.exec(writeTranscriptCommand(cwd, sessionId), COPY_TIMEOUT_MS, body);
+    // Off the main thread: gzipping 200 MB in one go would freeze the window.
+    const w = await to.exec(writeTranscriptCommand(cwd, sessionId), COPY_TIMEOUT_MS, await gzipAsync(body, { level: 1 }));
     return w.ok ? { ok: true } : { ok: false, reason: 'failed' };
   }
   try {

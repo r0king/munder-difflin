@@ -419,13 +419,14 @@ export function readTranscriptCommand(cwd: string, sessionId: string): string {
   return `[ -f ${f} ] || exit ${TRANSCRIPT_MISSING}; cat ${f}`;
 }
 
-/** Write stdin as a session's transcript. It goes through a temp file, so a
- *  link cut mid-copy never leaves half a conversation where `--resume`
- *  would find it. */
+/** Write a gzipped stdin as a session's transcript. A link cut mid-copy ends
+ *  stdin with a plain EOF, so a bare `cat` would rename half a conversation
+ *  into place; gunzip checks the stream's own length and CRC and fails on a
+ *  short one, and the temp file is then removed. */
 export function writeTranscriptCommand(cwd: string, sessionId: string): string {
   const d = projectDirSh(cwd);
   const part = `${d}/${shq(`.${sessionId}.jsonl.part`)}`;
-  return `mkdir -p ${d} && cat > ${part} && mv -f ${part} ${d}/${shq(`${sessionId}.jsonl`)}`;
+  return `mkdir -p ${d} && gunzip -c > ${part} && mv -f ${part} ${d}/${shq(`${sessionId}.jsonl`)} || { rm -f ${part}; exit 1; }`;
 }
 
 // ─── Automatic placement (devices phase 2, item 2) ───────────────────────────

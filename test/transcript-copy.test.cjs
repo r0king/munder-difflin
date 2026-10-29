@@ -93,6 +93,17 @@ test('a session id that is not one never becomes a path', async (t) => {
   assert.deepEqual(await copyTranscript(undefined, link, CWD, '../../etc/passwd', tmpHome(t)), { ok: false, reason: 'missing' });
 });
 
+test('a copy cut short never takes the real name: a cut link is a plain EOF', (t) => {
+  const { writeTranscriptCommand } = loadTs('src/main/deviceCommands.ts');
+  const home = tmpHome(t);
+  const gz = require('node:zlib').gzipSync(BODY);
+  const run = (input) => require('node:child_process').spawnSync('bash', ['-c', writeTranscriptCommand(CWD, SID)], { input, env: { ...process.env, HOME: home } });
+  assert.notEqual(run(gz.subarray(0, gz.length >> 1)).status, 0);
+  assert.deepEqual(fs.readdirSync(path.dirname(file(home))), [], 'neither the transcript nor a .part file');
+  assert.equal(run(gz).status, 0);
+  assert.equal(fs.readFileSync(file(home), 'utf8'), BODY);
+});
+
 test('the floor says where the conversation stayed, in the spec words', () => {
   const en = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'src/renderer/src/i18n/locales/en.json'), 'utf8'));
   const t = (k, o = {}) => k.split('.').reduce((x, p) => x?.[p], en).replace(/\{\{(\w+)\}\}/g, (_, v) => o[v]);
