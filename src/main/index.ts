@@ -67,7 +67,7 @@ import { startSftpServer, type SftpServer } from './sftpServer';
 import {
   REMOTE_HOOK_COMMAND, TMUX_KILL_SERVER, TMUX_LS, dirExistsCommand, hasSessionCommand, isDetach,
   killSessionCommand, parseTmuxLs, planReconcile, remoteAgentEnv, rosterAgentsOn, sessionName,
-  takePausedCommand, transcriptExistsCommand
+  takePausedCommand, transcriptExistsCommand, validateSpawnDevice
 } from './deviceCommands';
 import { DEFAULT_OFFLINE_PAUSE_MIN, LOCAL_DEVICE, normalizeDeviceId, type DeviceStatus } from '../shared/devices';
 import { buildWorkerLaunch } from './workerLaunch';
@@ -425,6 +425,10 @@ let floorSeq = 0;
 
 /** When true, skip the quit interceptor (user already confirmed). */
 let allowQuit = false;
+/** teardownAndQuit awaits each device's remote kill-server (up to 3 s), and
+ *  closing the last window or a closing-time conclusion can call it again
+ *  during that wait; the second entry must not tear down twice. */
+let quitting = false;
 
 /** Agents spawned with `isolate: true` get a dedicated git worktree; this maps
  *  the agent/pty id → the worktree path so we can tear it down on kill. */
@@ -4088,6 +4092,8 @@ ipcMain.handle('history:search', (_evt, query: unknown, limit: unknown) =>
 /** Tear the harness down and quit. Shared by the hard "kill all & quit" path
  *  and the closing-time conclusion (after the god confirmed the floor saved). */
 async function teardownAndQuit(): Promise<void> {
+  if (quitting) return;
+  quitting = true;
   allowQuit = true;
   // Each teardown step is best-effort: a throw here (e.g. a dying child or a
   // half-torn-down socket) must never abort the quit or pop a crash dialog.
@@ -4951,6 +4957,8 @@ interface SpawnRequest {
   // from the worker id.
   character?: string;
   accent?: string;
+  /** A device id (Settings → Devices) to run the worker on; default this laptop. */
+  device?: string;
 }
 
 /** Polling cadence — matches the hive router. */
@@ -5053,7 +5061,13 @@ async function processSpawnRequest(filePath: string): Promise<void> {
   // Worker request files are hand/LLM-authored, so `~/…` shows up here too — expand
   // before the existence check (Node reads `~` literally).
   const cwd = typeof raw.cwd === 'string' && raw.cwd.trim() ? expandTilde(raw.cwd) : '';
-  if (!cwd || !existsSync(cwd)) { fail(`"cwd" missing or not found (${cwd || 'unset'})`); return; }
+  // Where it runs. An unknown or offline device fails the request here, with
+  // the reason, rather than queueing work no machine will pick up.
+  const placement = validateSpawnDevice(raw.device, Object.fromEntries(devices.statuses().map((s) => [s.id, s.state])));
+  if (placement.error) { fail(placement.error); return; }
+  const link = placement.device ? devices.get(placement.device) : undefined;
+  // A device's folder is checked on the device, by spawnAgentCore.
+  if (!cwd || (!link && !existsSync(cwd))) { fail(`"cwd" missing or not found (${cwd || 'unset'})`); return; }
 
   // Request line → executable + argv (auto-mode inheritance, tokenization,
   // model-flag dedupe). Pure and unit-tested — see workerLaunch.ts for why this
@@ -5079,19 +5093,22 @@ async function processSpawnRequest(filePath: string): Promise<void> {
   }
   // Missing-CLI → FAIL FAST. A headless worker has no human to watch an installer,
   // so we never run the cc49e1e install banner here — we reject and tell god.
-  if (!ptyManager.isCommandAvailable(bin)) { fail(`engine CLI "${bin}" is not installed`); return; }
+  // On a device the CLI is the device's (Settings → Devices → Check covers it).
+  if (!link && !ptyManager.isCommandAvailable(bin)) { fail(`engine CLI "${bin}" is not installed`); return; }
 
   const isolate = raw.isolate !== false; // default true
   // Base branch the worktree will be cut from (for the ahead-of-base safety check).
   let baseBranch = 'main';
-  try { const br = await getBranch(cwd); if ('current' in br && br.current) baseBranch = br.current; } catch { /* keep default */ }
+  try { const br = await getBranch(cwd, link); if ('current' in br && br.current) baseBranch = br.current; } catch { /* keep default */ }
 
   const meta: AgentMeta = {
     id: workerId,
     name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : `Worker ${reqId.slice(0, 12)}`,
     provider: raw.provider,
     role: 'worker',
-    cwd
+    cwd,
+    // '' = this laptop, said outright so a reused worker id never inherits a device.
+    device: placement.device ?? ''
   };
   // Phase 2: grant this worker a broker capability over the currently-enabled
   // integrations and inject the broker URL + a per-worker capability TOKEN (a handle,
@@ -5135,6 +5152,7 @@ async function processSpawnRequest(filePath: string): Promise<void> {
       command: launch.command,
       role: meta.role,
       worktreePath: res.worktreePath,
+      device: placement.device,
       character: typeof raw.character === 'string' ? raw.character : undefined,
       accent: typeof raw.accent === 'string' ? raw.accent : undefined
     });
@@ -5471,6 +5489,7 @@ function bootstrapHiveServices(): void {
   // builder reads this, so an agent spawned earlier would never learn it.
   hive.setRuntimeInfo({ version: app.getVersion(), packaged: app.isPackaged, appPath: app.getAppPath() });
   hive.setOrchestratorMaySpawn(readConfig().orchestratorMaySpawn === true);
+  hive.setDeviceIds((readConfig().devices ?? []).map((d) => d.id));
   // An app-start marker in the event log. log.jsonl had twelve event kinds and
   // none of them meant "the app restarted", so a relaunch, and more importantly a
   // switch between a packaged build and a local one, was invisible to every agent
@@ -5861,6 +5880,7 @@ app.on('before-quit', (e) => {
 onConfigWritten((config) => {
   // Settings → Devices added, removed or changed a device.
   if (devicesStarted) devices.sync(config.devices ?? []);
+  hive.setDeviceIds((config.devices ?? []).map((d) => d.id));
   for (const w of allWindows) {
     if (w.isDestroyed() || w.webContents.isDestroyed()) continue;
     w.webContents.send('config:changed', config);

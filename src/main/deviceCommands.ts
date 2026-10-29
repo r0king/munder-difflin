@@ -12,7 +12,7 @@
  * always `bash -lc '<cmd>'`: a known shell, with the device's login PATH,
  * where `~/.local/bin/claude` lives.
  */
-import { DEFAULT_PORT_BASE, isValidDeviceHost, isValidDeviceUser, type DeviceCheckItem, type DeviceConfig, type DeviceState } from '../shared/devices';
+import { DEFAULT_PORT_BASE, isValidDeviceHost, isValidDeviceUser, normalizeDeviceId, type DeviceCheckItem, type DeviceConfig, type DeviceState } from '../shared/devices';
 import { projectKey } from './transcript';
 
 /** POSIX single quotes: safe for any string, newlines and unicode included. */
@@ -337,4 +337,18 @@ export function checkCommands(
     { item: 'mount', cmd: `mountpoint -q ${shq(hiveRoot)}`, fix: `mv ${shq(hiveRoot)} ${shq(`${hiveRoot}.local`)}   # on the device, only if that folder is not empty; the link then mounts it` },
     ...folders.map((f) => ({ item: 'folder' as const, path: f, cmd: dirExistsCommand(f), fix: `mkdir -p ${shq(f)}   # or clone the repo there, on the device` }))
   ];
+}
+
+// ─── god's spawn requests ────────────────────────────────────────────────────
+
+/** A spawn request's `device`. Absent, '' or 'local' = this laptop. An
+ *  unknown, offline or still-connecting device fails the request, with a
+ *  reason god can read in `.failed/`. */
+export function validateSpawnDevice(device: unknown, states: Record<string, DeviceState>): { device?: string; error?: string } {
+  if (device !== undefined && typeof device !== 'string') return { error: '"device" must be a device id' };
+  const id = normalizeDeviceId(device);
+  if (!id) return {};
+  if (!(id in states)) return { error: `unknown device "${id}"` };
+  if (states[id] !== 'online') return { error: `device "${id}" is ${states[id]}` };
+  return { device: id };
 }
