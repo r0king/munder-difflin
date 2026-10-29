@@ -286,3 +286,14 @@ test('ssh argv guards: options end before the target, and no host or user can pa
   assert.throws(() => dc.sshTarget({ id: 'd', host: 'h' }, '-oX'), /not a valid user/);
   assert.equal(dc.sshTarget({ id: 'd', host: 'h' }, 'royal'), 'royal@h');
 });
+
+test("claude in ~/.local/bin is found: every device command and launch.sh put it on PATH", () => {
+  // Claude's installer puts claude in ~/.local/bin, and a login shell may leave
+  // that out (Arch's default profile does; found on my-lap, 2026-10-29).
+  const args = dc.execArgs('/c', 'u@h', 'command -v claude');
+  assert.match(args[args.length - 1], /^bash -lc 'export PATH="\$HOME\/\.local\/bin:\$PATH"; /);
+  const script = dc.launchScript({ cwd: '/r', env: { A: '1' }, command: 'claude', args: [] }).split('\n');
+  const pathLine = script.indexOf('export PATH="$HOME/.local/bin:$PATH";');
+  assert.ok(pathLine > 0, 'launch.sh sets PATH');
+  assert.ok(pathLine < script.findIndex((l) => l.startsWith('exec ')), 'before it execs claude');
+});

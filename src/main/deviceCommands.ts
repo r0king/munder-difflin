@@ -9,8 +9,10 @@
  * The quoting rule: every value is POSIX-single-quoted once, at the layer that
  * parses it. A command that crosses ssh travels as ONE string (sshd joins its
  * argv with spaces and hands the result to the user's login shell), so it is
- * always `bash -lc '<cmd>'`: a known shell, with the device's login PATH,
- * where `~/.local/bin/claude` lives.
+ * always `bash -lc '<cmd>'`: a known shell, with the device's login PATH.
+ * A login shell does NOT always include `~/.local/bin`, where Claude's own
+ * installer puts `claude` (Arch's default profile doesn't; my-lap, 2026-10-29),
+ * so every command and every launch.sh puts it first: DEVICE_PATH below.
  */
 import { AUTO_DEVICE, DEFAULT_PORT_BASE, isValidDeviceHost, isValidDeviceUser, LOCAL_DEVICE, normalizeDeviceId, type DeviceCheckItem, type DeviceConfig, type DeviceState } from '../shared/devices';
 import { projectKey } from './transcript';
@@ -135,8 +137,12 @@ export function parseFenced(stdout: string): { out: string; code: number } | nul
   return Number.isFinite(code) ? { out: stdout.slice(from, e), code } : null;
 }
 
+/** Prepended to every command on a device and to every launch.sh: Claude's
+ *  installer puts `claude` in ~/.local/bin, which a login shell may leave out. */
+export const DEVICE_PATH = 'export PATH="$HOME/.local/bin:$PATH"; ';
+
 export function execArgs(ctl: string, target: string, cmd: string): string[] {
-  return ['-S', ctl, '-o', 'BatchMode=yes', target, '--', `bash -lc ${shq(fence(cmd))}`];
+  return ['-S', ctl, '-o', 'BatchMode=yes', target, '--', `bash -lc ${shq(DEVICE_PATH + fence(cmd))}`];
 }
 
 // ─── tmux ────────────────────────────────────────────────────────────────────
@@ -345,14 +351,18 @@ const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
  *  here, so the long multi-line hive prompt never has to survive ssh, a login
  *  shell and tmux as an argument. Env names a shell cannot export are dropped. */
 export function launchScript(o: { cwd: string; env: Record<string, string>; command: string; args: string[] }): string {
-  const exports = Object.entries({ COLORTERM: 'truecolor', FORCE_COLOR: '1', ...o.env })
+  // Not named `exports`: compiled to CommonJS, that would shadow the module's
+  // own exports, which DEVICE_PATH below is read from.
+  const exportLines = Object.entries({ COLORTERM: 'truecolor', FORCE_COLOR: '1', ...o.env })
     .filter(([k]) => ENV_NAME.test(k))
     .map(([k, v]) => `export ${k}=${shq(v)}`);
   return [
     '#!/usr/bin/env bash',
     '# Written by Munder Difflin on every start of this agent. Do not edit.',
     `cd ${shq(o.cwd)} || exit 1`,
-    ...exports,
+    // A tmux server keeps the PATH it started with, so set it here too.
+    DEVICE_PATH.trim(),
+    ...exportLines,
     claudeTrustCommand(o.cwd),
     `exec ${[o.command, ...o.args].map(shq).join(' ')}`,
     ''
