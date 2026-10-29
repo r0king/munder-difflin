@@ -3307,12 +3307,25 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   let res: { ok: boolean; error?: string };
   const hiveRoot = hive.root();
   if (link && opts.hive && hiveRoot) {
-    const remoteSpawn = remoteTerminal(link, hiveRoot, {
-      ptyId: opts.id, agentId: opts.hive.id, cwd: opts.cwd,
-      env: opts.env ?? {}, args: opts.args ?? [], cols: opts.cols, rows: opts.rows
-    });
-    res = ptyManager.spawn(remoteSpawn, owner);
-    if (res.ok) remotePtys.set(opts.id, { deviceId: link.id, agentId: opts.hive.id, spawn: remoteSpawn, owner });
+    // remoteTerminal throws when it refuses to write launch.sh (a folder that
+    // resolves outside the hive) or the write fails; that is a failed spawn the
+    // floor reports, not an exception for the IPC handler.
+    let remoteSpawn: ReturnType<typeof remoteTerminal> | undefined;
+    let refused = 'could not write launch.sh';
+    try {
+      remoteSpawn = remoteTerminal(link, hiveRoot, {
+        ptyId: opts.id, agentId: opts.hive.id, cwd: opts.cwd,
+        env: opts.env ?? {}, args: opts.args ?? [], cols: opts.cols, rows: opts.rows
+      });
+    } catch (e) {
+      refused = e instanceof Error ? e.message : String(e);
+    }
+    if (!remoteSpawn) {
+      res = { ok: false, error: refused };
+    } else {
+      res = ptyManager.spawn(remoteSpawn, owner);
+      if (res.ok) remotePtys.set(opts.id, { deviceId: link.id, agentId: opts.hive.id, spawn: remoteSpawn, owner });
+    }
   } else if (link) {
     res = { ok: false, error: 'Agents on devices need the hive: set a hive folder first.' };
   } else {

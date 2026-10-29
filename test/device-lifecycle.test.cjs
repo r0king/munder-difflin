@@ -47,3 +47,18 @@ test("a device agent's worktree is removed on the device, never with local git",
   assert.doesNotMatch(remoteBranch, /removeWorktree\(origCwd, wtPath\)/);
   assert.doesNotMatch(remoteBranch, /finalizeWorkerWorktree/);
 });
+
+test('a refused launch.sh write is a failed spawn, not an exception', () => {
+  // remoteTerminal throws when launch.sh's folder resolves outside the hive;
+  // the spawn IPC must get { ok:false, error } back instead of a throw.
+  const fs = require('node:fs');
+  const path = require('node:path');
+  // Raw source: index.ts has '/*' inside strings, which a comment-stripping
+  // regex would read as a comment and eat real code with it.
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src/main/index.ts'), 'utf8');
+  const call = src.indexOf('remoteSpawn = remoteTerminal(');
+  assert.ok(call > 0, 'spawnAgentCore calls remoteTerminal');
+  const before = src.slice(Math.max(0, call - 200), call);
+  assert.match(before, /try \{\s*$/);
+  assert.match(src.slice(call, call + 800), /catch \(e\) \{[\s\S]*?res = \{ ok: false, error: refused \}/);
+});
