@@ -1248,8 +1248,10 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                     </>
                   )}
 
-                  {/* AUTONOMY & BUDGETS — the safety tab */}
+                  {/* DEVICES — other machines that run agents for this floor */}
                   {activeSection === 'Devices' && <DevicesSettings config={config} />}
+
+                  {/* AUTONOMY & BUDGETS — the safety tab */}
 
                   {activeSection === 'Autonomy & Budgets' && (
                     <>

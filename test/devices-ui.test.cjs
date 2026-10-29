@@ -44,3 +44,38 @@ test('a device in use cannot be removed; a card greys unless its device is onlin
   assert.equal(deviceOffline('b', states), true);
   assert.equal(deviceOffline('unknown', states), true);
 });
+
+// Source-level checks: comments stripped so prose naming a call cannot pass
+// for the call itself.
+const src = (p) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+
+test('the move and add errors exist in all three locales', () => {
+  for (const l of LOCALES) {
+    const d = read(l).devices;
+    for (const k of ['errOffline', 'errUser']) assert.ok(typeof d[k] === 'string' && d[k].length > 0, `${l}: devices.${k}`);
+    assert.ok(d.errOffline.includes('{{device}}'), `${l}: devices.errOffline keeps {{device}}`);
+  }
+});
+
+test('Edit Agent offers "Runs on" to Claude agents only and refuses a move to a device that is not online', () => {
+  const code = src('src/renderer/src/components/EditAgentModal.tsx');
+  assert.match(code, /isClaudeProvider\(provider\)\s*&&\s*\(config\?\.devices \?\? \[\]\)\.length > 0/, 'picker gated on Claude');
+  const save = code.slice(code.indexOf('const save = '));
+  const guard = save.search(/deviceOffline\(device \|\| undefined, useDeviceStates\.getState\(\)\.states\)/);
+  assert.ok(guard > 0, 'save checks the target device state');
+  assert.match(save.slice(guard, guard + 300), /setMoveError\(t\('devices\.errOffline'[\s\S]*?return;/, 'refuses with the localized error');
+  assert.ok(guard < save.indexOf('updateAgent('), 'refuses before anything is stored');
+  assert.ok(guard < save.indexOf('restartAgentProcess('), 'refuses before the agent is restarted');
+});
+
+test('Settings → Devices validates the user and shows a failed save', () => {
+  const code = src('src/renderer/src/components/DevicesSettings.tsx');
+  assert.match(code, /user && !isValidDeviceUser\(user\)\) \{ setError\(t\('devices\.errUser'\)\); return; \}/);
+  assert.match(code, /catch \(e\) \{\s*setError\(/, 'a rejected updateConfig lands in the error line');
+});
+
+test('restart and restore carry the agent\'s device to main', () => {
+  assert.match(src('src/renderer/src/workspace/agents/restartAgent.ts'), /device: a\.device \?\? ''/);
+  assert.match(src('src/renderer/src/hooks/useRestoreTeam.ts'), /device: a\.device \?\? ''/);
+});

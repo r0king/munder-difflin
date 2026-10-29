@@ -1426,6 +1426,8 @@
     "fix": "Fix:",
     "errId": "Use 1–32 letters, digits, - or _, not \"local\", and a name not already used.",
     "errHost": "Enter the device's Tailscale IP or name.",
+    "errUser": "Use a Linux user name: letters, digits, _, . or -, starting with a letter or _.",
+    "errOffline": "{{device}} is not online. Moving now would stop this agent and leave it unable to start, so it was not moved.",
     "none": "No devices yet.",
     "items": {
       "login": "SSH login",
