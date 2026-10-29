@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEven
 import { useTranslation } from 'react-i18next';
 import { useStore, type Agent } from '@/store/store';
 import type { HarnessConfig } from '@/store/config';
+import { deviceLabel, deviceOffline, effectiveDevice, useDeviceStates } from '@/store/devices';
 import { useWorkspace } from '../store';
 import { agentLiveLine, deriveAgentStatus, liveLineText, type WsAgentStatus } from '../agentStatus';
 import { useAskedYou, useHiveTasks } from '../useHiveTasks';
@@ -381,6 +382,10 @@ function AgentRow({
   const live = liveLineText(t, line);
   const model = modelLabel(agent);
   const role = agent.isGod ? t('wsSidebar.agents.orchestrator') : null;
+  // Where it runs, as on the floor cards; nothing for this laptop.
+  const deviceStates = useDeviceStates((s) => s.states);
+  const device = deviceLabel(agent.device, agent.lastDevice, t('devices.thisLaptop'));
+  const offline = deviceOffline(effectiveDevice(agent.device, agent.lastDevice), deviceStates);
 
   return (
     <div
@@ -413,6 +418,11 @@ function AgentRow({
           <span className="cth-ws-sidebar-agent-name">{agent.name}</span>
           {role && <span className="cth-ws-sidebar-orch-tag">{role}</span>}
           <span className="cth-ws-sidebar-agent-model">{model}</span>
+          {device && (
+            <span className="cth-ws-sidebar-orch-tag" data-offline={offline ? 'true' : undefined}>
+              {offline ? `${device} · ${t('devices.state.offline')}` : device}
+            </span>
+          )}
         </span>
         <span className="cth-ws-sidebar-agent-live">{live}</span>
       </button>
