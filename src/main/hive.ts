@@ -740,6 +740,12 @@ export class HiveManager {
        *  MemPalace dir, which `mempalace` mutates). Absolute paths; ignored
        *  for providers without a sandbox. */
       extraWritableDirs?: string[];
+      /** Run every hook and the status line through this command instead of
+       *  the hive's shim. Set for an agent on a device: the hive there is an
+       *  sshfs mount that fails with EIO while the link is down, which is
+       *  exactly when the shim must still run to pause the agent, so the
+       *  device runs its own copy (REMOTE_HOOK_COMMAND in deviceCommands.ts). */
+      hookCommand?: string;
     } = {}
   ): Promise<SpawnInjection> {
     const root = this.root();
@@ -1015,7 +1021,7 @@ export class HiveManager {
       const role = (meta.role ?? '').trim().toLowerCase();
       const connectors = !opts.claudeAiConnectorRoles
         || opts.claudeAiConnectorRoles.some((r) => r.trim().toLowerCase() === role);
-      this.writeJson(settingsPath, this.hookSettings(shim, meta.cwd, opts.mcpDefaults, opts.theme, this.sandboxWritableDirs(meta, dir, root, opts.extraWritableDirs), connectors));
+      this.writeJson(settingsPath, this.hookSettings(shim, meta.cwd, opts.mcpDefaults, opts.theme, this.sandboxWritableDirs(meta, dir, root, opts.extraWritableDirs), connectors, opts.hookCommand));
       args.push('--settings', settingsPath);
     }
     return { args, env };
@@ -1257,10 +1263,11 @@ export class HiveManager {
     return Array.from(new Set(out));
   }
 
-  private hookSettings(shim: string, cwd: string, cfg: McpDefaultsMap, theme?: 'light' | 'dark', writableDirs: string[] = [], claudeAiConnectors = true): unknown {
+  private hookSettings(shim: string, cwd: string, cfg: McpDefaultsMap, theme?: 'light' | 'dark', writableDirs: string[] = [], claudeAiConnectors = true, hookCommand?: string): unknown {
     // Bundled node, NOT bare `node` — see nodeLauncherPath(). Claude runs each of
     // these through `sh -c` with a stripped PATH, where `node` is often absent.
-    const cmd = this.nodeRun(shim);
+    // A device agent passes its own command (see ensureAgent's hookCommand).
+    const cmd = hookCommand ?? this.nodeRun(shim);
     const entry = (matcher?: string) => ({
       ...(matcher ? { matcher } : {}),
       hooks: [{ type: 'command', command: cmd }]
@@ -3148,10 +3155,48 @@ const GENERATED_HIVE_DOCS = [
 // A minimal pipe: read the hook payload on stdin, tag it with this agent's id,
 // forward it to the hive's UDS, and relay the response back to `claude`. All the
 // real logic lives in the main process (HookServer). Never blocks a stop on error.
-const HOOK_SHIM = `#!/usr/bin/env node
+//
+// Devices (docs/superpowers/specs/2026-10-29-devices-design.md): an agent on
+// another machine runs a copy of this from its own disk (REMOTE_HOOK_COMMAND in
+// deviceCommands.ts) and reaches the floor over a forwarded loopback TCP port,
+// HIVE_HOOK_PORT, because remote Unix-socket forwards are broken under Tailscale
+// SSH. In that port mode only, a floor that stays unreachable for
+// HIVE_OFFLINE_PAUSE_MIN minutes stops the agent's turn: the floor cannot pause,
+// steer or halt it while cut off, and this bounds that.
+export const HOOK_SHIM = `#!/usr/bin/env node
 'use strict';
 const net = require('net');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const isStatus = process.argv.includes('--status');
+const port = Number(process.env.HIVE_HOOK_PORT) || 0;
+const target = port ? { host: '127.0.0.1', port: port } : process.env.HIVE_SOCK;
+// Port mode: the first failed connection writes its time here, a success
+// deletes the file. On the device's own disk: /run/user can vanish on a device
+// with no desktop login while tmux keeps running.
+const cacheDir = path.join(os.homedir(), '.cache', 'munder-difflin');
+const tag = 'md-' + String(process.env.AGENT_ID || 'agent').replace(/[^A-Za-z0-9._-]/g, '-');
+const unreachableFile = path.join(cacheDir, tag + '.unreachable');
+const pausedFile = path.join(cacheDir, tag + '.paused');
+function reachable() {
+  if (port) { try { fs.rmSync(unreachableFile, { force: true }); } catch (_) {} }
+}
+function cutOff() {
+  if (!port || isStatus) process.exit(0);
+  try {
+    fs.mkdirSync(cacheDir, { recursive: true });
+    if (!fs.existsSync(unreachableFile)) fs.writeFileSync(unreachableFile, String(Date.now()));
+    const since = Number(fs.readFileSync(unreachableFile, 'utf8'));
+    const pauseMin = Number(process.env.HIVE_OFFLINE_PAUSE_MIN || 0);
+    if (pauseMin > 0 && Date.now() - since > pauseMin * 60000) {
+      fs.writeFileSync(pausedFile, String(Date.now()));
+      const mins = Math.floor((Date.now() - since) / 60000);
+      process.stdout.write(JSON.stringify({ continue: false, stopReason: 'Munder Difflin floor unreachable for ' + mins + ' min; paused until the link is back.' }));
+    }
+  } catch (_) {}
+  process.exit(0);
+}
 let data = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (d) => { data += d; });
@@ -3159,13 +3204,13 @@ process.stdin.on('end', () => {
   let payload = {};
   try { payload = JSON.parse(data || '{}'); } catch (_) {}
   if (!payload.agent_id) payload.agent_id = process.env.AGENT_ID || null;
-  const sock = process.env.HIVE_SOCK;
   if (isStatus) {
     // Status-line mode: Claude Code pipes the session status JSON (incl.
     // context_window.total_input_tokens / .context_window_size) after every
     // response. Print the in-terminal gauge IMMEDIATELY (the TUI is waiting),
     // then forward the payload to the harness fire-and-forget so the agent
     // card's context gauge updates push-based, with the EXACT window size.
+    // Port mode reaches the floor the same way, but never pauses.
     payload.hook_event_name = 'Status';
     const cw = payload.context_window || {};
     const used = cw.total_input_tokens, size = cw.context_window_size;
@@ -3173,9 +3218,9 @@ process.stdin.on('end', () => {
       const pct = Math.round((used / size) * 100);
       process.stdout.write('ctx ' + Math.round(used / 1000) + 'k/' + Math.round(size / 1000) + 'k (' + pct + '%)');
     }
-    if (sock) {
+    if (target) {
       try {
-        const c = net.createConnection(sock, () => { c.end(JSON.stringify(payload) + '\\n'); });
+        const c = net.createConnection(target, () => { c.end(JSON.stringify(payload) + '\\n'); });
         c.on('error', () => {});
         c.on('close', () => process.exit(0));
       } catch (_) { process.exit(0); }
@@ -3185,15 +3230,17 @@ process.stdin.on('end', () => {
     setTimeout(() => process.exit(0), 1500).unref();
     return;
   }
-  if (!sock) { process.exit(0); }
+  if (!target) { process.exit(0); }
   let resp = '';
   const done = (code) => { if (resp) process.stdout.write(resp); process.exit(code); };
-  const c = net.createConnection(sock, () => c.write(JSON.stringify(payload) + '\\n'));
+  const c = net.createConnection(target, () => { reachable(); c.write(JSON.stringify(payload) + '\\n'); });
   c.setEncoding('utf8');
   c.on('data', (d) => { resp += d; });
   c.on('end', () => done(0));
-  c.on('error', () => process.exit(0));
-  setTimeout(() => process.exit(0), 5000).unref();
+  c.on('error', cutOff);
+  // A forward whose far end is gone can accept and then hang. In port mode
+  // that is as unreachable as a refused connection.
+  setTimeout(() => (port ? cutOff() : process.exit(0)), 5000).unref();
 });
 `;
 
