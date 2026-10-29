@@ -62,14 +62,14 @@ import { IntegrationBroker } from './integrationBroker';
 import * as integrations from './integrations';
 import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, INTEGRATION_TEMPLATES } from '../shared/integrations';
 import { RosterStore } from './roster';
-import { DeviceRegistry, remoteTerminal, type DeviceLink } from './devices';
+import { DeviceRegistry, checkDevice, remoteTerminal, type DeviceLink } from './devices';
 import { startSftpServer, type SftpServer } from './sftpServer';
 import {
   REMOTE_HOOK_COMMAND, TMUX_KILL_SERVER, TMUX_LS, dirExistsCommand, hasSessionCommand, isDetach,
   killSessionCommand, parseTmuxLs, planReconcile, remoteAgentEnv, rosterAgentsOn, sessionName,
   takePausedCommand, transcriptExistsCommand
 } from './deviceCommands';
-import { DEFAULT_OFFLINE_PAUSE_MIN, LOCAL_DEVICE, normalizeDeviceId } from '../shared/devices';
+import { DEFAULT_OFFLINE_PAUSE_MIN, LOCAL_DEVICE, normalizeDeviceId, type DeviceStatus } from '../shared/devices';
 import { buildWorkerLaunch } from './workerLaunch';
 import { CompactRequests } from './compactRequests';
 import { ControlRegistry } from './control';
@@ -3333,6 +3333,24 @@ ipcMain.handle('pty:kill', (_evt, id: string) => {
   return res;
 });
 ipcMain.handle('pty:list', () => ptyManager.list());
+
+// ─── IPC: devices ───────────────────────────────────────────────────────────
+ipcMain.handle('devices:list', () => devices.statuses());
+// Check covers each folder an agent on that device uses (floor + restore list).
+ipcMain.handle('devices:check', async (_evt, id: unknown) => {
+  const root = hive.root();
+  if (typeof id !== 'string' || !root) return [];
+  const folders = [...new Set(rosterAgentsOn(roster.read(), id).map((a) => a.cwd).filter((c): c is string => !!c))];
+  return checkDevice(devices.get(id), root, folders);
+});
+// Every floor shows device states (Settings → Devices, agent cards), the
+// same way it hears about a saved config.
+devices.on('state', (s: DeviceStatus) => {
+  for (const w of allWindows) {
+    if (w.isDestroyed() || w.webContents.isDestroyed()) continue;
+    w.webContents.send('devices:state', s);
+  }
+});
 
 // ─── IPC: analytics (the ONE renderer-facing seam) ──────────────────────────
 /** Count one human-sent message (TELEMETRY.md → `message_sent`). A COUNT, and

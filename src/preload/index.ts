@@ -13,7 +13,7 @@ export type { HeroPayload } from '../shared/heroPayload';
 import type { ModelCatalog } from '../shared/modelCatalogPayload';
 export type { ModelCatalog, CatalogModel } from '../shared/modelCatalogPayload';
 import type { HookEvent } from '../shared/hookEvents';
-import type { DeviceConfig } from '../shared/devices';
+import type { DeviceCheckItem, DeviceConfig, DeviceStatus } from '../shared/devices';
 export type { HookEvent } from '../shared/hookEvents';
 import type { LocalSkill, CatalogSkill } from '../main/skills';
 export type { LocalSkill, CatalogSkill } from '../main/skills';
@@ -638,6 +638,18 @@ const api = {
     const listener = () => cb();
     ipcRenderer.on(channel, listener);
     return () => ipcRenderer.removeListener(channel, listener);
+  },
+
+  // ─── Devices ─────────────────────────────────────────────────────────────
+  /** Every configured device's link state, for a first paint. */
+  listDevices: (): Promise<DeviceStatus[]> => ipcRenderer.invoke('devices:list'),
+  /** Settings → Devices → Check: each setup item, pass or fail with its fix. */
+  checkDevice: (id: string): Promise<DeviceCheckItem[]> => ipcRenderer.invoke('devices:check', id),
+  /** A device's link changed state (online, connecting, offline + reason). */
+  onDeviceState: (cb: (s: DeviceStatus) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, s: DeviceStatus) => cb(s);
+    ipcRenderer.on('devices:state', listener);
+    return () => ipcRenderer.removeListener('devices:state', listener);
   },
 
   // ─── Dialog ──────────────────────────────────────────────────────────────

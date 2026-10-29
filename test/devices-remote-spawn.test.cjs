@@ -43,6 +43,31 @@ test('remoteTerminal writes launch.sh and tmux.conf, and returns the ssh spawn',
   assert.equal(fs.statSync(launch).mode & 0o077, 0, 'an existing launch.sh is re-tightened');
 });
 
+test('a symlink planted at launch.sh is replaced, never followed', (t) => {
+  // An agent can write in its own hive folder, and the app is unsandboxed:
+  // writing through a planted link would overwrite (and chmod) its target.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'md-remote-spawn-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const hive = path.join(dir, 'hive');
+  const outside = path.join(dir, 'outside.txt');
+  fs.writeFileSync(outside, 'keep me\n', { mode: 0o644 });
+  const before = fs.readFileSync(outside);
+  const launch = dc.launchPath(hive, 'a1');
+  fs.mkdirSync(path.dirname(launch), { recursive: true });
+  fs.symlinkSync(outside, launch);
+  const link = new DeviceLink({ id: 'my-lap', host: '100.65.189.1', user: 'royal' }, {
+    hiveRoot: hive, hookSock: path.join(hive, 'hooks.sock'), sftpPort: 1, telemetryPort: null,
+    sshBin: '/usr/bin/ssh', runDir: dir
+  });
+  remoteTerminal(link, hive, { ptyId: 'pty-a1', agentId: 'a1', cwd: '/x', env: { MD_BROKER_TOKEN: 'tok' }, args: [] });
+  assert.ok(fs.readFileSync(outside).equals(before), 'the link target is byte-for-byte unchanged');
+  assert.equal(fs.statSync(outside).mode & 0o777, 0o644, 'and not chmodded');
+  const st = fs.lstatSync(launch);
+  assert.ok(st.isFile() && !st.isSymbolicLink(), 'launch.sh is now a regular file');
+  assert.equal(st.mode & 0o777, 0o600);
+  assert.deepEqual(fs.readdirSync(path.dirname(launch)), ['launch.sh'], 'no temp file left behind');
+});
+
 test('a remote terminal starts although its folder exists only on the device', async () => {
   const pm = new PtyManager();
   const exited = new Promise((resolve) => pm.setExitHandler((_id, code) => resolve(code)));
