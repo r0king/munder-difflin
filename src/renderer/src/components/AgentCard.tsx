@@ -49,6 +49,8 @@ export interface AgentCardProps {
   device?: string;
   /** Its device's link is down: the card greys out, "offline · reconnecting". */
   deviceOffline?: boolean;
+  /** On a device, this engine's usage cannot be read: say so, not a wrong zero. */
+  usageUnavailable?: boolean;
 }
 
 const fmtK = (n: number): string => `${Math.round(n / 1000)}k`;
@@ -61,7 +63,7 @@ const fmtK = (n: number): string => `${Math.round(n / 1000)}k`;
 export function AgentCard({
   name, character, accent, status, ptyId, project, action, progress = 0,
   contextTokens, contextLimit, selected, isGod, onClick, onRename,
-  doingCount = 0, onTaskNoteClick, draggable, note, onEditNote, device, deviceOffline
+  doingCount = 0, onTaskNoteClick, draggable, note, onEditNote, device, deviceOffline, usageUnavailable
 }: AgentCardProps) {
   const { t } = useTranslation();
   const [hover, setHover] = useState(false);
@@ -92,7 +94,7 @@ export function AgentCard({
   const gaugeColor = progress >= 7 ? 'var(--cth-coral)'
     : progress >= 6 ? 'var(--cth-lemon)'
       : `var(--cth-${accent})`;
-  const gaugeTitle = contextTokens !== undefined && contextLimit
+  const gaugeTitle = usageUnavailable ? t('devices.usageUnavailable') : contextTokens !== undefined && contextLimit
     ? t('agentCard.contextTitle', { used: fmtK(contextTokens), limit: fmtK(contextLimit), pct: Math.round((contextTokens / contextLimit) * 100) })
     : t('agentCard.contextGaugeTitle');
 

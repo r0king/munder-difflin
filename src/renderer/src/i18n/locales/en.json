@@ -1458,6 +1458,7 @@
     "auto": "Auto (least loaded)",
     "autoHint": "Picks this laptop or a checked device with the most free memory at each fresh start. It never moves while running.",
     "godWarning": "While {{device}} is offline the floor has no god: mail to it waits, and it pauses after the offline limit like any agent.",
-    "reminder": "Check by hand:"
+    "reminder": "Check by hand:",
+    "usageUnavailable": "usage not available on a device"
   }
 }

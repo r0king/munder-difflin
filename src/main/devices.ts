@@ -22,7 +22,7 @@ import { dirname, join, sep } from 'node:path';
 import { LOCAL_DEVICE, normalizeDevices, type ConversationStayed, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
 import {
   backoffDelay, baseFolder, engineCheck, basePathCommand, basePathFix, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
-  masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, readTranscriptCommand, sshTarget,
+  forwardArgs, masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, PROXY_SLOT_FIRST, readTranscriptCommand, sshTarget,
   terminalArgs, TMUX_CONF, tmuxConfPath, TRANSCRIPT_MISSING, writeTranscriptCommand, parseWslProbe, WSL_PROBE, wslCheckItems
 } from './deviceCommands';
 import { projectKey } from './transcript';
@@ -71,6 +71,9 @@ export class DeviceLink extends EventEmitter {
   private retry: NodeJS.Timeout | null = null;
   /** Set when the link ends the master itself, so the exit says why. */
   private killReason: string | undefined;
+  /** Proxy sidecar forwards, by key: device port → this laptop's port. Kept
+   *  across reconnects and re-added on each one. */
+  private readonly forwards = new Map<string, { device: number; local: number }>();
 
   constructor(readonly device: DeviceConfig, private readonly env: LinkEnv) {
     super();
@@ -110,6 +113,29 @@ export class DeviceLink extends EventEmitter {
       return Promise.resolve({ ok: false, code: -1, stdout: '', stderr: '', error: `${this.id} is offline` });
     }
     return this.run(cmd, timeoutMs, input);
+  }
+
+  /** Forward a loopback port of this laptop to the first free proxy slot on
+   *  the device's loopback (base+3, base+4, …). Resolves the device port, or
+   *  null when the master refused it. */
+  async addForward(key: string, localPort: number): Promise<number | null> {
+    await this.removeForward(key);
+    const used = new Set([...this.forwards.values()].map((f) => f.device));
+    let device = this.portBase + PROXY_SLOT_FIRST;
+    while (used.has(device)) device++;
+    if (device > 65535 || this.state !== 'online') return null;
+    const r = await this.spawnSsh(forwardArgs(this.ctl(), this.target(), 'forward', device, localPort), 10_000);
+    if (r.code !== 0) return null;
+    this.forwards.set(key, { device, local: localPort });
+    return device;
+  }
+
+  /** Drop a forward (its agent ended). Idempotent. */
+  async removeForward(key: string): Promise<void> {
+    const f = this.forwards.get(key);
+    if (!f) return;
+    this.forwards.delete(key);
+    if (this.state === 'online') await this.spawnSsh(forwardArgs(this.ctl(), this.target(), 'cancel', f.device, f.local), 5_000);
   }
 
   private setState(state: DeviceState, error: string | undefined): void {
@@ -173,6 +199,11 @@ export class DeviceLink extends EventEmitter {
       m.kill();
       return;
     }
+    // A new master has only its three forwards: put the proxies back.
+    for (const f of this.forwards.values()) {
+      await this.spawnSsh(forwardArgs(this.ctl(), this.target(), 'forward', f.device, f.local), 10_000);
+    }
+    if (this.master !== m) return;
     this.attempt = 0;
     this.setState('online', undefined);
     this.emit('online');

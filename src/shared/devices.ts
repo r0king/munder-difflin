@@ -5,7 +5,7 @@
  *
  * This laptop is the implicit device `local` and is never stored.
  */
-import type { AgentProvider } from './agentProvider';
+import { bridgeOf, isClaudeProvider, type AgentProvider } from './agentProvider';
 
 export interface DeviceConfig {
   /** 'my-lap'; also the label on agent cards and part of the ControlPath. */
@@ -107,3 +107,11 @@ export interface ConversationStayed {
 /** The engines that run on a device (devices phase 2, item 5). Each has its
  *  CLI checked there, and its hook bridge set up for the device. */
 export const DEVICE_PROVIDERS: readonly AgentProvider[] = ['claude', 'codex', 'antigravity', 'grok', 'qwen', 'crush', 'custom'];
+
+/** Usage that would read wrong on a device. Claude's comes over the
+ *  forwarded OTLP port and a proxy engine's from its sidecar here; every
+ *  other engine's fallback reads conversation files on THIS laptop, which a
+ *  device agent never writes. */
+export function usageUnavailableOnDevice(provider: AgentProvider): boolean {
+  return !isClaudeProvider(provider) && bridgeOf(provider)?.kind !== 'proxy';
+}

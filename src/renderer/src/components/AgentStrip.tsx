@@ -8,6 +8,8 @@ import { deviceLabel, deviceOffline, effectiveDevice, useDeviceStates } from '@/
 import { type HarnessConfig } from '@/store/config';
 import { useRestoreTeam } from '@/hooks/useRestoreTeam';
 import { useRtl } from '@/i18n/useDirection';
+import { inferAgentProvider } from '@shared/agentProvider';
+import { usageUnavailableOnDevice } from '@shared/devices';
 
 export interface AgentStripProps {
   /** Needed to rebuild a spawn command when a restorable agent predates the
@@ -158,6 +160,7 @@ export function AgentStrip({ config }: AgentStripProps) {
             onEditNote={a.isGod ? undefined : () => setNoteEditId(a.id)}
             device={deviceLabel(a.device, a.lastDevice, t('devices.thisLaptop'))}
             deviceOffline={deviceOffline(effectiveDevice(a.device, a.lastDevice), deviceStates)}
+            usageUnavailable={!!effectiveDevice(a.device, a.lastDevice) && usageUnavailableOnDevice(inferAgentProvider(a.command, a.provider))}
           />
           {/* The note itself lives INSIDE the card (its own row above the gauge).
               This is the transient EDITOR: a fixed popover ABOVE the card —

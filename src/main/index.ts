@@ -554,6 +554,8 @@ function teardownPty(id: string): void {
     // W1 — kill this agent's proxy-bridge sidecar (qwen), if any, so a dead
     // PTY never leaves an orphan loopback listener. No-op for non-proxy agents.
     try { hive.stopProxyBridge(agentId); } catch (e) { console.error('[hive] stopProxyBridge failed:', e); }
+    // …and its forward to a device, if it ran on one.
+    for (const l of devices.all()) void l.removeForward(`proxy:${agentId}`);
     if (hive.enabled()) {
       try { hive.setArchived(agentId, true); } catch (e) { console.error('[hive] setArchived failed:', e); }
     }
@@ -2763,12 +2765,14 @@ async function placeAuto(lastDevice: string | undefined, resuming: boolean): Pro
 
 /** What ensureAgent needs to write a non-Claude engine's home-config hooks
  *  on a device (devices phase 2, item 5). */
-async function remoteHomeFor(link: DeviceLink): Promise<RemoteHome> {
+async function remoteHomeFor(link: DeviceLink, agentId: string): Promise<RemoteHome> {
   const r = await link.exec(REMOTE_ENV_PROBE);
   const env = r.ok ? parseRemoteEnv(r.stdout) : null;
   if (!env) throw new Error(`Could not find node on ${link.id}. Run Check in Settings → Devices.`);
   return {
     ...env,
+    // One forward per agent; teardownPty releases it.
+    forward: (localPort) => link.addForward(`proxy:${agentId}`, localPort),
     write: async (files) => {
       for (const f of files) {
         const cmd = f.mergeKey ? mergeHomeJsonCommand(f.path, f.mergeKey) : writeHomeFileCommand(f.path);
@@ -2987,8 +2991,8 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // $HOME and node are read once here. A device that cannot answer fails
   // the spawn now rather than start an agent the floor cannot hear.
   let remoteHome: RemoteHome | undefined;
-  if (link && !claudeProvider) {
-    try { remoteHome = await remoteHomeFor(link); }
+  if (link && !claudeProvider && opts.hive) {
+    try { remoteHome = await remoteHomeFor(link, opts.hive.id); }
     catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
   }
   // Activation-funnel entry (v0.4.6): every spawn REQUEST, so (attempted − spawned)

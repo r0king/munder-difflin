@@ -544,3 +544,14 @@ const MERGE_JS = [
 export function mergeHomeJsonCommand(rel: string, key: string): string {
   return `node -e ${shq(MERGE_JS)} ${shq(rel)} ${shq(key)}`;
 }
+
+// ─── Proxy-tier engines on a device (devices phase 2, item 5) ────────────────
+
+/** The first proxy slot: base = SFTP, +1 hooks, +2 telemetry, then proxies. */
+export const PROXY_SLOT_FIRST = 3;
+
+/** Add or cancel one remote forward on the running master. A new master
+ *  starts with only its three, so the link re-adds these on every connect. */
+export function forwardArgs(ctl: string, target: string, op: 'forward' | 'cancel', devicePort: number, localPort: number): string[] {
+  return ['-S', ctl, '-O', op, '-R', `127.0.0.1:${devicePort}:127.0.0.1:${localPort}`, '--', target];
+}

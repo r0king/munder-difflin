@@ -204,6 +204,9 @@ export interface RemoteHome {
    *  `mergeKey`, `content` (JSON) replaces that one key of an existing JSON
    *  file instead of the whole file. */
   write(files: Array<{ path: string; content: string; mergeKey?: string }>): Promise<void>;
+  /** Forward a loopback port of this laptop to the device's loopback;
+   *  resolves the device-side port, or null when that failed. */
+  forward(localPort: number): Promise<number | null>;
 }
 
 /** Where a device keeps its own copies of the hook shims (the same folder
@@ -1004,8 +1007,11 @@ export class HiveManager {
             // upstream directly (degraded: no synthesized hive events, but it still
             // runs). Deliberate degradation is fine; SILENT degradation is not, so
             // the failure goes to log.jsonl, the renderer and the spawn result.
-            if (port > 0) {
-              const loopback = `http://127.0.0.1:${port}`;
+            // On a device, the CLI reaches this laptop's sidecar through a port
+            // forwarded to the device's own loopback (base+3, base+4, …).
+            const reach = port > 0 && opts.remote ? await opts.remote.forward(port) : port;
+            if (reach && reach > 0) {
+              const loopback = `http://127.0.0.1:${reach}`;
               if (meta.provider === 'crush') {
                 // Crush has NO base-URL env override, so the generic env-rewrite is a
                 // no-op for it. Route it instead via a per-agent CRUSH_GLOBAL_CONFIG
