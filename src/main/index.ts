@@ -68,7 +68,7 @@ import { RemoteFloor, DEFAULT_REMOTE_FLOOR_PORT, type FloorActionResult } from '
 import { FloorActivity, createFloorSource } from './remoteFloorSource';
 import { startSftpServer, type SftpServer } from './sftpServer';
 import {
-  REMOTE_HOOK_COMMAND, TMUX_KILL_SERVER, TMUX_LS, dirExistsCommand, hasSessionCommand, isDetach,
+  REMOTE_HOOK_COMMAND, TMUX_LS, dirExistsCommand, hasSessionCommand, isDetach,
   engineCheck, killSessionCommand, mergeHomeJsonCommand, parseRemoteEnv, parseTmuxLs, planReconcile, REMOTE_ENV_PROBE, writeHomeFileCommand, remoteAgentEnv, rosterAgentsOn, sessionName,
   pickDevice, takePausedCommand, transcriptExistsCommand, validateSpawnDevice, type LoadSample
 } from './deviceCommands';
@@ -431,9 +431,9 @@ let floorSeq = 0;
 
 /** When true, skip the quit interceptor (user already confirmed). */
 let allowQuit = false;
-/** teardownAndQuit awaits each device's remote kill-server (up to 3 s), and
- *  closing the last window or a closing-time conclusion can call it again
- *  during that wait; the second entry must not tear down twice. */
+/** Closing the last window or a closing-time conclusion can call
+ *  teardownAndQuit again while it runs; the second entry must not tear down
+ *  twice. */
 let quitting = false;
 
 /** Agents spawned with `isolate: true` get a dedicated git worktree; this maps
@@ -4276,10 +4276,11 @@ async function teardownAndQuit(): Promise<void> {
   // here rather than waiting for will-quit. Idempotent.
   try { disposeFeatures(); } catch (e) { console.error('[quit] disposeFeatures:', e); }
   try { ptyManager.killAll(); } catch (e) { console.error('[quit] killAll:', e); }
-  // A device agent outlives its ssh terminal, so end the tmux sessions on
-  // every online device too: best effort, 3 s per device, all at once. An
-  // offline device's sessions are killed by its next reconcile.
-  try { await Promise.all(devices.all().map((l) => l.exec(TMUX_KILL_SERVER, 3_000))); } catch (e) { console.error('[quit] devices:', e); }
+  // Device agents keep running in their tmux sessions (killAll above ended
+  // only the ssh terminals, with the exit handler already cleared). The next
+  // start's reconcile keeps every session the roster owns, and the restore
+  // reattaches to it (`new-session -A`) mid-conversation. Left alone that
+  // long, the device's hook shim pauses them (deviceOfflinePauseMin).
   try { devices.stopAll(); } catch (e) { console.error('[quit] devices.stopAll:', e); }
   try { sftp?.close(); } catch { /* noop */ }
   app.quit();

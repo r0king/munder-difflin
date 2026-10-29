@@ -177,8 +177,8 @@ The status-line mode (`--status`) gets port mode only. It never pauses.
 | Link drops | Device `offline`. Its agents' cards show "offline · reconnecting", and their terminals keep the last screen. Mail to them still lands in the hive on this disk. |
 | Link returns | The forwards come back with the master, `mountpoint` is checked, every agent of that device is reattached (`new-session -A`), and paused agents are nudged. The wake beat then nudges agents with unread mail, as today. |
 | This laptop sleeps | The same as a link drop, for every device at once. |
-| App quits | `killAll` also ends the remote tmux sessions of every online device, best effort, with a 3 s timeout per device. |
-| App crashes, or quits while a device is offline | On the next connect, the link lists `tmux -L md ls`. Sessions whose agent the restore flow is bringing back are reattached instead of respawned. Every other `md-*` session is killed. `archiveOrphanedAgents` at startup is unaffected: the restore flow clears `archived`, as it does for local agents. |
+| App quits | Device agents keep running in their tmux sessions; only the local ssh terminals end. Cut off that long, they pause like any link drop. (Until 30 Oct 2026 a quit ended them, so every restart cut agents off mid-task.) |
+| App starts again, crashed, or quit | On the next connect, the link lists `tmux -L md ls`. Sessions whose agent the restore flow is bringing back are reattached instead of respawned. Every other `md-*` session is killed. `archiveOrphanedAgents` at startup is unaffected: the restore flow clears `archived`, as it does for local agents. |
 | Agent moved to another device | Stop it on the old device, then start it on the new one with a fresh session. `memory.md` is in the shared hive, so it carries over. |
 
 ## While a device is offline, what still works
@@ -260,7 +260,7 @@ The status-line mode (`--status`) gets port mode only. It never pauses.
   4. Keep it off for 12 min: paused, then nudged on return.
   5. Sleep this laptop.
   6. Kill the app: the agent is reattached, not respawned.
-  7. Quit the app: no `md-*` session is left on my-lap.
+  7. Quit the app and start it again: every agent is reattached mid-conversation, not respawned.
 - **Before and after load numbers** (Royal's rule for performance changes):
   - What to measure: this laptop's load average and MemAvailable, sampled
     every 30 s for 30 min while the LFW team runs its normal suite cycle.

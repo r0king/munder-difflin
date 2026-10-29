@@ -57,8 +57,7 @@ test('no devices, no device line', async (t) => {
 });
 
 test('teardownAndQuit runs once: its first statement is the quitting guard', () => {
-  // It awaits each device's remote kill-server (up to 3 s), and closing the last
-  // window or a closing-time conclusion can re-enter it during that wait.
+  // Closing the last window or a closing-time conclusion can re-enter it.
   const src = fs.readFileSync(path.join(__dirname, '..', 'src/main/index.ts'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .split('\n').filter((line) => !line.trimStart().startsWith('//')).join('\n');
@@ -67,4 +66,13 @@ test('teardownAndQuit runs once: its first statement is the quitting guard', () 
   assert.ok(start >= 0, 'teardownAndQuit exists');
   const body = src.slice(src.indexOf('{', start) + 1).trimStart();
   assert.ok(body.startsWith('if (quitting) return;\n  quitting = true;'), `first statement is the guard, got: ${body.slice(0, 80)}`);
+});
+
+test('a quit leaves device agents running: no tmux kill on the way out', () => {
+  // Every restart used to end them, cutting the whole remote floor off mid-task.
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src/main/index.ts'), 'utf8');
+  const start = src.indexOf('async function teardownAndQuit(): Promise<void> {');
+  const body = src.slice(start, src.indexOf('\n}\n', start));
+  assert.ok(body.includes('ptyManager.killAll()') && body.includes('devices.stopAll()'), 'this is the quit teardown');
+  assert.doesNotMatch(body, /kill-server|killSessionCommand|TMUX_KILL/);
 });

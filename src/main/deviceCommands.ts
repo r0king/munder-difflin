@@ -168,7 +168,6 @@ export const TMUX = 'tmux -L md';
 export const TMUX_CONF = 'set -g status off\nset -sg escape-time 0\nset -g history-limit 50000\n';
 /** No server yet is not an error: it just means no sessions. */
 export const TMUX_LS = `${TMUX} ls -F '#{session_name}' 2>/dev/null || true`;
-export const TMUX_KILL_SERVER = `${TMUX} kill-server 2>/dev/null || true`;
 
 /** tmux reads '.' and ':' in a target as window and pane separators. */
 export function sessionName(agentId: string): string {
