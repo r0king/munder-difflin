@@ -1,6 +1,8 @@
 import { existsSync } from 'node:fs';
 import { lstat, readlink, realpath, symlink, unlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import type { RemoteExec } from './git';
+import { linkDepsCommand } from './deviceCommands';
 
 export type DepLink =
   | { ok: true; skipped: boolean }
@@ -10,8 +12,15 @@ export type DepUnlink =
   | { ok: true; removed: boolean }
   | { ok: false; error: string };
 
-/** Link the base checkout's dependencies into an isolated worktree. */
-export async function linkWorktreeDeps(baseDir: string, worktreeDir: string): Promise<DepLink> {
+/** Link the base checkout's dependencies into an isolated worktree. On a
+ *  device (`remote`) the same rule runs there as one shell command. */
+export async function linkWorktreeDeps(baseDir: string, worktreeDir: string, remote?: RemoteExec): Promise<DepLink> {
+  if (remote) {
+    const r = await remote.exec(linkDepsCommand(baseDir, worktreeDir));
+    return r.ok
+      ? { ok: true, skipped: !r.stdout.includes('linked') }
+      : { ok: false, error: r.error ?? (r.stderr.trim() || `exit ${r.code}`) };
+  }
   const baseNodeModules = join(baseDir, 'node_modules');
   const worktreeNodeModules = join(worktreeDir, 'node_modules');
   if (!existsSync(baseNodeModules)) return { ok: true, skipped: true };

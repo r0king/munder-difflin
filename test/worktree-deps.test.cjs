@@ -179,7 +179,8 @@ test('wires dependency linking into successful isolated worktree creation', () =
     activeSource.indexOf('if (wt.ok)'),
     activeSource.indexOf('} else {', activeSource.indexOf('if (wt.ok)'))
   );
-  assert.match(successBranch, /await linkWorktreeDeps\(origCwd, wtPath\)/);
+  // The device link rides along (Devices: undefined for an agent on this laptop).
+  assert.match(successBranch, /await linkWorktreeDeps\(origCwd, wtPath, link\)/);
 });
 
 test('removes linked dependencies before worker retention checks', () => {

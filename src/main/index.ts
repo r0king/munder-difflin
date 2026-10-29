@@ -2878,7 +2878,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // `isolate:true` recipe spawned against an already-existing worktree path would
   // make addWorktree below conflict (path/branch exists) and fall back to the base
   // cwd — reuse-existing-worktree handling here is the follow-up.
-  if (opts.isolate === true && await isRepo(opts.cwd)) {
+  if (opts.isolate === true && await isRepo(opts.cwd, link)) {
     try {
       const origCwd = opts.cwd;
       const wtRoot = join(readConfig().harnessHome ?? origCwd, 'worktrees');
@@ -2891,14 +2891,14 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
       if (!resolve(wtPath).startsWith(resolve(wtRoot) + sep)) {
         console.error('[worktree] refusing unsafe worktree path for id:', opts.hive?.id ?? opts.id);
       } else {
-        const br = await getBranch(origCwd);
+        const br = await getBranch(origCwd, link);
         const baseBranch = 'current' in br && br.current ? br.current : 'main';
-        const wt = await addWorktree(origCwd, wtPath, baseBranch);
+        const wt = await addWorktree(origCwd, wtPath, baseBranch, link);
         if (wt.ok) {
           opts.cwd = wtPath;
           worktreePaths.set(opts.id, wtPath);
           worktreeOrigins.set(opts.id, origCwd);
-          const deps = await linkWorktreeDeps(origCwd, wtPath);
+          const deps = await linkWorktreeDeps(origCwd, wtPath, link);
           if (!deps.ok) console.error('[worktree] dependency link failed:', deps.error);
         } else {
           console.error('[worktree] addWorktree failed:', wt.error);
