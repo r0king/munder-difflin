@@ -275,6 +275,10 @@ export interface HarnessConfig {
   devices?: DeviceConfig[];
   /** Minutes cut off before a device's agents pause (default 10, 0 = never). Mirrors src/main/config.ts. */
   deviceOfflinePauseMin?: number;
+  /** The control page is on. Mirrors src/main/config.ts. */
+  remoteFloorEnabled?: boolean;
+  /** The control page's port (default 47980). Mirrors src/main/config.ts. */
+  remoteFloorPort?: number;
   autoMode: boolean;
   defaultCommand: string;
   defaultModel?: string;
@@ -650,6 +654,21 @@ const api = {
     const listener = (_e: IpcRendererEvent, s: DeviceStatus) => cb(s);
     ipcRenderer.on('devices:state', listener);
     return () => ipcRenderer.removeListener('devices:state', listener);
+  },
+
+  // ─── Control page (devices phase 2) ───────────────────────────────────────
+  /** Where the control page listens, or null while it is off or waiting for Tailscale. */
+  remoteFloorAddress: (): Promise<{ ip: string; port: number } | null> => ipcRenderer.invoke('remoteFloor:address'),
+  /** The control page asked to restart an agent. `cb` runs the floor's own
+   *  restart; its result goes back to main. */
+  onRemoteRestart: (cb: (agentId: string) => Promise<{ ok: boolean; error?: string }>): (() => void) => {
+    const listener = (_e: IpcRendererEvent, req: { reqId: number; agentId: string }) => {
+      void cb(req.agentId)
+        .catch((e: unknown) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }))
+        .then((r) => ipcRenderer.send('remoteFloor:restartDone', req.reqId, r));
+    };
+    ipcRenderer.on('remoteFloor:restart', listener);
+    return () => ipcRenderer.removeListener('remoteFloor:restart', listener);
   },
 
   // ─── Dialog ──────────────────────────────────────────────────────────────

@@ -1443,5 +1443,11 @@
     "runsOnHint": "它的文件夹必须存在于 {{device}} 上；繁重的工作在那里运行。",
     "restartsHint": "更改后会在那里以新会话重启该智能体。",
     "offlineReconnecting": "离线 · 正在重连"
+  },
+  "remoteFloor": {
+    "toggle": "控制页：在手机上查看楼层",
+    "hint": "仅在这台笔记本的 Tailscale 地址上提供，只有你的 Tailscale 账号可以访问。",
+    "address": "打开 {{url}}",
+    "waiting": "正在等待 Tailscale…"
   }
 }

@@ -1443,5 +1443,11 @@
     "runsOnHint": "Its folder must exist on {{device}}; heavy work runs there.",
     "restartsHint": "Changing it restarts the agent there with a fresh session.",
     "offlineReconnecting": "offline · reconnecting"
+  },
+  "remoteFloor": {
+    "toggle": "Control page: the floor on your phone",
+    "hint": "Served on this laptop’s Tailscale address only. Only your Tailscale login gets in.",
+    "address": "Open {{url}}",
+    "waiting": "Waiting for Tailscale…"
   }
 }

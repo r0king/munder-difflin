@@ -448,6 +448,11 @@ export interface HarnessConfig {
   /** Minutes a device's agents keep working while cut off from the floor
    *  before their turn is stopped ("paused"). Default 10; 0 = never pause. */
   deviceOfflinePauseMin?: number;
+  /** The phone-first control page (Settings → Devices → Control page). Off
+   *  unless true. It binds only to this laptop's Tailscale address. */
+  remoteFloorEnabled?: boolean;
+  /** Its port; default 47980 (remoteFloor.ts DEFAULT_REMOTE_FLOOR_PORT). */
+  remoteFloorPort?: number;
 }
 
 const DEFAULTS: HarnessConfig = {
@@ -733,6 +738,14 @@ export function writeConfig(patch: Partial<HarnessConfig>): HarnessConfig {
     const m = patch.deviceOfflinePauseMin;
     if (typeof m === 'number' && Number.isFinite(m) && m >= 0) next.deviceOfflinePauseMin = m;
     else delete next.deviceOfflinePauseMin;
+  }
+  // The control page: on only when exactly true; a port outside 1024–65535
+  // is dropped, which means the default.
+  if ('remoteFloorEnabled' in patch) next.remoteFloorEnabled = patch.remoteFloorEnabled === true;
+  if ('remoteFloorPort' in patch) {
+    const p = patch.remoteFloorPort;
+    if (typeof p === 'number' && Number.isInteger(p) && p >= 1024 && p <= 65535) next.remoteFloorPort = p;
+    else delete next.remoteFloorPort;
   }
   return persistConfig(next);
 }
