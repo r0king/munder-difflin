@@ -36,6 +36,9 @@ master() {
     -R "127.0.0.1:$((BASE + 2)):127.0.0.1:$ECHO_PORT" \
     "$TARGET"
 }
+# -O check first: without a live master, ssh -S quietly opens its own
+# connection, and the echo alone would pass with no multiplexing at all.
+muxed() { ssh -S "$CTL" -O check "$TARGET" 2>/dev/null && [ "$(r 'echo shared')" = shared ]; }
 # A one-line TCP client on the device: send "ping", print the echo.
 tcp() {
   r "node -e \"const c=require('net').connect($1,'127.0.0.1',()=>c.end('ping'));let d='';c.on('data',x=>d+=x);c.on('close',()=>process.stdout.write(d))\""
@@ -78,11 +81,11 @@ echo "Devices smoke: $TARGET, device ports $BASE..$((BASE + 2))"
 check "login: BatchMode, no prompt" ssh -o BatchMode=yes -o ConnectTimeout=10 "$TARGET" true
 check "ControlPath under 108 bytes ($CTL)" [ "${#CTL}" -lt 108 ]
 check "master up with the three forwards" master
-check "several sessions over one connection" [ "$(r 'echo shared')" = shared ]
+check "several sessions over one connection" muxed
 check "-R device TCP port -> TCP port here" [ "$(tcp $((BASE + 2)))" = ping ]
 check "-R device TCP port -> Unix socket here" [ "$(tcp $((BASE + 1)))" = ping ]
 check "SFTP: directport mount through the forward" \
-  r "mkdir -p $RTMP/mnt && sshfs -o directport=$BASE,reconnect,ServerAliveInterval=15 127.0.0.1:$LTMP $RTMP/mnt && test -f $RTMP/mnt/marker"
+  r "mkdir -p $RTMP/mnt && sshfs -o directport=$BASE,reconnect,ServerAliveInterval=15,dir_cache=no,entry_timeout=0,attr_timeout=0,negative_timeout=0 127.0.0.1:$LTMP $RTMP/mnt && test -f $RTMP/mnt/marker"
 check "tmux: a session started over ssh" r "tmux -L md-smoke new-session -d -s md-smoke 'sleep 600'"
 check "tmux: the session outlives the ssh session that made it" r "tmux -L md-smoke has-session -t =md-smoke"
 

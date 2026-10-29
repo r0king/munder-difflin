@@ -16,9 +16,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir, userInfo } from 'node:os';
-import { dirname } from 'node:path';
+import { dirname, sep } from 'node:path';
 import { normalizeDevices, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
 import {
   backoffDelay, checkCommands, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
@@ -264,8 +264,15 @@ export class DeviceRegistry extends EventEmitter {
  *  the hive, and the app is unsandboxed: writeFileSync/chmodSync on a path an
  *  agent swapped for a symlink would overwrite and chmod the link's target.
  *  The temp file is created exclusively ('wx', so never through a planted
- *  link), and rename replaces a link at `file` itself, never what it points to. */
-function replaceFile(file: string, data: string, mode: number): void {
+ *  link), and rename replaces a link at `file` itself, never what it points to.
+ *  A link at a parent folder (agents/<id>, devices) would carry both outside
+ *  the hive, so the real parent must sit inside the real hive root. */
+function replaceFile(hiveRoot: string, file: string, data: string, mode: number): void {
+  const root = realpathSync(hiveRoot);
+  const parent = realpathSync(dirname(file));
+  if (parent !== root && !parent.startsWith(root + sep)) {
+    throw new Error(`refusing to write ${file}: its folder resolves to ${parent}, outside the hive`);
+  }
   const tmp = `${file}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`;
   try {
     writeFileSync(tmp, data, { flag: 'wx', mode });
@@ -290,9 +297,9 @@ export function remoteTerminal(
   // Owner-only: it carries the agent's env, capability tokens included. A
   // fresh file each time, so a launch.sh left wider (a copied or restored
   // hive) never keeps its old mode.
-  replaceFile(launch, launchScript({ cwd: o.cwd, env: o.env, command: 'claude', args: o.args }), 0o600);
+  replaceFile(hiveRoot, launch, launchScript({ cwd: o.cwd, env: o.env, command: 'claude', args: o.args }), 0o600);
   mkdirSync(dirname(tmuxConfPath(hiveRoot)), { recursive: true });
-  replaceFile(tmuxConfPath(hiveRoot), TMUX_CONF, 0o644);
+  replaceFile(hiveRoot, tmuxConfPath(hiveRoot), TMUX_CONF, 0o644);
   return {
     id: o.ptyId,
     cwd: o.cwd,
