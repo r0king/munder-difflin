@@ -25,7 +25,7 @@ test.after(() => fs.rmSync(userData, { recursive: true, force: true }));
 
 const { writeConfig, readConfig } = loadTs('src/main/config.ts');
 const { HiveManager } = loadTs('src/main/hive.ts');
-const { normalizeDeviceId, isValidDeviceId } = loadTs('src/shared/devices.ts');
+const { normalizeDeviceId, isValidDeviceId, LOCAL_DEVICE } = loadTs('src/shared/devices.ts');
 
 writeConfig({});
 readConfig();
@@ -58,6 +58,8 @@ test('"" and "local" both mean this laptop', () => {
   assert.equal(normalizeDeviceId('local'), undefined);
   assert.equal(normalizeDeviceId(undefined), undefined);
   assert.equal(normalizeDeviceId(' my-lap '), 'my-lap');
+  // fleet.json writes this, so a registry entry with device '' reads 'local', never "".
+  assert.equal(normalizeDeviceId('') ?? LOCAL_DEVICE, 'local');
   assert.equal(isValidDeviceId('my-lap', ['other']), true);
   assert.equal(isValidDeviceId('my-lap', ['my-lap']), false);
 });

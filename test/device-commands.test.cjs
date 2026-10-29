@@ -247,3 +247,12 @@ test('the setup check lists every item, and one folder line per agent folder', (
   assert.equal(folder.cmd, `test -d ${dc.shq("/repo/it's")}`);
   assert.ok(items.every((i) => i.fix.length > 0));
 });
+
+test('ssh argv guards: options end before the target, and no host or user can pass as an option', () => {
+  assert.deepEqual(dc.controlArgs('/c', 'u@h', 'check'), ['-S', '/c', '-O', 'check', '--', 'u@h']);
+  // A leading '-' would be read by ssh as an option (`-oProxyCommand=…` runs a command here).
+  assert.throws(() => dc.sshTarget({ id: 'd', host: '-oX' }, 'royal'), /not a valid host/);
+  assert.throws(() => dc.sshTarget({ id: 'd', host: 'h', user: '-oX' }, 'royal'), /not a valid user/);
+  assert.throws(() => dc.sshTarget({ id: 'd', host: 'h' }, '-oX'), /not a valid user/);
+  assert.equal(dc.sshTarget({ id: 'd', host: 'h' }, 'royal'), 'royal@h');
+});

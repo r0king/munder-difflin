@@ -26,4 +26,5 @@ test('MINE_IGNORE_LINES is identical in hive.ts and memory.ts', () => {
   const fromMemory = read('src/main/memory.ts');
   assert.deepEqual(fromMemory, fromHive);
   assert.ok(fromHive.includes('.codex/'), 'Codex homes must stay out of the index');
+  assert.ok(fromHive.includes('launch.sh'), "a device agent's launch.sh carries its tokens: never mine it");
 });

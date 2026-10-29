@@ -29,8 +29,9 @@ import { quarantineDirsToReap, quarantineStampMs, nextMineDelayMs } from './pala
  *  an agent spawns, this one on every mine cycle, and only this one reaches agents
  *  that are not currently running. See hive.ts for why `.codex/` matters beyond
  *  mempalace: it is also what stopped the hive's git repo from versioning every
- *  Codex transcript and sqlite log into a 7.5GB history. */
-const MINE_IGNORE_LINES = ['settings.json', 'cursor.json', 'inbox/', 'outbox/', '.codex/'];
+ *  Codex transcript and sqlite log into a 7.5GB history, and for why `launch.sh`
+ *  (a device agent's env, capability tokens included) must never be mined. */
+const MINE_IGNORE_LINES = ['settings.json', 'cursor.json', 'inbox/', 'outbox/', '.codex/', 'launch.sh'];
 
 /** Idempotently ensure `<agentDir>/.gitignore` excludes the non-memory files.
  *  Writes only the missing lines (append-only) so it's safe to call every cycle. */

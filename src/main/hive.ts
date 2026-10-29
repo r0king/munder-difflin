@@ -235,12 +235,19 @@ function shortRand(): string {
  *  agents took the hive's .git to 7.5GB, at which point git's own auto-gc tried to
  *  repack it and took 22GB of RAM doing so — the machine swapped, the app stopped
  *  responding. None of it was ever wanted in history: it is Codex's private
- *  scratch state, and it stays on disk (so resume still works) either way. */
+ *  scratch state, and it stays on disk (so resume still works) either way.
+ *
+ *  `launch.sh` is a device agent's start script (devices.ts remoteTerminal). It
+ *  holds the agent's env, MD_BROKER_TOKEN and the other capability tokens with
+ *  it. The hive root's .gitignore entry for each agent's launch.sh keeps it
+ *  out of git, but mempalace only reads .gitignore files from the agent dir
+ *  down, and it mines `.sh` files, so without this line every agent could find
+ *  those tokens with `mempalace search`. */
 /** Proxy-bridge sidecar bind attempts per spawn, and the pause before each retry. */
 const PROXY_BIND_ATTEMPTS = 3;
 const PROXY_BIND_BACKOFF_MS = [250, 750];
 
-const MINE_IGNORE_LINES = ['settings.json', 'cursor.json', 'inbox/', 'outbox/', '.codex/'];
+const MINE_IGNORE_LINES = ['settings.json', 'cursor.json', 'inbox/', 'outbox/', '.codex/', 'launch.sh'];
 
 /** Idempotently ensure `<agentDir>/.gitignore` excludes the non-memory files.
  *  Append-only: writes only the missing lines, leaving any existing entries. */
@@ -657,7 +664,9 @@ export class HiveManager {
     // can include tokens, paths and prompt fragments, and the hive repo is
     // committed on every change — a secret written there would be permanent.
     // log.jsonl gets the structured, non-sensitive fields; the dump stays local.
-    const want = ['fleet.json', 'hooks.sock', 'cost-ledger.jsonl', 'crashes/', '.DS_Store'];
+    // agents/*/launch.sh carries a device agent's env (capability tokens), and
+    // the hive repo is committed on every change.
+    const want = ['fleet.json', 'hooks.sock', 'cost-ledger.jsonl', 'crashes/', '.DS_Store', 'agents/*/launch.sh'];
     let lines: string[] = [];
     if (existsSync(gitignore)) { try { lines = readFileSync(gitignore, 'utf8').split('\n'); } catch { lines = []; } }
     const missing = want.filter((w) => !lines.includes(w));
