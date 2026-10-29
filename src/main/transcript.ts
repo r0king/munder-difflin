@@ -10,7 +10,7 @@ import { estimateCostUsd, normalizeModel } from './pricing';
  *
  *  One rule for every platform. The Windows branch always used it; POSIX had its
  *  own narrower spelling, and that divergence is what broke — see projectDir. */
-function projectKey(cwd: string): string {
+export function projectKey(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9]/g, '-');
 }
 
