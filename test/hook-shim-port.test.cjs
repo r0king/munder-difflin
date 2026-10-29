@@ -111,6 +111,20 @@ test('a forward that accepts and never answers counts as cut off', async (t) => 
   assert.ok(fs.existsSync(s.paused));
 });
 
+test('a forward that accepts and closes without a reply counts as cut off', async (t) => {
+  // The forward listener can take the connection and drop it at once when its
+  // far end is gone. An empty close is not a reply: the record stays.
+  const s = setup(t);
+  backdate(s, 11);
+  const srv = net.createServer((c) => c.once('data', () => c.end()));
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  t.after(() => srv.close());
+  const r = await runShim(s, { HIVE_HOOK_PORT: String(srv.address().port), HIVE_OFFLINE_PAUSE_MIN: '10' });
+  assert.equal(JSON.parse(r.stdout).continue, false);
+  assert.ok(fs.existsSync(s.paused));
+  assert.ok(fs.existsSync(s.unreachable));
+});
+
 test('a corrupt record counts as starting now, never as epoch', async (t) => {
   const s = setup(t);
   fs.mkdirSync(s.cache, { recursive: true });
