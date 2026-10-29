@@ -2,6 +2,7 @@ import * as pty from 'node-pty';
 import type { WebContents } from 'electron';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { delimiter, join, win32 } from 'node:path';
+import { homedir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { ensureKilled, hardKillTree } from './procKill';
 import { expandTilde } from './fs';
@@ -93,6 +94,11 @@ export interface SpawnOptions {
    *  MUST contain no embedded double-quotes (it is wrapped verbatim on Windows).
    *  `command` is still recorded for display but is not executed. */
   shellScript?: string;
+  /** A device agent's terminal: an `ssh -tt` to its tmux session (see
+   *  devices.ts remoteTerminal). `cwd` is a folder on the DEVICE, so it is
+   *  not checked here (spawnAgentCore already ran `test -d` there), and ssh
+   *  itself starts in this laptop's home folder. */
+  remote?: boolean;
 }
 
 /**
@@ -557,7 +563,7 @@ export class PtyManager {
     // but any other caller reaching the PTY directly gets the same treatment —
     // `existsSync('~/dev/foo')` is always false, only a shell expands `~`.
     opts = { ...opts, cwd: expandTilde(opts.cwd) };
-    if (!existsSync(opts.cwd)) {
+    if (!opts.remote && !existsSync(opts.cwd)) {
       return { ok: false, error: `cwd does not exist: ${opts.cwd}` };
     }
     const resolved = this.resolveCommand(opts.command).path;
@@ -665,7 +671,7 @@ export class PtyManager {
         name: 'xterm-256color',
         cols: opts.cols ?? 100,
         rows: opts.rows ?? 30,
-        cwd: opts.cwd,
+        cwd: opts.remote ? homedir() : opts.cwd,
         // Inherited env minus the parent Claude session's identity markers,
         // then the app's defaults and locale, then per-agent values — see
         // ptyEnv.ts for why the strip exists and why it is prefix-based.

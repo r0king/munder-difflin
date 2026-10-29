@@ -15,14 +15,16 @@
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir, userInfo } from 'node:os';
 import { dirname } from 'node:path';
 import { normalizeDevices, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
 import {
-  backoffDelay, controlArgs, controlPath, execArgs, installShimCommand, masterArgs,
-  masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, sshTarget
+  backoffDelay, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
+  masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, sshTarget,
+  terminalArgs, TMUX_CONF, tmuxConfPath
 } from './deviceCommands';
+import type { SpawnOptions } from './pty';
 
 export interface ExecResult {
   /** The command ran on the device and exited 0. */
@@ -255,4 +257,30 @@ export class DeviceRegistry extends EventEmitter {
   all(): DeviceLink[] { return [...this.links.values()]; }
   statuses(): DeviceStatus[] { return this.all().map((l) => l.status()); }
   stopAll(): void { for (const l of this.links.values()) l.stop(); }
+}
+
+/** Write what a device agent's terminal runs (its launch.sh, and the shared
+ *  tmux.conf, both in the hive, which the device sees through the mount) and
+ *  return the pty spawn: `ssh -tt … tmux new-session -A …`. pty.ts stays the
+ *  one place a terminal starts. */
+export function remoteTerminal(
+  link: DeviceLink,
+  hiveRoot: string,
+  o: { ptyId: string; agentId: string; cwd: string; env: Record<string, string>; args: string[]; cols?: number; rows?: number }
+): SpawnOptions {
+  const launch = launchPath(hiveRoot, o.agentId);
+  mkdirSync(dirname(launch), { recursive: true });
+  // Owner-only: it carries the agent's env, capability tokens included.
+  writeFileSync(launch, launchScript({ cwd: o.cwd, env: o.env, command: 'claude', args: o.args }), { mode: 0o600 });
+  mkdirSync(dirname(tmuxConfPath(hiveRoot)), { recursive: true });
+  writeFileSync(tmuxConfPath(hiveRoot), TMUX_CONF);
+  return {
+    id: o.ptyId,
+    cwd: o.cwd,
+    command: link.sshBin,
+    args: terminalArgs(link.ctl(), link.target(), hiveRoot, o.agentId, o.cwd),
+    cols: o.cols,
+    rows: o.rows,
+    remote: true
+  };
 }
