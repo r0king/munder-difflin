@@ -155,6 +155,10 @@ export interface AgentMeta {
   /** Michael's prep assistant — enriches prompts and forwards them to Michael.
    *  Send-only: excluded from broadcast fan-out so it never drains an inbox. */
   isAssistant?: boolean;
+  /** The device this agent runs on (Settings → Devices). Absent = this
+   *  laptop. Kept in registry.json, so a restart that does not name a device
+   *  stays where it was. */
+  device?: string;
 }
 
 export interface RegistryAgent extends AgentMeta {
@@ -781,7 +785,12 @@ export class HiveManager {
     // the roster (cwdValid) rather than silently spawning into a nonexistent dir.
     // Store the EXPANDED cwd, never the raw `~/…` the user typed — the registry is
     // read by hooks, the roster and the worker watcher, none of which run a shell.
-    const cwd = this.cwdValidity(meta.cwd);
+    // A device agent's folder exists on the device, and spawnAgentCore has
+    // already checked it there (`test -d`); the same path here proves nothing.
+    // A respawn that does not name a device keeps the prior one (see the
+    // spread below), so judge the folder by that same effective device.
+    const device = 'device' in meta ? meta.device : prev?.device;
+    const cwd = device ? { valid: true, issue: null } : this.cwdValidity(meta.cwd);
     reg.agents[meta.id] = {
       ...prev,
       ...meta,

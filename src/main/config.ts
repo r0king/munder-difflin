@@ -11,6 +11,7 @@ import {
 } from '../shared/agentProvider';
 import { defaultMcpDefaults } from '../shared/mcpCatalog';
 import { MAX_AGENT_TOKEN_CAP } from '../shared/tokenCaps';
+import { normalizeDevices, type DeviceConfig } from '../shared/devices';
 import { expandTilde, normalizeHiveHome } from './fs';
 import type { IntegrationRecord } from '../shared/integrations';
 import {
@@ -439,6 +440,14 @@ export interface HarnessConfig {
   /** Never condense a file smaller than this; also the section-trigger byte floor.
    *  DECIDED: 16 KB. */
   reflectMinBytes?: number;
+
+  // ─── Devices (docs/superpowers/specs/2026-10-29-devices-design.md) ────────
+  /** Other Linux machines agents can run on. This laptop is the implicit
+   *  `local` and is never stored here. */
+  devices?: DeviceConfig[];
+  /** Minutes a device's agents keep working while cut off from the floor
+   *  before their turn is stopped ("paused"). Default 10; 0 = never pause. */
+  deviceOfflinePauseMin?: number;
 }
 
 const DEFAULTS: HarnessConfig = {
@@ -716,6 +725,14 @@ export function writeConfig(patch: Partial<HarnessConfig>): HarnessConfig {
     const { home, recentHives } = normalizeHiveHome(patch.harnessHome, current.recentHives ?? []);
     next.harnessHome = home;
     next.recentHives = recentHives;
+  }
+  // A device's host and user end up in ssh's argv, so a malformed entry is
+  // dropped here rather than reaching a spawn (see normalizeDevices).
+  if ('devices' in patch) next.devices = normalizeDevices(patch.devices);
+  if ('deviceOfflinePauseMin' in patch) {
+    const m = patch.deviceOfflinePauseMin;
+    if (typeof m === 'number' && Number.isFinite(m) && m >= 0) next.deviceOfflinePauseMin = m;
+    else delete next.deviceOfflinePauseMin;
   }
   return persistConfig(next);
 }

@@ -51,6 +51,9 @@ export interface Agent {
   /** legacy field — populated only for the seeded mock agents */
   tmuxTarget: string;
   cwd: string;
+  /** The device this agent runs on (Settings → Devices); absent = this laptop.
+   *  Persisted in roster.json, which is how a restore and a reconcile know it. */
+  device?: string;
   goal?: string;
   /** User-authored private note shown and edited from the roster-card hover. */
   note?: string;
