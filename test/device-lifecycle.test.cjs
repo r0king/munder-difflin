@@ -30,3 +30,20 @@ test('a device offline at quit: the next connect keeps what the restore flow bri
   assert.deepEqual(plan, { keep: ['md-jim', 'md-dev-1'], kill: ['md-stopped-before-quit'] });
   assert.deepEqual(dc.rosterAgentsOn(null, 'my-lap'), []);
 });
+
+test("a device agent's worktree is removed on the device, never with local git", () => {
+  // Paths are the same on every machine, so the same path on this laptop can be
+  // a different, real worktree; a forced local remove there would destroy it.
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src/main/index.ts'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n').filter((line) => !line.trimStart().startsWith('//')).join('\n');
+  const start = src.indexOf('function teardownPty(');
+  const body = src.slice(start, src.indexOf('\n}\n', start));
+  const remoteBranch = body.slice(body.indexOf('if (remote) {\n      if (worker)'), body.indexOf('} else if (worker) {'));
+  assert.ok(remoteBranch.length > 0, 'teardownPty has a device branch for the worktree');
+  assert.match(remoteBranch, /removeWorktree\(origCwd, wtPath, remoteLink\)/);
+  assert.doesNotMatch(remoteBranch, /removeWorktree\(origCwd, wtPath\)/);
+  assert.doesNotMatch(remoteBranch, /finalizeWorkerWorktree/);
+});

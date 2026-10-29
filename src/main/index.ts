@@ -564,13 +564,28 @@ function teardownPty(id: string): void {
     // teardown routes — a worker that finished (controller kill), crashed, or was
     // idle-reaped all land here. Normal agents keep the immediate force-remove.
     const worker = liveWorkers.get(id);
-    if (worker) {
+    if (remote) {
+      // A device agent's worktree lives on the device, so it is removed THERE,
+      // after its agent is gone. Never fall back to local git: paths are the same
+      // on every machine, so the same path on this laptop can be a different,
+      // real worktree, and removeWorktree forces.
+      // ponytail: a device WORKER's worktree is kept (the unintegrated-work gate
+      // in finalizeWorkerWorktree is local-only), and so is any worktree whose
+      // device left the registry. Add a remote gate when workers run on devices.
+      if (worker) liveWorkers.delete(id);
+      if (worker || !remoteLink) {
+        console.warn(`[worktree] keeping ${wtPath} on device ${remote.deviceId}`);
+      } else {
+        void remoteKill
+          .then(() => removeWorktree(origCwd, wtPath, remoteLink))
+          .then(r => { if (!r.ok) console.error('[worktree] removeWorktree failed:', r.error); })
+          .catch(e => console.error('[worktree] removeWorktree threw:', e));
+      }
+    } else if (worker) {
       liveWorkers.delete(id);
       void finalizeWorkerWorktree(wtPath, origCwd, worker);
     } else {
-      // On a device the worktree is there, and its agent must be gone first.
-      void remoteKill
-        .then(() => removeWorktree(origCwd, wtPath))
+      void removeWorktree(origCwd, wtPath)
         .then(r => { if (!r.ok) console.error('[worktree] removeWorktree failed:', r.error); })
         .catch(e => console.error('[worktree] removeWorktree threw:', e));
     }
