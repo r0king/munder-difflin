@@ -1448,6 +1448,8 @@
       "offline": "offline",
       "missing": "not found",
       "failed": "copy failed"
-    }
+    },
+    "auto": "Auto (least loaded)",
+    "autoHint": "Picks this laptop or a checked device with the most free memory at each fresh start. It never moves while running."
   }
 }

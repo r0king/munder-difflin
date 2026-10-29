@@ -4,7 +4,7 @@ import { AgentCard } from './AgentCard';
 import { PixelButton } from './PixelButton';
 import { Icon } from './Icon';
 import { useStore, type Agent } from '@/store/store';
-import { deviceOffline, useDeviceStates } from '@/store/devices';
+import { deviceLabel, deviceOffline, effectiveDevice, useDeviceStates } from '@/store/devices';
 import { type HarnessConfig } from '@/store/config';
 import { useRestoreTeam } from '@/hooks/useRestoreTeam';
 import { useRtl } from '@/i18n/useDirection';
@@ -156,8 +156,8 @@ export function AgentStrip({ config }: AgentStripProps) {
             }}
             note={a.note}
             onEditNote={a.isGod ? undefined : () => setNoteEditId(a.id)}
-            device={a.device}
-            deviceOffline={deviceOffline(a.device, deviceStates)}
+            device={deviceLabel(a.device, a.lastDevice, t('devices.thisLaptop'))}
+            deviceOffline={deviceOffline(effectiveDevice(a.device, a.lastDevice), deviceStates)}
           />
           {/* The note itself lives INSIDE the card (its own row above the gauge).
               This is the transient EDITOR: a fixed popover ABOVE the card —

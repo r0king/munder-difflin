@@ -191,6 +191,8 @@ export async function restartAgentProcess(agentId: string, opts: RestartOptions 
     // The same caption Classic's restart leaves (the live line reads it until
     // the new process reports in), engine switch included.
     updateAgent(a.id, {
+      // Where it runs now (Auto may have picked again on a fresh start).
+      ...(res.device !== undefined ? { lastDevice: res.device } : {}),
       command: command.trim(),
       provider,
       model,

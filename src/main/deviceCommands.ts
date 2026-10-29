@@ -12,7 +12,7 @@
  * always `bash -lc '<cmd>'`: a known shell, with the device's login PATH,
  * where `~/.local/bin/claude` lives.
  */
-import { DEFAULT_PORT_BASE, isValidDeviceHost, isValidDeviceUser, normalizeDeviceId, type DeviceCheckItem, type DeviceConfig, type DeviceState } from '../shared/devices';
+import { AUTO_DEVICE, DEFAULT_PORT_BASE, isValidDeviceHost, isValidDeviceUser, LOCAL_DEVICE, normalizeDeviceId, type DeviceCheckItem, type DeviceConfig, type DeviceState } from '../shared/devices';
 import { projectKey } from './transcript';
 
 /** POSIX single quotes: safe for any string, newlines and unicode included. */
@@ -176,8 +176,11 @@ export function rosterAgentsOn(
   const out: Array<{ id: string; cwd?: string }> = [];
   for (const a of [...(roster?.agents ?? []), ...(roster?.restorable ?? [])]) {
     if (!a || typeof a !== 'object') continue;
-    const { id, cwd, device } = a as Record<string, unknown>;
-    if (typeof id === 'string' && device === deviceId) out.push(typeof cwd === 'string' ? { id, cwd } : { id });
+    const { id, cwd, device, lastDevice } = a as Record<string, unknown>;
+    // An Auto agent lives where it last ran: reconcile must keep its session,
+    // and Check must cover its folder there.
+    const on = device === AUTO_DEVICE ? lastDevice : device;
+    if (typeof id === 'string' && on === deviceId) out.push(typeof cwd === 'string' ? { id, cwd } : { id });
   }
   return out;
 }
@@ -348,6 +351,8 @@ export function validateSpawnDevice(device: unknown, states: Record<string, Devi
   if (device !== undefined && typeof device !== 'string') return { error: '"device" must be a device id' };
   const id = normalizeDeviceId(device);
   if (!id) return {};
+  // Placed when the worker starts (index.ts placeAuto).
+  if (id === AUTO_DEVICE) return { device: AUTO_DEVICE };
   if (!Object.hasOwn(states, id)) return { error: `unknown device "${id}"` };
   if (states[id] !== 'online') return { error: `device "${id}" is ${states[id]}` };
   return { device: id };
@@ -375,4 +380,40 @@ export function writeTranscriptCommand(cwd: string, sessionId: string): string {
   const d = projectDirSh(cwd);
   const part = `${d}/${shq(`.${sessionId}.jsonl.part`)}`;
   return `mkdir -p ${d} && cat > ${part} && mv -f ${part} ${d}/${shq(`${sessionId}.jsonl`)}`;
+}
+
+// ─── Automatic placement (devices phase 2, item 2) ───────────────────────────
+
+/** One device's load, as the spec states it. */
+export const LOAD_COMMAND = 'cat /proc/loadavg; nproc; grep MemAvailable /proc/meminfo';
+
+/** One candidate machine. `id` is a device id, or 'local' for this laptop. */
+export interface LoadSample {
+  id: string;
+  load1: number;
+  cores: number;
+  /** Bytes. */
+  memAvailable: number;
+}
+
+export function parseLoad(id: string, out: string): LoadSample | null {
+  const lines = out.split('\n').map((l) => l.trim()).filter(Boolean);
+  const load1 = parseFloat((lines[0] ?? '').split(/\s+/)[0]);
+  const cores = parseInt(lines[1] ?? '', 10);
+  const kb = /^MemAvailable:\s+(\d+)\s*kB/.exec(lines[2] ?? '');
+  if (!Number.isFinite(load1) || !(cores > 0) || !kb) return null;
+  return { id, load1, cores, memAvailable: Number(kb[1]) * 1024 };
+}
+
+/** Candidates under 1.5 load per core qualify; the one with the most free
+ *  memory wins; if none qualifies, the most free memory overall. Ties go to
+ *  this laptop, so an agent never crosses the network for nothing. */
+export function pickDevice(samples: LoadSample[]): string {
+  const calm = samples.filter((x) => x.load1 / x.cores < 1.5);
+  const pool = calm.length ? calm : samples;
+  let best: LoadSample | undefined;
+  for (const x of pool) {
+    if (!best || x.memAvailable > best.memAvailable || (x.memAvailable === best.memAvailable && x.id === LOCAL_DEVICE)) best = x;
+  }
+  return best?.id ?? LOCAL_DEVICE;
 }

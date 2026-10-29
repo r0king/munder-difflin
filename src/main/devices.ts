@@ -17,11 +17,11 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir, userInfo } from 'node:os';
+import { cpus, freemem, homedir, loadavg, tmpdir, userInfo } from 'node:os';
 import { dirname, join, sep } from 'node:path';
-import { normalizeDevices, type ConversationStayed, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
+import { LOCAL_DEVICE, normalizeDevices, type ConversationStayed, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
 import {
-  backoffDelay, checkCommands, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
+  backoffDelay, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
   masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, readTranscriptCommand, sshTarget,
   terminalArgs, TMUX_CONF, tmuxConfPath, TRANSCRIPT_MISSING, writeTranscriptCommand
 } from './deviceCommands';
@@ -387,4 +387,17 @@ export async function copyTranscript(
   } catch {
     return { ok: false, reason: 'failed' };
   }
+}
+
+// ─── Automatic placement (devices phase 2, item 2) ───────────────────────────
+
+/** A device's load, or null when it did not answer (it is then no candidate). */
+export async function readLoad(link: DeviceLink): Promise<LoadSample | null> {
+  const r = await link.exec(LOAD_COMMAND, 10_000);
+  return r.ok ? parseLoad(link.id, r.stdout) : null;
+}
+
+/** This laptop's load, the same three numbers. */
+export function localLoad(): LoadSample {
+  return { id: LOCAL_DEVICE, load1: loadavg()[0], cores: cpus().length || 1, memAvailable: freemem() };
 }

@@ -464,7 +464,7 @@ export class HiveManager {
    *  unintegrated-work gate cannot run there), so god is told to clean it up. */
   private deviceSpawnHint(): string {
     return this._deviceIds.length
-      ? ` Optional \`device\` (${this._deviceIds.join(', ')}) runs the worker on that machine instead of this laptop: heavy work (type-checks, suites, builds) is best placed on a device. An unknown or offline device fails the request with the reason. Only Claude Code runs on a device, and a device worker's worktree is kept on the device after it finishes: integrate its branch and remove the worktree, or ask the human.`
+      ? ` Optional \`device\` (auto, ${this._deviceIds.join(', ')}) runs the worker on another machine instead of this laptop: heavy work (type-checks, suites, builds) is best placed on a device, and \`"device": "auto"\` picks the least-loaded machine when the worker starts, so use it for heavy work. The default stays this laptop. An unknown or offline device fails the request with the reason. Only Claude Code runs on a device, and a device worker's worktree is kept on the device after it finishes: integrate its branch and remove the worktree, or ask the human.`
       : '';
   }
 
@@ -3136,8 +3136,9 @@ thread. This is the ONLY spawn route you can complete on your own: a hire manife
 \`research/hires/\` needs the human to confirm it in the UI.
 
 \`device\` (optional) runs the worker on another machine from Settings → Devices instead of this
-laptop; heavy work (type-checks, suites, builds) is best placed there. Only Claude Code runs on a
-device. An unknown or offline device fails the request into \`spawn-requests/.failed/\` with the reason.
+laptop. \`"auto"\` picks the least-loaded machine, this laptop included, when the worker starts:
+use it for heavy work (type-checks, suites, builds). Only Claude Code runs on a device.
+An unknown or offline device fails the request into \`spawn-requests/.failed/\` with the reason.
 A device worker's worktree is kept on the device after it finishes: integrate its branch and remove
 the worktree, or ask the human.
 

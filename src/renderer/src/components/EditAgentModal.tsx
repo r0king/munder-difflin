@@ -286,6 +286,8 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
                 <Row label={t('devices.runsOn')}>
                   <select value={device} onChange={(e) => { setDevice(e.target.value); setMoveError(undefined); }} style={inputStyle}>
                     <option value="">{t('devices.thisLaptop')}</option>
+                    {/* god is never placed automatically (spec §4). */}
+                    {!agent.isGod && <option value="auto">{t('devices.auto')}</option>}
                     {(config?.devices ?? []).map((d) => <option key={d.id} value={d.id}>{d.id}</option>)}
                   </select>
                 </Row>

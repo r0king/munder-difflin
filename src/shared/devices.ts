@@ -37,6 +37,9 @@ export interface DeviceCheckItem {
 }
 
 export const LOCAL_DEVICE = 'local';
+/** "Runs on: Auto" (devices phase 2, item 2): the place is picked at each
+ *  fresh start. Stored on the roster entry; never a device id. */
+export const AUTO_DEVICE = 'auto';
 export const DEFAULT_PORT_BASE = 47990;
 export const DEFAULT_OFFLINE_PAUSE_MIN = 10;
 
@@ -57,7 +60,7 @@ export function normalizeDeviceId(device: unknown): string | undefined {
 
 /** Can `id` name a new device, given the ids already taken? */
 export function isValidDeviceId(id: string, taken: string[] = []): boolean {
-  return ID_RE.test(id) && id !== LOCAL_DEVICE && !taken.includes(id);
+  return ID_RE.test(id) && id !== LOCAL_DEVICE && id !== AUTO_DEVICE && !taken.includes(id);
 }
 
 export function isValidDeviceHost(host: string): boolean {

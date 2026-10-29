@@ -54,6 +54,9 @@ export interface Agent {
   /** The device this agent runs on (Settings → Devices); absent = this laptop.
    *  Persisted in roster.json, which is how a restore and a reconcile know it. */
   device?: string;
+  /** For `device: 'auto'`: the machine Auto last picked ('' = this laptop).
+   *  Shown on the card; reconcile and Check treat the agent as living there. */
+  lastDevice?: string;
   goal?: string;
   /** User-authored private note shown and edited from the roster-card hover. */
   note?: string;
