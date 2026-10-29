@@ -3186,8 +3186,12 @@ function cutOff() {
   if (!port || isStatus) process.exit(0);
   try {
     fs.mkdirSync(cacheDir, { recursive: true });
-    if (!fs.existsSync(unreachableFile)) fs.writeFileSync(unreachableFile, String(Date.now()));
-    const since = Number(fs.readFileSync(unreachableFile, 'utf8'));
+    // 'wx' creates the record atomically: hooks run in parallel, and a plain
+    // write would let a sibling read the empty file as 0 (instant pause). A
+    // record that is empty or corrupt anyway counts as starting now.
+    try { fs.writeFileSync(unreachableFile, String(Date.now()), { flag: 'wx' }); } catch (_) {}
+    let since = Number(fs.readFileSync(unreachableFile, 'utf8'));
+    if (!Number.isFinite(since) || since <= 0) { since = Date.now(); fs.writeFileSync(unreachableFile, String(since)); }
     const pauseMin = Number(process.env.HIVE_OFFLINE_PAUSE_MIN || 0);
     if (pauseMin > 0 && Date.now() - since > pauseMin * 60000) {
       fs.writeFileSync(pausedFile, String(Date.now()));
@@ -3233,10 +3237,14 @@ process.stdin.on('end', () => {
   if (!target) { process.exit(0); }
   let resp = '';
   const done = (code) => { if (resp) process.stdout.write(resp); process.exit(code); };
-  const c = net.createConnection(target, () => { reachable(); c.write(JSON.stringify(payload) + '\\n'); });
+  const c = net.createConnection(target, () => { c.write(JSON.stringify(payload) + '\\n'); });
   c.setEncoding('utf8');
   c.on('data', (d) => { resp += d; });
-  c.on('end', () => done(0));
+  // Only a reply proves the floor is there. In port mode the connect lands on
+  // the sshd/tailscaled forward listener, which stays open for hours after the
+  // laptop sleeps; the HookServer always answers at least '{}', so an empty
+  // close is the forward failing to reach it.
+  c.on('end', () => { if (resp) { reachable(); done(0); } else cutOff(); });
   c.on('error', cutOff);
   // A forward whose far end is gone can accept and then hang. In port mode
   // that is as unreachable as a refused connection.

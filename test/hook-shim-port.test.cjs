@@ -97,6 +97,29 @@ test('a reachable floor clears the record and relays its reply', async (t) => {
   assert.equal(fs.existsSync(s.unreachable), false);
 });
 
+test('a forward that accepts and never answers counts as cut off', async (t) => {
+  // The sshd forward listener outlives a sleeping laptop: the connect works,
+  // nothing ever comes back. That must not clear the record.
+  const s = setup(t);
+  backdate(s, 11);
+  const socks = [];
+  const srv = net.createServer((c) => socks.push(c));
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  t.after(() => { socks.forEach((c) => c.destroy()); srv.close(); });
+  const r = await runShim(s, { HIVE_HOOK_PORT: String(srv.address().port), HIVE_OFFLINE_PAUSE_MIN: '10' });
+  assert.equal(JSON.parse(r.stdout).continue, false);
+  assert.ok(fs.existsSync(s.paused));
+});
+
+test('a corrupt record counts as starting now, never as epoch', async (t) => {
+  const s = setup(t);
+  fs.mkdirSync(s.cache, { recursive: true });
+  fs.writeFileSync(s.unreachable, '');
+  const r = await runShim(s, { HIVE_HOOK_PORT: String(await deadPort()), HIVE_OFFLINE_PAUSE_MIN: '10' });
+  assert.equal(r.stdout, '');
+  assert.ok(Math.abs(Date.now() - Number(fs.readFileSync(s.unreachable, 'utf8'))) < 10_000);
+});
+
 test('socket mode (an agent on this laptop) never writes the pause files', async (t) => {
   const s = setup(t);
   const r = await runShim(s, { HIVE_SOCK: path.join(s.home, 'no-such.sock'), HIVE_OFFLINE_PAUSE_MIN: '10' });
