@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useStore, type Agent, type QueuedMessage, type StationKind, type ToolKind } from '@/store/store';
+import { setDeviceStatus } from '@/store/devices';
 import {
   buildSpawnCommand,
   ASSISTANT_MODEL,
@@ -1046,6 +1047,7 @@ export function useHive(config: HarnessConfig | null): void {
         project,
         tmuxTarget: '',
         cwd: rec.cwd,
+        device: rec.device,
         status: 'idle',
         action: 'starting up',
         progress: 0,
@@ -1175,6 +1177,13 @@ export function useHive(config: HarnessConfig | null): void {
 
     return () => { off?.(); offLegacy?.(); };
   }, [config?.onboardingComplete]);
+
+  // Devices: seed every link's state once, then follow main's pushes. The
+  // agent cards (offline · reconnecting) and Settings → Devices read them.
+  useEffect(() => {
+    void window.cth.listDevices().then((list) => list.forEach(setDeviceStatus)).catch(() => { /* no devices yet */ });
+    return window.cth.onDeviceState(setDeviceStatus);
+  }, []);
 
   // 7) Auto-revive wedged PTYs after the Mac sleeps/locks. Kevin's main-process
   //    keepalive catches up its schedules on wake and DETECTS terminals that were

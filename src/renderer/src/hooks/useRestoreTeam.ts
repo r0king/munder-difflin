@@ -122,7 +122,8 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
           let cwd = a.cwd;
           let worktreeGone = false;
           if (a.worktreePath) {
-            if (await window.cth.gitIsRepo(a.worktreePath)) {
+            // A device's worktree is on the device; main checks the folder there.
+            if (a.device || await window.cth.gitIsRepo(a.worktreePath)) {
               cwd = a.worktreePath;
             } else {
               worktreeGone = true;
@@ -147,7 +148,7 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
             // agent id is preserved across restart, so its registry entry,
             // memory.md and inbox reattach by id. No-op without a recorded session.
             resume: true,
-            hive: { id: a.id, name: a.name, provider, cwd, role: roleForHiveSpawn(a) }
+            hive: { id: a.id, name: a.name, provider, cwd, role: roleForHiveSpawn(a), device: a.device ?? '' }
           });
           if (res.ok) {
             restored++;

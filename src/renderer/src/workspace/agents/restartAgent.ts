@@ -123,7 +123,8 @@ export async function restartAgentProcess(agentId: string, opts: RestartOptions 
       const registry = await window.cth.hiveRegistry();
       resumeSessionId = registry.agents[a.id]?.sessionId;
       if (!resumeSessionId) giveUp('noSession');
-      else if (provider === 'claude' && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
+      // A device agent's transcript is on the device; main checks it there.
+      else if (provider === 'claude' && !a.device && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
         giveUp('noTranscript');
       }
     }
@@ -160,7 +161,9 @@ export async function restartAgentProcess(agentId: string, opts: RestartOptions 
         provider,
         isGod: a.isGod,
         isAssistant: a.isAssistant,
-        role: roleForHiveSpawn(a)
+        role: roleForHiveSpawn(a),
+        // The store is the truth after Edit moved it; '' = this laptop.
+        device: a.device ?? ''
       },
       resume,
       resumeSessionId,

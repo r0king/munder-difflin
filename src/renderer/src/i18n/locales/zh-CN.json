@@ -211,7 +211,8 @@
       "autonomyBudgets": "自主权与预算",
       "connections": "连接",
       "voice": "语音",
-      "memoryKnowledge": "记忆与知识"
+      "memoryKnowledge": "记忆与知识",
+      "devices": "设备"
     },
     "changeHome": {
       "newHome": "新的主文件夹",
@@ -1405,5 +1406,40 @@
     "viewSource": "查看源码",
     "loading": "正在加载图片…",
     "decodeFailed": "无法解码此图片——文件可能已损坏或扩展名有误"
+  },
+  "devices": {
+    "title": "设备",
+    "intro": "通过 Tailscale SSH 为此楼层运行智能体的其他 Linux 机器。每台设备都需要与这台笔记本相同的文件夹结构。",
+    "state": {
+      "online": "在线",
+      "connecting": "连接中",
+      "offline": "离线"
+    },
+    "fieldId": "名称",
+    "fieldHost": "主机（Tailscale IP 或名称）",
+    "fieldUser": "用户（可选）",
+    "add": "添加设备",
+    "remove": "移除",
+    "inUse": "仍有智能体在此运行",
+    "check": "检查",
+    "checking": "检查中…",
+    "fix": "修复：",
+    "errId": "请使用 1–32 个字母、数字、- 或 _，不能是 \"local\"，且不能与已有名称重复。",
+    "errHost": "请输入设备的 Tailscale IP 或名称。",
+    "none": "还没有设备。",
+    "items": {
+      "login": "SSH 登录",
+      "claude": "已找到 claude 并已登录",
+      "node": "node",
+      "tmux": "tmux",
+      "sshfs": "sshfs",
+      "mount": "蜂巢已挂载",
+      "folder": "文件夹 {{path}}"
+    },
+    "runsOn": "运行于",
+    "thisLaptop": "这台笔记本",
+    "runsOnHint": "它的文件夹必须存在于 {{device}} 上；繁重的工作在那里运行。",
+    "restartsHint": "更改后会在那里以新会话重启该智能体。",
+    "offlineReconnecting": "离线 · 正在重连"
   }
 }

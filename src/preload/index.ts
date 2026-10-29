@@ -925,7 +925,7 @@ const api = {
   onHiveAgentSpawned: (
     cb: (rec: {
       id: string; name: string; provider?: string; cwd: string;
-      command?: string; role?: string; worktreePath?: string;
+      command?: string; role?: string; worktreePath?: string; device?: string;
       character?: string; accent?: string;
     }) => void
   ): (() => void) => {

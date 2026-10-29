@@ -236,6 +236,9 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
   const preset = providerPreset(provider);
   const [goal, setGoal] = useState(pendingHire?.goal ?? '');
   const [isolate, setIsolate] = useState(pendingHire?.isolate ?? false);
+  // Settings → Devices: '' = this laptop. The folder is checked on that device
+  // when the agent starts (main runs `test -d` there and reports a miss).
+  const [device, setDevice] = useState('');
   // #2 — optional Claude session id to continue. When set, the spawn seeds that
   // session's transcript into the cwd's project dir and launches `--resume`.
   const [resumeSessionId, setResumeSessionId] = useState('');
@@ -425,7 +428,8 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
         cwd,
         role: description.trim() || undefined,
         // A hire manifest may carry validated capability tags (routing hints).
-        capabilities: hireMeta?.capabilities
+        capabilities: hireMeta?.capabilities,
+        device: device || undefined
       }
     });
     if (!spawnRes.ok) {
@@ -471,6 +475,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
       // Persist the resolved worktree path (set only when isolation provisioned
       // one) so a restart can re-enter this exact worktree — see restoreTeam.
       worktreePath: spawnRes.worktreePath,
+      device: device || undefined,
       // Crush (seedDelivery:'type-into-tui') hands its hive protocol back here
       // instead of on argv; useHive types it into the TUI after boot. (ondev-b)
       seedPrompt: spawnRes.seedPrompt,
@@ -835,6 +840,20 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
                         </button>
                       )}
                     </Row>
+
+                    {(config.devices ?? []).length > 0 && (
+                      <Row label={tr('devices.runsOn')}>
+                        <select value={device} onChange={(e) => setDevice(e.target.value)} style={inputStyle}>
+                          <option value="">{tr('devices.thisLaptop')}</option>
+                          {(config.devices ?? []).map((d) => <option key={d.id} value={d.id}>{d.id}</option>)}
+                        </select>
+                        {device && (
+                          <span style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-700)' }}>
+                            {tr('devices.runsOnHint', { device })}
+                          </span>
+                        )}
+                      </Row>
+                    )}
 
                     <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: resuming ? 'not-allowed' : 'pointer', opacity: resuming ? 0.5 : 1 }}>
                       <input
