@@ -63,13 +63,14 @@ import * as integrations from './integrations';
 import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, INTEGRATION_TEMPLATES } from '../shared/integrations';
 import { RosterStore } from './roster';
 import { DeviceRegistry, checkDevice, copyTranscript, localLoad, readLoad, remoteTerminal, type DeviceLink } from './devices';
+import type { RemoteHome } from './hive';
 import { startSftpServer, type SftpServer } from './sftpServer';
 import {
   REMOTE_HOOK_COMMAND, TMUX_KILL_SERVER, TMUX_LS, dirExistsCommand, hasSessionCommand, isDetach,
-  killSessionCommand, parseTmuxLs, planReconcile, remoteAgentEnv, rosterAgentsOn, sessionName,
+  engineCheck, killSessionCommand, mergeHomeJsonCommand, parseRemoteEnv, parseTmuxLs, planReconcile, REMOTE_ENV_PROBE, writeHomeFileCommand, remoteAgentEnv, rosterAgentsOn, sessionName,
   pickDevice, takePausedCommand, transcriptExistsCommand, validateSpawnDevice, type LoadSample
 } from './deviceCommands';
-import { AUTO_DEVICE, DEFAULT_OFFLINE_PAUSE_MIN, LOCAL_DEVICE, normalizeDeviceId, type ConversationStayed, type DeviceCheckItem, type DeviceStatus } from '../shared/devices';
+import { AUTO_DEVICE, DEFAULT_OFFLINE_PAUSE_MIN, DEVICE_PROVIDERS, LOCAL_DEVICE, normalizeDeviceId, type ConversationStayed, type DeviceCheckItem, type DeviceStatus } from '../shared/devices';
 import { buildWorkerLaunch } from './workerLaunch';
 import { CompactRequests } from './compactRequests';
 import { ControlRegistry } from './control';
@@ -2728,8 +2729,17 @@ const deviceCheckOk = new Map<string, boolean>();
 async function runDeviceCheck(id: string): Promise<DeviceCheckItem[]> {
   const root = hive.root();
   if (!root) return [];
-  const folders = [...new Set(rosterAgentsOn(roster.read(), id).map((a) => a.cwd).filter((c): c is string => !!c))];
-  const items = await checkDevice(devices.get(id), root, folders);
+  const agents = rosterAgentsOn(roster.read(), id);
+  const folders = [...new Set(agents.map((a) => a.cwd).filter((c): c is string => !!c))];
+  // Every other engine an agent here uses, once per binary.
+  const engines = new Map<string, AgentProvider>();
+  for (const a of agents) {
+    const provider = inferAgentProvider(a.command, a.provider as AgentProvider | undefined);
+    if (provider === 'claude') continue;
+    const bin = a.command?.trim().split(/\s+/)[0] || providerPreset(provider).defaultCommand;
+    if (bin) engines.set(bin, provider);
+  }
+  const items = await checkDevice(devices.get(id), root, folders, undefined, [...engines].map(([bin, provider]) => ({ provider, bin })));
   deviceCheckOk.set(id, items.every((i) => i.ok));
   return items;
 }
@@ -2749,6 +2759,24 @@ async function placeAuto(lastDevice: string | undefined, resuming: boolean): Pro
   const links = devices.all().filter((l) => l.state === 'online' && deviceCheckOk.get(l.id) === true);
   const remote = (await Promise.all(links.map(readLoad))).filter((x): x is LoadSample => !!x);
   return normalizeDeviceId(pickDevice([localLoad(), ...remote]));
+}
+
+/** What ensureAgent needs to write a non-Claude engine's home-config hooks
+ *  on a device (devices phase 2, item 5). */
+async function remoteHomeFor(link: DeviceLink): Promise<RemoteHome> {
+  const r = await link.exec(REMOTE_ENV_PROBE);
+  const env = r.ok ? parseRemoteEnv(r.stdout) : null;
+  if (!env) throw new Error(`Could not find node on ${link.id}. Run Check in Settings → Devices.`);
+  return {
+    ...env,
+    write: async (files) => {
+      for (const f of files) {
+        const cmd = f.mergeKey ? mergeHomeJsonCommand(f.path, f.mergeKey) : writeHomeFileCommand(f.path);
+        const w = await link.exec(cmd, 30_000, f.content);
+        if (!w.ok) throw new Error(`Could not write ~/${f.path} on ${link.id}: ${w.error ?? (w.stderr.trim() || `exit ${w.code}`)}`);
+      }
+    }
+  };
 }
 
 /** Start the shared SFTP server (once) and one link per configured device. */
@@ -2935,7 +2963,9 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   if (opts.hive && deviceId) {
     link = devices.get(deviceId);
     if (!link) return { ok: false, error: `Unknown device "${deviceId}". Add it in Settings → Devices.` };
-    if (!claudeProvider) return { ok: false, error: `Only Claude Code runs on devices; a ${provider} agent runs on this laptop.` };
+    if (!DEVICE_PROVIDERS.includes(provider)) {
+      return { ok: false, error: `${providerPreset(provider).label} does not run on devices; run it on this laptop.` };
+    }
     if (link.state !== 'online') return { ok: false, error: `${deviceId} is offline` };
     // A restart's kill-session (teardownPty) must land before the new session
     // starts, or `new-session -A` would attach to the old one.
@@ -2943,8 +2973,24 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     if (!(await link.exec(dirExistsCommand(opts.cwd))).ok) {
       return { ok: false, error: `cwd does not exist on ${deviceId}: ${opts.cwd}` };
     }
+    // The engine's CLI must be there too, on the device's login PATH. (Check
+    // covers claude; the local auto-installer never runs for a device.)
+    if (!claudeProvider) {
+      const e = engineCheck(provider, opts.command);
+      if (!(await link.exec(e.cmd)).ok) {
+        return { ok: false, error: `${opts.command} is not installed on ${deviceId}. Install it there: ${e.fix}` };
+      }
+    }
   }
   if (opts.hive) opts.hive = { ...opts.hive, device: deviceId };
+  // A non-Claude engine's home-config hooks are written on the device; its
+  // $HOME and node are read once here. A device that cannot answer fails
+  // the spawn now rather than start an agent the floor cannot hear.
+  let remoteHome: RemoteHome | undefined;
+  if (link && !claudeProvider) {
+    try { remoteHome = await remoteHomeFor(link); }
+    catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+  }
   // Activation-funnel entry (v0.4.6): every spawn REQUEST, so (attempted − spawned)
   // measures the fallout the whole rebuild exists to see. Gated on !noAutoInstall so
   // the missing-CLI relaunch (the only re-entry, index.ts install-exit handler) does
@@ -3112,7 +3158,9 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
           // the OS sandbox must let it through (empty when memory is off).
           extraWritableDirs: [memory.env().MEMPALACE_PALACE_PATH].filter((p): p is string => !!p),
           // A device agent runs the device's own copy of the hook shim.
-          hookCommand: link ? REMOTE_HOOK_COMMAND : undefined
+          hookCommand: link ? REMOTE_HOOK_COMMAND : undefined,
+          // A non-Claude engine's home-config hooks go to the device's home.
+          remote: remoteHome
         }
       );
       opts.args = [...(opts.args ?? []), ...inj.args, ...caps.args];
@@ -3364,7 +3412,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // Start/enable the daemon under this agent's isolated CODEX_HOME and connect
   // the TUI to it so the thread is visible in ChatGPT mobile. Best-effort: an
   // unavailable/older Codex install still gets a normal local terminal.
-  if (provider === 'codex' && opts.hive?.id) {
+  if (provider === 'codex' && opts.hive?.id && !link) {
     await enableCodexRemoteForSpawn(opts, opts.hive.id);
   }
   // A device agent's terminal is an ssh client of its tmux session there;
@@ -3380,7 +3428,9 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     try {
       remoteSpawn = remoteTerminal(link, hiveRoot, {
         ptyId: opts.id, agentId: opts.hive.id, cwd: opts.cwd,
-        env: opts.env ?? {}, args: opts.args ?? [], cols: opts.cols, rows: opts.rows
+        env: opts.env ?? {}, args: opts.args ?? [], cols: opts.cols, rows: opts.rows,
+        // The engine's own CLI; claude is found by the device's login PATH.
+        command: claudeProvider ? 'claude' : opts.command
       });
     } catch (e) {
       refused = e instanceof Error ? e.message : String(e);

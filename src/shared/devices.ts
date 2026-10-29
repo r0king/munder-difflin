@@ -5,6 +5,7 @@
  *
  * This laptop is the implicit device `local` and is never stored.
  */
+import type { AgentProvider } from './agentProvider';
 
 export interface DeviceConfig {
   /** 'my-lap'; also the label on agent cards and part of the ControlPath. */
@@ -30,7 +31,9 @@ export interface DeviceStatus {
 /** One line of Settings → Devices → Check. `fix` is a command, shown on failure. */
 export interface DeviceCheckItem {
   id: 'login' | 'base' | 'claude' | 'node' | 'tmux' | 'sshfs' | 'mount' | 'folder'
-    | 'wslSystemd' | 'wslFuse' | 'wslIdle' | 'wslSleep';
+    | 'wslSystemd' | 'wslFuse' | 'wslIdle' | 'wslSleep' | 'engine';
+  /** An engine's binary, for `engine` items. */
+  name?: string;
   /** The agent folder, for `folder` items; the base folder, for `base`. */
   path?: string;
   ok: boolean;
@@ -100,3 +103,7 @@ export interface ConversationStayed {
   device: string;
   reason: 'offline' | 'missing' | 'failed';
 }
+
+/** The engines that run on a device (devices phase 2, item 5). Each has its
+ *  CLI checked there, and its hook bridge set up for the device. */
+export const DEVICE_PROVIDERS: readonly AgentProvider[] = ['claude', 'codex', 'antigravity', 'grok', 'qwen', 'crush', 'custom'];

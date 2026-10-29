@@ -1441,7 +1441,8 @@
       "wslSystemd": "WSL 中已启用 systemd",
       "wslFuse": "WSL 中存在 /dev/fuse",
       "wslIdle": "Windows 保持 WSL 运行",
-      "wslSleep": "Windows 从不休眠"
+      "wslSleep": "Windows 从不休眠",
+      "engine": "已找到 {{name}}"
     },
     "runsOn": "运行于",
     "thisLaptop": "这台笔记本",

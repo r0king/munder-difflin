@@ -99,7 +99,7 @@ export function DevicesSettings({ config }: { config: HarnessConfig }) {
                     <span style={{ color: it.reminder ? 'var(--cth-ink-500)' : it.ok ? 'var(--cth-mint)' : 'var(--cth-coral)' }}>
                       {it.reminder ? 'ℹ' : it.ok ? '✓' : '✗'}
                     </span>{' '}
-                    {t(`devices.items.${it.id}`, { path: it.path })}
+                    {t(`devices.items.${it.id}`, { path: it.path, name: it.name })}
                     {/* A reminder always shows its instruction: Check cannot see it. */}
                     {(!it.ok || it.reminder) && it.fix && (
                       <div style={{ ...mono, color: 'var(--cth-ink-700)', marginInlineStart: 16, userSelect: 'text' }}>

@@ -14,6 +14,7 @@
  */
 import { AUTO_DEVICE, DEFAULT_PORT_BASE, isValidDeviceHost, isValidDeviceUser, LOCAL_DEVICE, normalizeDeviceId, type DeviceCheckItem, type DeviceConfig, type DeviceState } from '../shared/devices';
 import { projectKey } from './transcript';
+import { installInfoForProvider, type AgentProvider } from '../shared/agentProvider';
 import { posix } from 'node:path';
 
 /** POSIX single quotes: safe for any string, newlines and unicode included. */
@@ -173,15 +174,22 @@ export function isDetach(state: DeviceState, hasSessionCode: number): boolean {
 export function rosterAgentsOn(
   roster: { agents?: unknown[]; restorable?: unknown[] } | null,
   deviceId: string
-): Array<{ id: string; cwd?: string }> {
-  const out: Array<{ id: string; cwd?: string }> = [];
+): Array<{ id: string; cwd?: string; provider?: string; command?: string }> {
+  const out: Array<{ id: string; cwd?: string; provider?: string; command?: string }> = [];
   for (const a of [...(roster?.agents ?? []), ...(roster?.restorable ?? [])]) {
     if (!a || typeof a !== 'object') continue;
-    const { id, cwd, device, lastDevice } = a as Record<string, unknown>;
+    const { id, cwd, device, lastDevice, provider, command } = a as Record<string, unknown>;
     // An Auto agent lives where it last ran: reconcile must keep its session,
     // and Check must cover its folder there.
     const on = device === AUTO_DEVICE ? lastDevice : device;
-    if (typeof id === 'string' && on === deviceId) out.push(typeof cwd === 'string' ? { id, cwd } : { id });
+    if (typeof id !== 'string' || on !== deviceId) continue;
+    // Check also needs each agent's engine (devices phase 2, item 5).
+    out.push({
+      id,
+      ...(typeof cwd === 'string' ? { cwd } : {}),
+      ...(typeof provider === 'string' ? { provider } : {}),
+      ...(typeof command === 'string' ? { command } : {})
+    });
   }
   return out;
 }
@@ -493,4 +501,46 @@ export function wslCheckItems(p: { wsl: boolean; systemd: boolean; fuse: boolean
     { id: 'wslIdle', ok: true, reminder: true, fix: 'In Windows, %UserProfile%\\.wslconfig: [wsl2] vmIdleTimeout=-1, then wsl --shutdown' },
     { id: 'wslSleep', ok: true, reminder: true, fix: 'In Windows, an admin terminal: powercfg /change standby-timeout-ac 0 and powercfg /change hibernate-timeout-ac 0' }
   ];
+}
+
+// ─── Other engines on a device (devices phase 2, item 5) ─────────────────────
+
+/** Is an engine's CLI on the device's login PATH, and how to install it. */
+export function engineCheck(provider: AgentProvider, bin: string): { cmd: string; fix: string } {
+  const info = installInfoForProvider(provider, 'linux');
+  return {
+    cmd: `command -v ${shq(bin)} >/dev/null`,
+    fix: info.nativeCommand ?? info.command ?? `install ${bin} on the device, on its login PATH`
+  };
+}
+
+/** The device's $HOME and the login shell's node: hook commands bake in both
+ *  as absolute paths, because engines run hooks with a stripped PATH. */
+export const REMOTE_ENV_PROBE = `printf 'home=%s\\nnode=%s\\n' "$HOME" "$(command -v node)"`;
+
+export function parseRemoteEnv(out: string): { home: string; node: string } | null {
+  const home = /^home=(.*)$/m.exec(out)?.[1].trim() ?? '';
+  const node = /^node=(.*)$/m.exec(out)?.[1].trim() ?? '';
+  return home.startsWith('/') && node.startsWith('/') ? { home, node } : null;
+}
+
+/** Write stdin to a file under the device's home, making its folders. */
+export function writeHomeFileCommand(rel: string): string {
+  return `f="$HOME"/${shq(rel)}; mkdir -p "$(dirname "$f")" && cat > "$f"`;
+}
+
+// The same rule installAgyHooks follows on this laptop: an unparseable or
+// non-object file becomes {}, every other key is kept, only `key` is set.
+const MERGE_JS = [
+  "const fs=require('fs'),p=require('path');",
+  "const f=p.join(require('os').homedir(),process.argv[1]),k=process.argv[2];let v='';",
+  "process.stdin.setEncoding('utf8').on('data',d=>{v+=d}).on('end',()=>{",
+  "let o={};try{o=JSON.parse(fs.readFileSync(f,'utf8'))}catch(e){}",
+  'if(!o||typeof o!=="object"||Array.isArray(o))o={};',
+  'o[k]=JSON.parse(v);fs.mkdirSync(p.dirname(f),{recursive:true});fs.writeFileSync(f,JSON.stringify(o,null,2))})'
+].join('');
+
+/** Set one key of a JSON file under the device's home to the JSON on stdin. */
+export function mergeHomeJsonCommand(rel: string, key: string): string {
+  return `node -e ${shq(MERGE_JS)} ${shq(rel)} ${shq(key)}`;
 }

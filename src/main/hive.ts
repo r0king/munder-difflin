@@ -191,6 +191,29 @@ export interface Registry {
   agents: Record<string, RegistryAgent>;
 }
 
+/** Devices phase 2, item 5: for an agent on a device, an engine's hook files
+ *  that live in the user's home go to the DEVICE's home. They are built here,
+ *  as for a local agent; only the write is remote. The hooks run the
+ *  device's node and the device's own copy of the shim, because the hive
+ *  there is a mount that fails while the link is down. */
+export interface RemoteHome {
+  /** The device's $HOME, and its login shell's node (absolute paths). */
+  home: string;
+  node: string;
+  /** Write files under the device's home. `path` is relative to it. With
+   *  `mergeKey`, `content` (JSON) replaces that one key of an existing JSON
+   *  file instead of the whole file. */
+  write(files: Array<{ path: string; content: string; mergeKey?: string }>): Promise<void>;
+}
+
+/** Where a device keeps its own copies of the hook shims (the same folder
+ *  phase 1's installShimCommand copies cth-hook.cjs into). */
+const DEVICE_SHIM_DIR = '.cache/munder-difflin';
+
+function deviceHookCommand(r: RemoteHome, script: string, ...args: string[]): string {
+  return [`"${r.node}"`, `"${r.home}/${DEVICE_SHIM_DIR}/${script}"`, ...args].join(' ');
+}
+
 /** Build env + extra spawn args that make an agent process hive-aware. */
 export interface SpawnInjection {
   args: string[];
@@ -464,7 +487,7 @@ export class HiveManager {
    *  unintegrated-work gate cannot run there), so god is told to clean it up. */
   private deviceSpawnHint(): string {
     return this._deviceIds.length
-      ? ` Optional \`device\` (auto, ${this._deviceIds.join(', ')}) runs the worker on another machine instead of this laptop: heavy work (type-checks, suites, builds) is best placed on a device, and \`"device": "auto"\` picks the least-loaded machine when the worker starts, so use it for heavy work. The default stays this laptop. An unknown or offline device fails the request with the reason. Only Claude Code runs on a device, and a device worker's worktree is kept on the device after it finishes: integrate its branch and remove the worktree, or ask the human.`
+      ? ` Optional \`device\` (auto, ${this._deviceIds.join(', ')}) runs the worker on another machine instead of this laptop: heavy work (type-checks, suites, builds) is best placed on a device, and \`"device": "auto"\` picks the least-loaded machine when the worker starts, so use it for heavy work. The default stays this laptop. An unknown or offline device fails the request with the reason. Claude Code, Codex, Antigravity, Grok, Qwen, Crush and custom engines run on a device, and a device worker's worktree is kept on the device after it finishes: integrate its branch and remove the worktree, or ask the human.`
       : '';
   }
 
@@ -770,6 +793,8 @@ export class HiveManager {
        *  exactly when the shim must still run to pause the agent, so the
        *  device runs its own copy (REMOTE_HOOK_COMMAND in deviceCommands.ts). */
       hookCommand?: string;
+      /** A non-Claude agent on a device: where its home-config hooks go. */
+      remote?: RemoteHome;
     } = {}
   ): Promise<SpawnInjection> {
     const root = this.root();
@@ -911,9 +936,11 @@ export class HiveManager {
         env.HIVE_SOCK = sock;
         try {
           if (desc.kind === 'hooks') {
-            if (desc.shim === 'agy') this.installAgyHooks();
+            if (desc.shim === 'agy') await this.installAgyHooks(opts.remote);
             else if (desc.shim === 'codex') {
-              env.CODEX_HOME = this.installCodexHooks(dir, meta.id);
+              // On a device, CODEX_HOME is still in the hive (the device mounts
+              // it), but its hooks run the device's node and shim copy.
+              env.CODEX_HOME = this.installCodexHooks(dir, meta.id, opts.remote ? deviceHookCommand(opts.remote, 'cth-hook.cjs') : undefined);
               // Codex refuses to run hooks from a config dir without persisted
               // "hook trust" (normally an interactive gate). Our hooks.json is
               // hive-authored inside an isolated CODEX_HOME, so we bypass that gate
@@ -954,7 +981,7 @@ export class HiveManager {
               // the bridge is trusted and ~/.gemini/settings.json stays untouched.
               env.GEMINI_CLI_SYSTEM_SETTINGS_PATH = this.installGeminiHooks(dir);
             }
-            else if (desc.shim === 'grok') this.installGrokHooks();
+            else if (desc.shim === 'grok') await this.installGrokHooks(opts.remote);
           } else if (desc.kind === 'proxy') {
             // Stable per-spawn session id, stamped on every synthesized payload so
             // recordSession (registry resume key) and the cost ledger persist.
@@ -2146,16 +2173,19 @@ export class HiveManager {
    *  Runtime-scoped by AGENT_ID (the shim no-ops for non-hive agy sessions), so
    *  this global config never disturbs the user's own `agy` usage. Best-effort,
    *  idempotent (only our own group is overwritten). */
-  private installAgyHooks(): void {
+  private async installAgyHooks(remote?: RemoteHome): Promise<void> {
     const root = this.root();
     if (!root) return;
     const shim = join(root, 'bin', 'agy-hook.cjs');
     mkdirSync(join(root, 'bin'), { recursive: true });
     writeFileSync(shim, AGY_HOOK_SHIM, 'utf8');
     // Bundled node, not bare `node` — agy's hooks run with a stripped PATH too.
-    const command = (event: string) => process.platform === 'win32'
-      ? this.nodeRunUnquoted(shim, event)
-      : this.nodeRun(shim, event);
+    // On a device: the device's node, by absolute path, for the same reason.
+    const command = (event: string) => remote
+      ? deviceHookCommand(remote, 'agy-hook.cjs', event)
+      : process.platform === 'win32'
+        ? this.nodeRunUnquoted(shim, event)
+        : this.nodeRun(shim, event);
     const tool = (event: string) => ({
       matcher: '*',
       hooks: [{ type: 'command', command: command(event), timeout: 0 }]
@@ -2170,6 +2200,15 @@ export class HiveManager {
       PostInvocation: [plain('PostInvocation')],
       Stop: [plain('Stop')]
     };
+    if (remote) {
+      // The device's own home; other tools' hooks in these files are kept.
+      await remote.write([
+        { path: `${DEVICE_SHIM_DIR}/agy-hook.cjs`, content: AGY_HOOK_SHIM },
+        { path: '.gemini/config/hooks.json', content: JSON.stringify(group), mergeKey: 'munder-hive' },
+        { path: '.gemini/antigravity-cli/hooks.json', content: JSON.stringify(group), mergeKey: 'munder-hive' }
+      ]);
+      return;
+    }
     const gem = join(homedir(), '.gemini');
     for (const p of [join(gem, 'config', 'hooks.json'), join(gem, 'antigravity-cli', 'hooks.json')]) {
       try {
@@ -2244,7 +2283,7 @@ export class HiveManager {
    *  ~/.codex/auth.json is linked in and their config.toml is copied + extended
    *  (login + model/provider/trust settings still apply).
    *  Returns the CODEX_HOME path for the caller to put in the worker's env. */
-  private installCodexHooks(dir: string, agentId: string): string {
+  private installCodexHooks(dir: string, agentId: string, hookCommand?: string): string {
     const home = join(dir, '.codex');
     try {
       mkdirSync(home, { recursive: true });
@@ -2300,15 +2339,16 @@ export class HiveManager {
       const shim = this.shimPath();
       let config = existsSync(join(userHome, 'config.toml'))
         ? readFileSync(join(userHome, 'config.toml'), 'utf8') : '';
-      if (shim) {
+      if (shim || hookCommand) {
         const events = ['PreToolUse', 'PostToolUse', 'Stop', 'SubagentStop',
           'SessionStart', 'UserPromptSubmit', 'PreCompact', 'PostCompact'];
         // Preserve the existing Windows .cmd shape: nested command quotes pass
         // through a different shell stack there (#350). The reported Codex bug
         // is POSIX, where ordinary shell quoting is both necessary and verified.
-        const command = process.platform === 'win32'
-          ? this.nodeRunUnquoted(shim)
-          : this.nodeRun(shim);
+        // A device agent's command is given (the device's node and shim copy).
+        const command = hookCommand ?? (process.platform === 'win32'
+          ? this.nodeRunUnquoted(shim!)
+          : this.nodeRun(shim!));
         config += '\n# --- munder-hive lifecycle hooks (auto-generated; do not edit) ---\n';
         for (const ev of events) {
           config += `\n[[hooks.${ev}]]\n[[hooks.${ev}.hooks]]\ntype = "command"\ncommand = ${JSON.stringify(command)}\ntimeout = 30\n`;
@@ -2566,7 +2606,7 @@ export class HiveManager {
    *  Grok sessions/resume stay in the user's normal GROK_HOME. The adapter is
    *  strictly scoped by AGENT_ID, so ordinary Grok sessions exit without doing
    *  anything. Best-effort and idempotent. */
-  private installGrokHooks(): void {
+  private async installGrokHooks(remote?: RemoteHome): Promise<void> {
     const root = this.root();
     if (!root) return;
     try {
@@ -2578,7 +2618,7 @@ export class HiveManager {
         // Let Grok apply its event-aware defaults (5s normally, 600s for Stop).
         // Grok is a HOOK bridge (not a proxy sidecar), so it is hit by the same
         // `node: command not found` 127 — bundled node here too.
-        hooks: [{ type: 'command', command: this.nodeRun(shim) }]
+        hooks: [{ type: 'command', command: remote ? deviceHookCommand(remote, 'grok-hook.cjs') : this.nodeRun(shim) }]
       });
       const hooks = {
         PreToolUse: [tool('.*')],
@@ -2590,6 +2630,13 @@ export class HiveManager {
         PreCompact: [tool('.*')],
         PostCompact: [tool('.*')]
       };
+      if (remote) {
+        await remote.write([
+          { path: `${DEVICE_SHIM_DIR}/grok-hook.cjs`, content: GROK_HOOK_SHIM },
+          { path: '.grok/hooks/munder-hive.json', content: JSON.stringify({ hooks }, null, 2) }
+        ]);
+        return;
+      }
       const hookDir = join(homedir(), '.grok', 'hooks');
       mkdirSync(hookDir, { recursive: true });
       writeFileSync(
@@ -3137,7 +3184,7 @@ thread. This is the ONLY spawn route you can complete on your own: a hire manife
 
 \`device\` (optional) runs the worker on another machine from Settings → Devices instead of this
 laptop. \`"auto"\` picks the least-loaded machine, this laptop included, when the worker starts:
-use it for heavy work (type-checks, suites, builds). Only Claude Code runs on a device.
+use it for heavy work (type-checks, suites, builds). Claude Code, Codex, Antigravity, Grok, Qwen, Crush and custom engines run on a device.
 An unknown or offline device fails the request into \`spawn-requests/.failed/\` with the reason.
 A device worker's worktree is kept on the device after it finishes: integrate its branch and remove
 the worktree, or ask the human.
@@ -3306,7 +3353,7 @@ let data = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (d) => { data += d; });
 process.stdin.on('end', () => {
-  const sock = process.env.HIVE_SOCK;
+  const sock = Number(process.env.HIVE_HOOK_PORT) ? { host: '127.0.0.1', port: Number(process.env.HIVE_HOOK_PORT) } : process.env.HIVE_SOCK;
   if (!agentId || !sock) { process.exit(0); } // not a hive worker → ignore
   let agy = {};
   try { agy = JSON.parse(data || '{}'); } catch (_) {}
@@ -3678,7 +3725,7 @@ let data = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (d) => { data += d; });
 process.stdin.on('end', () => {
-  const sock = process.env.HIVE_SOCK;
+  const sock = Number(process.env.HIVE_HOOK_PORT) ? { host: '127.0.0.1', port: Number(process.env.HIVE_HOOK_PORT) } : process.env.HIVE_SOCK;
   if (!agentId || !sock) { process.exit(0); }
   let gemini = {};
   try { gemini = JSON.parse(data || '{}'); } catch (_) {}
@@ -3735,7 +3782,7 @@ let data = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (d) => { data += d; });
 process.stdin.on('end', () => {
-  const sock = process.env.HIVE_SOCK;
+  const sock = Number(process.env.HIVE_HOOK_PORT) ? { host: '127.0.0.1', port: Number(process.env.HIVE_HOOK_PORT) } : process.env.HIVE_SOCK;
   if (!agentId || !sock) { process.exit(0); }
   let grok = {};
   try { grok = JSON.parse(data || '{}'); } catch (_) {}

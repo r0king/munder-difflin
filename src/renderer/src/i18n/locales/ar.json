@@ -1441,7 +1441,8 @@
       "wslSystemd": "systemd مفعّل في WSL",
       "wslFuse": "وجود ‎/dev/fuse في WSL",
       "wslIdle": "ويندوز يُبقي WSL يعمل",
-      "wslSleep": "ويندوز لا يدخل السكون أبدًا"
+      "wslSleep": "ويندوز لا يدخل السكون أبدًا",
+      "engine": "تم العثور على {{name}}"
     },
     "runsOn": "يعمل على",
     "thisLaptop": "هذا الحاسوب",

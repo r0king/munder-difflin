@@ -1441,7 +1441,8 @@
       "wslSystemd": "systemd on in WSL",
       "wslFuse": "/dev/fuse in WSL",
       "wslIdle": "Windows keeps WSL running",
-      "wslSleep": "Windows never sleeps"
+      "wslSleep": "Windows never sleeps",
+      "engine": "{{name}} found"
     },
     "runsOn": "Runs on",
     "thisLaptop": "This laptop",

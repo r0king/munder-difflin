@@ -21,11 +21,12 @@ import { cpus, freemem, homedir, loadavg, tmpdir, userInfo } from 'node:os';
 import { dirname, join, sep } from 'node:path';
 import { LOCAL_DEVICE, normalizeDevices, type ConversationStayed, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
 import {
-  backoffDelay, baseFolder, basePathCommand, basePathFix, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
+  backoffDelay, baseFolder, engineCheck, basePathCommand, basePathFix, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, installShimCommand, launchPath, launchScript,
   masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, readTranscriptCommand, sshTarget,
   terminalArgs, TMUX_CONF, tmuxConfPath, TRANSCRIPT_MISSING, writeTranscriptCommand, parseWslProbe, WSL_PROBE, wslCheckItems
 } from './deviceCommands';
 import { projectKey } from './transcript';
+import type { AgentProvider } from '../shared/agentProvider';
 import type { SpawnOptions } from './pty';
 
 export interface ExecResult {
@@ -316,14 +317,14 @@ function replaceFile(hiveRoot: string, file: string, data: string, mode: number)
 export function remoteTerminal(
   link: DeviceLink,
   hiveRoot: string,
-  o: { ptyId: string; agentId: string; cwd: string; env: Record<string, string>; args: string[]; cols?: number; rows?: number }
+  o: { ptyId: string; agentId: string; cwd: string; env: Record<string, string>; args: string[]; cols?: number; rows?: number; command?: string }
 ): SpawnOptions {
   const launch = launchPath(hiveRoot, o.agentId);
   mkdirSync(dirname(launch), { recursive: true });
   // Owner-only: it carries the agent's env, capability tokens included. A
   // fresh file each time, so a launch.sh left wider (a copied or restored
   // hive) never keeps its old mode.
-  replaceFile(hiveRoot, launch, launchScript({ cwd: o.cwd, env: o.env, command: 'claude', args: o.args }), 0o600);
+  replaceFile(hiveRoot, launch, launchScript({ cwd: o.cwd, env: o.env, command: o.command ?? 'claude', args: o.args }), 0o600);
   mkdirSync(dirname(tmuxConfPath(hiveRoot)), { recursive: true });
   replaceFile(hiveRoot, tmuxConfPath(hiveRoot), TMUX_CONF, 0o644);
   return {
@@ -346,7 +347,8 @@ export async function checkDevice(
   link: DeviceLink | undefined,
   hiveRoot: string,
   folders: string[],
-  localHome: string = homedir()
+  localHome: string = homedir(),
+  engines: Array<{ provider: AgentProvider; bin: string }> = []
 ): Promise<DeviceCheckItem[]> {
   if (!link || link.state !== 'online') {
     return [{ id: 'login', ok: false, fix: link?.error ?? 'Not connected yet. Check the host, and that Tailscale SSH is on for this device.' }];
@@ -357,6 +359,13 @@ export async function checkDevice(
     out.push({ id: c.item, ...(c.path ? { path: c.path } : {}), ok: r.ok, ...(r.ok ? {} : { fix: c.fix }) });
     // Right after login: the base folder, which every path the hive holds needs.
     if (c.item === 'login') out.push(await checkBase(link, hiveRoot, localHome));
+  }
+  // Each other engine an agent here uses: its CLI, found by the login shell
+  // (devices phase 2, item 5). Claude has its own item above.
+  for (const e of engines) {
+    const c = engineCheck(e.provider, e.bin);
+    const r = await link.exec(c.cmd, 20_000);
+    out.push(r.ok ? { id: 'engine', name: e.bin, ok: true } : { id: 'engine', name: e.bin, ok: false, fix: c.fix });
   }
   // A Windows machine through WSL2 (devices phase 2, item 6).
   out.push(...wslCheckItems(parseWslProbe((await link.exec(WSL_PROBE, 20_000)).stdout)));
