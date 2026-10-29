@@ -1460,5 +1460,11 @@
     "godWarning": "While {{device}} is offline the floor has no god: mail to it waits, and it pauses after the offline limit like any agent.",
     "reminder": "Check by hand:",
     "usageUnavailable": "usage not available on a device"
+  },
+  "remoteFloor": {
+    "toggle": "Control page: the floor on your phone",
+    "hint": "Served on this laptop’s Tailscale address only. Only your Tailscale login gets in.",
+    "address": "Open {{url}}",
+    "waiting": "Waiting for Tailscale…"
   }
 }

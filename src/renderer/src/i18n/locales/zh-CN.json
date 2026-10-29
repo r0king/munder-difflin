@@ -1460,5 +1460,11 @@
     "godWarning": "{{device}} 离线期间，楼层没有 god：发给它的邮件会等待，超过离线时限后它会像其他智能体一样暂停。",
     "reminder": "请手动确认：",
     "usageUnavailable": "在设备上无法获取用量"
+  },
+  "remoteFloor": {
+    "toggle": "控制页：在手机上查看楼层",
+    "hint": "仅在这台笔记本的 Tailscale 地址上提供，只有你的 Tailscale 账号可以访问。",
+    "address": "打开 {{url}}",
+    "waiting": "正在等待 Tailscale…"
   }
 }

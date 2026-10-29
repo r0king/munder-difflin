@@ -64,6 +64,8 @@ import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, IN
 import { RosterStore } from './roster';
 import { DeviceRegistry, checkDevice, copyTranscript, localLoad, readLoad, remoteTerminal, type DeviceLink } from './devices';
 import type { RemoteHome } from './hive';
+import { RemoteFloor, DEFAULT_REMOTE_FLOOR_PORT, type FloorActionResult } from './remoteFloor';
+import { FloorActivity, createFloorSource } from './remoteFloorSource';
 import { startSftpServer, type SftpServer } from './sftpServer';
 import {
   REMOTE_HOOK_COMMAND, TMUX_KILL_SERVER, TMUX_LS, dirExistsCommand, hasSessionCommand, isDetach,
@@ -339,6 +341,8 @@ function standingGoalFromRoster(agentId: string): string | null {
 const workerWake = new WorkerWakeWatchdog();
 // HookServer needs BOTH: Oscar's control registry (HITL pause/gate/steer/halt via
 // hook returns) AND Jim's breaker (feed recordToolUse on each PostToolUse).
+// What each agent's hooks last said it is doing, for the control page.
+const floorActivity = new FloorActivity();
 const hookServer = new HookServer(
   hive,
   () => liveWebContents(),
@@ -350,6 +354,7 @@ const hookServer = new HookServer(
   (agentId) => withContextRules(standingGoalFromRoster(agentId)),
   (agentId, event, message) => {
     workerWake.noteHook(agentId, event, message);
+    floorActivity.note(agentId, event, message);
     if (event === 'PostCompact' && agentId) compactRequests.noteCompacted(agentId);
   }
 );
@@ -1461,6 +1466,8 @@ function writeFleetSnapshot(): void {
     // `hooks` is the control plane's own health (#277): god and the operator
     // can read from fleet.json whether hooks are being enforced at all.
     hive.writeFleetSnapshot({ ts: now, agents, hooks: hookServer.health() });
+    // The same beat refreshes the control page.
+    floorSource.changed();
   } catch (e) {
     console.error('[fleet] snapshot failed:', e);
   }
@@ -4234,6 +4241,7 @@ async function teardownAndQuit(): Promise<void> {
   try { telemetry.stop(); } catch (e) { console.error('[quit] telemetry.stop:', e); }
   try { stopSlackServer(); } catch (e) { console.error('[quit] slack.stop:', e); }
   try { stopWebhookServer(); } catch (e) { console.error('[quit] webhook.stop:', e); }
+  try { void remoteFloor?.stop(); } catch (e) { console.error('[quit] remoteFloor.stop:', e); }
   try { memory.stop(); } catch (e) { console.error('[quit] memory.stop:', e); }
   try { reflector.stop(); } catch (e) { console.error('[quit] reflector.stop:', e); }
   try { persist.close(); } catch (e) { console.error('[quit] persist.close:', e); }
@@ -4287,7 +4295,69 @@ const closingTime = new ClosingTimeController(
   // at their next hook boundary instead of waiting for a Stop.
   control
 );
-hive.setRoutedObserver((msg, targets) => closingTime.onRouted(msg, targets));
+// ─── Control page (devices phase 2, item 8) ─────────────────────────────────
+// The phone-first page remoteFloor.ts serves over Tailscale. Off by default;
+// Settings → Devices → Control page turns it on. Everything it shows and does
+// goes through the floor's own state and handlers (remoteFloorSource.ts).
+const floorSource = createFloorSource({
+  registry: () => hive.registry(),
+  tasks: () => hive.tasks(),
+  patchTask: (id, patch) => hive.patchTask(id, patch as Partial<Omit<HiveTask, 'id'>>),
+  send: (msg, from) => hive.send(msg, from),
+  messages: (limit) => hive.voiceMessages({ limit }),
+  isGod: (id) => hive.isGod(id),
+  activity: (id) => floorActivity.get(id),
+  paused: (id) => { const s = control.snapshot(id); return s.paused || s.halted; },
+  deliveryPaused: (id) => controlSnapshotWithFloorHold(id).autoDeliveryPaused,
+  // The hive:agentContext figure: the status line's tokens over its window.
+  contextPct: (id) => { const c = hookServer.contextFor(id); return c && c.limit > 0 ? Math.round((c.tokens / c.limit) * 100) : null; },
+  costToday: (id) => costTotals.usdTodayFor(id),
+  devices: () => devices.statuses(),
+  halt: (id) => control.halt(id),
+  restart: (id) => restartFromPage(id),
+  setAutoDelivery: (id, paused) => setAutoDeliveryPaused(id, paused),
+  messageSent: () => analytics.trackMessageSent('hive')
+});
+devices.on('state', () => floorSource.changed());
+
+let remoteFloor: RemoteFloor | null = null;
+let remoteFloorPort = 0;
+/** Start, stop or move the control page to match the config. */
+function syncRemoteFloor(cfg: { remoteFloorEnabled?: boolean; remoteFloorPort?: number }): void {
+  const want = cfg.remoteFloorEnabled === true && hive.enabled();
+  const port = cfg.remoteFloorPort ?? DEFAULT_REMOTE_FLOOR_PORT;
+  if (remoteFloor && (!want || port !== remoteFloorPort)) { void remoteFloor.stop(); remoteFloor = null; }
+  if (want && !remoteFloor) {
+    remoteFloorPort = port;
+    remoteFloor = new RemoteFloor({ source: floorSource, port });
+    void remoteFloor.start().catch((e) => console.error('[remote-floor] start failed:', e));
+  }
+}
+ipcMain.handle('remoteFloor:address', () => remoteFloor?.address() ?? null);
+
+// Restart lives in the renderer (restartAgentProcess), so the page asks the
+// floor window and waits for its answer, at most two minutes.
+let restartSeq = 0;
+const pendingRestarts = new Map<number, (r: FloorActionResult) => void>();
+ipcMain.on('remoteFloor:restartDone', (_evt, reqId: unknown, result: unknown) => {
+  const done = typeof reqId === 'number' ? pendingRestarts.get(reqId) : undefined;
+  const r = result as { ok?: unknown; error?: unknown } | null;
+  done?.({ ok: r?.ok === true, ...(typeof r?.error === 'string' ? { error: r.error } : {}) });
+});
+function restartFromPage(agentId: string): Promise<FloorActionResult> {
+  // A halted agent's flag would stop the new process at its first hook.
+  control.resume(agentId);
+  const wc = liveWebContents();
+  if (!wc) return Promise.resolve({ ok: false, error: 'The floor window is closed.' });
+  const reqId = ++restartSeq;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { pendingRestarts.delete(reqId); resolve({ ok: false, error: 'The floor did not answer.' }); }, 120_000);
+    pendingRestarts.set(reqId, (r) => { clearTimeout(timer); pendingRestarts.delete(reqId); resolve(r); });
+    wc.send('remoteFloor:restart', { reqId, agentId });
+  });
+}
+
+hive.setRoutedObserver((msg, targets) => { closingTime.onRouted(msg, targets); floorSource.changed(); });
 ipcMain.handle('app:startClosingTime', () => closingTime.start());
 ipcMain.handle('app:cancelClosingTime', () => closingTime.cancel());
 
@@ -4424,9 +4494,9 @@ ipcMain.handle('control:pause', (_evt, agentId: unknown, on: unknown) => {
   control.pause(agentId, on === true);
   return control.snapshot(agentId);
 });
-ipcMain.handle('control:autoDelivery', (_evt, agentId: unknown, paused: unknown) => {
-  if (typeof agentId !== 'string') return null;
-  const on = paused === true;
+/** Pause or resume one agent's auto-delivery, and persist it. The floor's
+ *  switch and the control page both come through here. */
+function setAutoDeliveryPaused(agentId: string, on: boolean): void {
   control.pauseAutoDelivery(agentId, on);
   const current = new Set(readConfig().autoDeliveryPausedAgents ?? []);
   if (on) current.add(agentId); else current.delete(agentId);
@@ -4435,6 +4505,10 @@ ipcMain.handle('control:autoDelivery', (_evt, agentId: unknown, paused: unknown)
   // Classic floor switch reads it as "paused"; resuming from there must lift it
   // too, or that switch would flip to "auto" while nothing moved.
   if (!on) liftFloorDeliveryPause();
+}
+ipcMain.handle('control:autoDelivery', (_evt, agentId: unknown, paused: unknown) => {
+  if (typeof agentId !== 'string') return null;
+  setAutoDeliveryPaused(agentId, paused === true);
   return controlSnapshotWithFloorHold(agentId);
 });
 ipcMain.handle('control:resume', (_evt, agentId: unknown) => {
@@ -5621,6 +5695,7 @@ function bootstrapHiveServices(): void {
   // builder reads this, so an agent spawned earlier would never learn it.
   hive.setRuntimeInfo({ version: app.getVersion(), packaged: app.isPackaged, appPath: app.getAppPath() });
   hive.setOrchestratorMaySpawn(readConfig().orchestratorMaySpawn === true);
+  syncRemoteFloor(readConfig());
   hive.setDeviceIds((readConfig().devices ?? []).map((d) => d.id));
   // An app-start marker in the event log. log.jsonl had twelve event kinds and
   // none of them meant "the app restarted", so a relaunch, and more importantly a
@@ -6017,6 +6092,8 @@ onConfigWritten((config) => {
     if (w.isDestroyed() || w.webContents.isDestroyed()) continue;
     w.webContents.send('config:changed', config);
   }
+  // Settings → Devices → Control page.
+  syncRemoteFloor(config);
 });
 
 app.on('window-all-closed', () => {

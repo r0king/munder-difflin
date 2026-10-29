@@ -13,6 +13,7 @@ import { useStore } from '@/store/store';
 import { deviceInUse, useDeviceStates } from '@/store/devices';
 import { isValidDeviceHost, isValidDeviceId, isValidDeviceUser, type DeviceCheckItem, type DeviceConfig } from '@shared/devices';
 import { PixelButton } from './PixelButton';
+import { RemoteFloorSettings } from './RemoteFloorSettings';
 
 const DOT: Record<string, string> = { online: 'var(--cth-mint)', connecting: 'var(--cth-lemon)', offline: 'var(--cth-coral)' };
 const input: CSSProperties = {
@@ -120,6 +121,7 @@ export function DevicesSettings({ config }: { config: HarnessConfig }) {
         <PixelButton size="sm" onClick={() => void add()}>{t('devices.add')}</PixelButton>
       </div>
       {error && <div style={{ fontSize: 12, color: 'var(--cth-coral)', marginTop: 4 }}>{error}</div>}
+      <RemoteFloorSettings config={config} />
     </div>
   );
 }
