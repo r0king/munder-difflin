@@ -145,6 +145,74 @@ test('the hive mounts only on an empty folder; a non-empty one is refused, not h
   assert.equal(s.calls().length, 1, 'a live mount is left alone: no unmount, no sshfs');
 });
 
+// A device we set up has the shim in its cache; that is how the mount code knows
+// a non-empty hive folder is agent writes made while the mount was gone.
+const markSetUp = (s) => {
+  fs.mkdirSync(path.join(s.dir, '.cache', 'munder-difflin'), { recursive: true });
+  fs.writeFileSync(path.join(s.dir, '.cache', 'munder-difflin', 'cth-hook.cjs'), '');
+};
+const strayDirs = (hive) => fs.readdirSync(path.dirname(hive)).filter((n) => n.startsWith(`${path.basename(hive)}.stray-`));
+
+test('on a device set up before, files written into the bare hive are moved aside and merged back', (t) => {
+  const s = sandbox(t);
+  s.fake('sshfs'); // mounts nothing: the merge copies back into the same folder
+  markSetUp(s);
+  const hive = path.join(s.dir, 'home', 'hive dir');
+  fs.mkdirSync(path.join(hive, 'agents', 'x', 'evidence'), { recursive: true });
+  fs.writeFileSync(path.join(hive, 'agents', 'x', 'evidence', 'a.jpg'), 'jpegbytes');
+  const r = s.sh(dc.mountCommand(hive, 47990, mounts(s, '/elsewhere')));
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(s.calls().length, 1, 'sshfs was called');
+  assert.equal(fs.readFileSync(path.join(hive, 'agents', 'x', 'evidence', 'a.jpg'), 'utf8'), 'jpegbytes');
+  assert.deepEqual(strayDirs(hive), []);
+  assert.ok(/merged .*\.stray-\d+/.test(r.stdout), r.stdout);
+});
+
+test('a device never set up keeps refusing a non-empty hive folder, and moves nothing', (t) => {
+  const s = sandbox(t);
+  s.fake('sshfs');
+  const hive = path.join(s.dir, 'home', 'hive');
+  fs.mkdirSync(hive, { recursive: true });
+  fs.writeFileSync(path.join(hive, 'mine.txt'), 'x');
+  const r = s.sh(dc.mountCommand(hive, 47990, mounts(s, '/elsewhere')));
+  assert.equal(r.status, 3);
+  assert.ok(r.stdout.includes(dc.NOT_EMPTY));
+  assert.equal(s.calls().length, 0);
+  assert.deepEqual(fs.readdirSync(hive), ['mine.txt']);
+  assert.deepEqual(strayDirs(hive), []);
+});
+
+test('leftover sshfs processes of the hive path are killed; those of another mountpoint are not', async (t) => {
+  const s = sandbox(t);
+  s.fake('sshfs');
+  const hive = path.join(s.dir, 'home', 'hive');
+  const { spawn } = require('node:child_process');
+  const mk = () => { const c = spawn('sleep', ['60']); t.after(() => c.kill('SIGKILL')); return c; };
+  const [dead, other] = [mk(), mk()];
+  const exited = (c) => new Promise((res) => (c.exitCode !== null || c.signalCode ? res(true) : c.once('exit', () => res(true))));
+  const timeout = (ms) => new Promise((res) => setTimeout(() => res(false), ms));
+  s.fake('ps', `process.stdout.write(${JSON.stringify(`${dead.pid} sshfs sshfs -o x 127.0.0.1:${hive} ${hive}\n${other.pid} sshfs sshfs -o x 127.0.0.1:${hive}2 ${hive}2\n`)});\n`);
+  const r = await new Promise((res) => { const c = spawn('sh', ['-c', dc.mountCommand(hive, 47990, mounts(s, '/elsewhere'))], { env: s.env }); c.on('close', (status) => res({ status })); });
+  assert.equal(r.status, 0);
+  assert.equal(await Promise.race([exited(dead), timeout(2000)]), true, 'the stray sshfs is killed');
+  assert.equal(await Promise.race([exited(other), timeout(300)]), false, 'another mountpoint is left alone');
+});
+
+test('a stray dir left by an earlier failed attempt is merged, then removed', (t) => {
+  const s = sandbox(t);
+  s.fake('sshfs');
+  const hive = path.join(s.dir, 'home', 'hive');
+  fs.mkdirSync(hive, { recursive: true });
+  fs.mkdirSync(`${hive}.stray-123`);
+  fs.writeFileSync(path.join(`${hive}.stray-123`, 'keep.txt'), 'old');
+  fs.writeFileSync(path.join(`${hive}.stray-123`, 'b.txt'), 'b');
+  const r = s.sh(dc.mountCommand(hive, 47990, mounts(s, '/elsewhere')));
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(fs.readFileSync(path.join(hive, 'b.txt'), 'utf8'), 'b');
+  assert.equal(fs.readFileSync(path.join(hive, 'keep.txt'), 'utf8'), 'old');
+  assert.deepEqual(strayDirs(hive), []);
+});
+
 test('a port held by a process connected to itself is freed; nothing else is touched', async (t) => {
   const stderr = 'Warning: remote port forwarding failed for listen port 47990\nWarning: remote port forwarding failed for listen port 47992\n';
   assert.deepEqual(dc.busyForwardPorts(stderr), [47990, 47992]);

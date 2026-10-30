@@ -98,6 +98,11 @@ There is one `DeviceLink` per configured device, with states `offline`,
    stale size.
    `<hive>` is the same absolute path on both machines. The mount reconnects by
    itself, so the link only re-runs this when `mountpoint` says it is gone.
+   A broken mount repairs itself: strays of old sshfs processes on `<hive>` are
+   killed, and on a device we set up before (the shim is in its cache) a
+   non-empty folder (agent writes made while the mount was gone) is moved to
+   `<hive>.stray-<epoch>` and merged back, no-clobber, once mounted. A device
+   we never set up still refuses a non-empty folder (`MD_HIVE_NOT_EMPTY`).
 4. **Reconnects.** When the master exits, the device goes `offline` and
    reconnects after backoff of 2s, 5s, 15s, 30s, then every 60s. A dead link is
    detected in about 2 min (ServerAlive 15 × 8). A port left LISTENing by Tailscale SSH after a dead session is freed by restarting tailscaled on the device (needs the `md-tailscaled` sudo rule; at most once per 10 min; reconnect after 15 s).

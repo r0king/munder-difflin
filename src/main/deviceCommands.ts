@@ -272,14 +272,23 @@ export function mountListedCommand(hiveRoot: string, mounts = '/proc/self/mounts
  *  forwarded SFTP port. sshfs reconnects by itself (`reconnect`: the next
  *  access after the master is back reconnects it), so a listed mount that
  *  `ls` can read is left alone; agents keep their open files and working
- *  folders in it. A non-empty folder there is refused: the mount would hide
- *  it, and whatever an agent wrote into it while unmounted would silently
- *  disappear from view.
+ *  folders in it.
  *
- *  A dead mount (sshfs killed: listed, but every access fails with
- *  "Transport endpoint is not connected") makes `mkdir -p` fail for good, so
- *  it is lazily unmounted first. fusermount3 is fuse3's name, fusermount
- *  fuse2's. `mounts` is the mount table (a test seam).
+ *  Anything else is a broken mount, and this repairs it without the owner:
+ *   1. A dead mount (sshfs killed: listed, but every access fails with
+ *      "Transport endpoint is not connected") makes `mkdir -p` fail for good,
+ *      so it is lazily unmounted first. fusermount3 is fuse3's name,
+ *      fusermount fuse2's. `mounts` is the mount table (a test seam).
+ *   2. The sshfs processes of lazily unmounted mounts keep running; none can
+ *      be the live mount here, so those on this hive path are killed.
+ *   3. A non-empty folder would be hidden by the mount. On a device we set
+ *      up before (the shim is in REMOTE_CACHE) it is what agents wrote while
+ *      the mount was gone, so it is moved to `<hive>.stray-<epoch>`. A device
+ *      we never set up keeps the NOT_EMPTY refusal: it is the owner's data.
+ *   4. After sshfs succeeds every `<hive>.stray-*` (also from earlier failed
+ *      attempts) is copied into the hive without clobbering, then removed.
+ *      A failed copy keeps its dir for the next connect.
+ *  The exit status is sshfs's: the merge never fails the mount.
  *
  *  No caching: sshfs keeps directory listings and attributes for 20 s by
  *  default, so an agent woken for new mail could list its inbox and not see
@@ -289,7 +298,13 @@ export function mountCommand(hiveRoot: string, base: number, mounts = '/proc/sel
   const h = shq(hiveRoot);
   const listed = mountListedCommand(hiveRoot, mounts);
   const hint = shq(`Cannot create ${hiveRoot} on the device. If it is a dead mount, run there: fusermount3 -uz ${h} (or fusermount -uz); otherwise check the permissions of its parent folder.`);
-  return `{ ${listed} && ls ${h} >/dev/null 2>&1; } || { if ${listed}; then fusermount3 -uz ${h} 2>/dev/null || fusermount -uz ${h} 2>/dev/null; fi; mkdir -p ${h} || { printf '%s\\n' ${hint} >&2; exit 2; }; [ -z "$(ls -A ${h})" ] || { echo ${NOT_EMPTY}; exit 3; }; sshfs -o directport=${base},reconnect,ServerAliveInterval=15,dir_cache=no,entry_timeout=0,attr_timeout=0,negative_timeout=0 127.0.0.1:${h} ${h}; }`;
+  // The path is matched as the args' tail, so one with spaces still matches.
+  const strays = `ps -eo pid=,comm=,args= | awk -v h=${h} '$2=="sshfs" && substr($0,length($0)-length(h))==" " h {print $1}'`;
+  const dir = `${shq(`${hiveRoot}.stray-`)}$(date +%s)`;
+  const setUp = '"$HOME"/.cache/munder-difflin/cth-hook.cjs';
+  const move = `if [ -f ${setUp} ]; then d=${dir}; mkdir -p "$d" && find ${h} -mindepth 1 -maxdepth 1 -exec mv -t "$d" {} + || { echo ${NOT_EMPTY}; exit 3; }; else echo ${NOT_EMPTY}; exit 3; fi`;
+  const merge = `for s in ${shq(`${hiveRoot}.stray-`)}*; do [ -d "$s" ] || continue; cp -rn "$s"/. ${h}/ && rm -rf "$s" && echo "merged $s"; done; true`;
+  return `{ ${listed} && ls ${h} >/dev/null 2>&1; } || { if ${listed}; then fusermount3 -uz ${h} 2>/dev/null || fusermount -uz ${h} 2>/dev/null; fi; kill -9 $(${strays}) 2>/dev/null; mkdir -p ${h} || { printf '%s\\n' ${hint} >&2; exit 2; }; [ -z "$(ls -A ${h})" ] || { ${move}; }; sshfs -o directport=${base},reconnect,ServerAliveInterval=15,dir_cache=no,entry_timeout=0,attr_timeout=0,negative_timeout=0 127.0.0.1:${h} ${h} && { ${merge}; }; }`;
 }
 
 // ─── Hooks on the device ─────────────────────────────────────────────────────
