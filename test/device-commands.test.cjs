@@ -154,14 +154,40 @@ test('a port held by a process connected to itself is freed; nothing else is tou
   // ss lists the stuck process only for a socket whose two ends are both :47990.
   s.fake('ss', `if (process.argv.join(' ').includes('sport = :47990 and dport = :47990'))
   console.log('ESTAB 0 0 127.0.0.1:47990 127.0.0.1:47990 users:(("sshfs",pid=${stuck.pid},fd=3))');\n`);
-  let r = s.sh(dc.freeSelfConnectedCommand([47991]));
+  let r = s.sh(dc.freeBusyPortsCommand([47991], false));
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout, '', 'nothing self-connected on 47991: nothing killed');
   assert.equal(stuck.exitCode ?? stuck.signalCode, null);
-  r = s.sh(dc.freeSelfConnectedCommand([47990, 47991]));
+  r = s.sh(dc.freeBusyPortsCommand([47990, 47991], false));
   assert.equal(r.stdout.trim(), 'freed', r.stderr);
   const died = await Promise.race([new Promise((res) => stuck.once('exit', () => res(true))), new Promise((res) => setTimeout(res, 2000, false))]);
   assert.equal(died && stuck.signalCode, 'SIGKILL', 'the self-connected process is gone');
+});
+
+test('a root-owned listener left by a dead session restarts tailscaled, detached; otherwise nothing', (t) => {
+  const run = (ssLines, { mayRestart = true, sudoExit = 0 } = {}) => {
+    const s = sandbox(t);
+    s.fake('ss', `if (process.argv.includes('-Htlnp')) console.log(${JSON.stringify(ssLines)});\n`);
+    s.fake('sudo', `${DUMP}process.exit(process.argv.includes('-l') ? ${sudoExit} : 0);\n`);
+    s.fake('setsid');
+    const r = s.sh(dc.freeBusyPortsCommand([47990, 47991], mayRestart));
+    return { r, calls: s.calls() };
+  };
+  const stale = 'LISTEN 0 4096 127.0.0.1:47990 0.0.0.0:*';
+  let { r, calls } = run(stale);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.trim(), 'restarting');
+  const setsid = calls.find((c) => c.argv[0] === '-f');
+  assert.deepEqual(setsid.argv.slice(0, 3), ['-f', 'sh', '-c']);
+  assert.match(setsid.argv[3], /sudo -n systemctl restart tailscaled/);
+  assert.deepEqual(calls.find((c) => c.argv[0] === '-n').argv, ['-n', '-l', '/usr/bin/systemctl', 'restart', 'tailscaled']);
+
+  ({ r, calls } = run(stale, { mayRestart: false }));
+  assert.deepEqual([r.status, r.stdout, calls.length], [0, '', 0], 'not allowed to restart: nothing runs');
+  ({ r, calls } = run(stale, { sudoExit: 1 }));
+  assert.deepEqual([r.status, r.stdout, calls.some((c) => c.argv[0] === '-f')], [0, '', false], 'no sudo rule: no restart');
+  ({ r, calls } = run('LISTEN 0 4096 127.0.0.1:47990 0.0.0.0:* users:(("sshd",pid=1,fd=9))'));
+  assert.deepEqual([r.status, r.stdout, calls.length], [0, '', 0], 'a listener with users: is ours: left alone');
 });
 
 test('a dead sshfs mount is lazily unmounted, then mounted again', (t) => {
@@ -201,7 +227,7 @@ test('the master carries the three forwards, and drops telemetry when it is off'
     [
       '-M', '-S', '/run/user/1000/md-my-lap.ctl', '-N',
       '-o', 'BatchMode=yes', '-o', 'ExitOnForwardFailure=yes',
-      '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3',
+      '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=8',
       '-R', '127.0.0.1:47990:127.0.0.1:40001',
       '-R', '127.0.0.1:47991:/h/hive/hooks.sock',
       '-R', '127.0.0.1:47992:127.0.0.1:40002',
@@ -236,7 +262,7 @@ test('backoff is 2s, 5s, 15s, 30s, then every 60s; a busy port names itself', ()
   assert.deepEqual([0, 1, 2, 3, 4, 5, 50].map(dc.backoffDelay), [2000, 5000, 15000, 30000, 60000, 60000, 60000]);
   assert.match(
     dc.masterExitReason('Warning: x\nError: remote port forwarding failed for listen port 47991\n', 'my-lap', 'ignored'),
-    /^Port 47991 is already in use on my-lap\./
+    /^Port 47991 on my-lap is still held by a dropped connection\. .*sudo systemctl restart tailscaled/
   );
   assert.equal(dc.masterExitReason('ssh: connect to host h port 22: No route to host\n', 'my-lap'), 'my-lap: ssh: connect to host h port 22: No route to host');
   assert.equal(dc.masterExitReason('', 'my-lap', 'the link ended it'), 'the link ended it');

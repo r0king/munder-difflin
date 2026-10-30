@@ -79,7 +79,7 @@ There is one `DeviceLink` per configured device, with states `offline`,
 `connecting` and `online`. It owns:
 
 1. **The SSH connection.** A `ControlMaster` process:
-   `ssh -M -S /run/user/<uid>/md-<id>.ctl -N -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 <forwards> <user>@<host>`
+   `ssh -M -S /run/user/<uid>/md-<id>.ctl -N -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=8 <forwards> <user>@<host>`
    It carries three forwards:
    - `-R 127.0.0.1:<base>:127.0.0.1:<sftpPort>` for the hive SFTP;
    - `-R 127.0.0.1:<base+1>:<hive>/hooks.sock` for hooks;
@@ -100,7 +100,7 @@ There is one `DeviceLink` per configured device, with states `offline`,
    itself, so the link only re-runs this when `mountpoint` says it is gone.
 4. **Reconnects.** When the master exits, the device goes `offline` and
    reconnects after backoff of 2s, 5s, 15s, 30s, then every 60s. A dead link is
-   detected in about 45 s (ServerAlive 15 × 3).
+   detected in about 2 min (ServerAlive 15 × 8). A port left LISTENing by Tailscale SSH after a dead session is freed by restarting tailscaled on the device (needs the `md-tailscaled` sudo rule; at most once per 10 min; reconnect after 15 s).
 5. **`exec(cmd)`.** One-shot remote commands over the master
    (`ssh -S ctl host -- bash -lc '<cmd>'`) for the setup check, `test -d`,
    git, `tmux` reconcile and stop. It has a timeout and fails at once when the

@@ -50,7 +50,7 @@ export function controlPath(deviceId: string, runDir: string): string {
 
 /** The ControlMaster. No command (-N), never prompts (BatchMode), and exits
  *  rather than run without a forward (ExitOnForwardFailure). A dead link is
- *  noticed in about 45 s (ServerAlive 15 × 3). Remote Unix-socket forwards
+ *  noticed in about 2 min (ServerAlive 15 × 8, so a busy device is not dropped). Remote Unix-socket forwards
  *  are broken under Tailscale SSH, so every forward listens on a device-side
  *  loopback TCP port; the hook one lands on hooks.sock here. */
 export function masterArgs(
@@ -63,7 +63,7 @@ export function masterArgs(
   return [
     '-M', '-S', ctl, '-N',
     '-o', 'BatchMode=yes', '-o', 'ExitOnForwardFailure=yes',
-    '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3',
+    '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=8',
     '-R', `127.0.0.1:${base}:127.0.0.1:${ports.sftp}`,
     '-R', `127.0.0.1:${base + 1}:${ports.hookSock}`,
     ...(ports.telemetry ? ['-R', `127.0.0.1:${base + 2}:127.0.0.1:${ports.telemetry}`] : []),
@@ -93,7 +93,7 @@ export function masterExitReason(stderr: string, deviceId: string, fallback?: st
   }
   const port = /remote port forwarding failed for listen port (\d+)/.exec(stderr);
   if (port) {
-    return `Port ${port[1]} is already in use on ${deviceId}. Free it there, or give ${deviceId} another portBase in config.json.`;
+    return `Port ${port[1]} on ${deviceId} is still held by a dropped connection. The app restarts Tailscale there by itself when the md-tailscaled sudo rule is set up; otherwise run on ${deviceId}: sudo systemctl restart tailscaled`;
   }
   if (fallback) return fallback;
   const last = stderr.split('\n').map((l) => l.trim()).filter(Boolean).pop();
@@ -111,15 +111,25 @@ export function busyForwardPorts(stderr: string): number[] {
   return [...stderr.matchAll(/remote port forwarding failed for listen port (\d+)/g)].map((m) => Number(m[1]));
 }
 
-/** End whatever holds `ports` through a TCP connection to ITSELF, printing
- *  `freed` if anything was. Our ports sit in Linux's ephemeral range, so a
- *  client that keeps reconnecting to one while nothing listens (sshfs
- *  `reconnect`, after the app quits) can be given that same port as its
- *  source and connect to itself. It then holds the port, and no master can
- *  forward it again. Such a socket is never useful; anything else is left. */
-export function freeSelfConnectedCommand(ports: number[]): string {
-  const list = ports.map((p) => `ss -Htnp state established '( sport = :${p} and dport = :${p} )'`).join('; ');
-  return `pids=$({ ${list}; } | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u); [ -z "$pids" ] || { kill -9 $pids && echo freed; }`;
+/** Free `ports` on the device. First: end whatever holds them through a TCP
+ *  connection to ITSELF, printing `freed` if anything was. Our ports sit in
+ *  Linux's ephemeral range, so a client that keeps reconnecting to one while
+ *  nothing listens (sshfs `reconnect`, after the app quits) can be given that
+ *  same port as its source and connect to itself. It then holds the port, and
+ *  no master can forward it again. Such a socket is never useful; anything
+ *  else is left.
+ *  Otherwise, when `mayRestartTailscale` and a port has a LISTEN socket with
+ *  no `users:` (root's: Tailscale SSH never noticed the dead session and keeps
+ *  its forward), restart tailscaled, if sudo allows exactly that without a
+ *  password, and print `restarting`. It runs detached after a second: the
+ *  restart drops the ssh session carrying this command. Agents (tmux) live on. */
+export function freeBusyPortsCommand(ports: number[], mayRestartTailscale: boolean): string {
+  const est = ports.map((p) => `ss -Htnp state established '( sport = :${p} and dport = :${p} )'`).join('; ');
+  const lis = ports.map((p) => `ss -Htlnp '( sport = :${p} )'`).join('; ');
+  const restart = 'systemctl restart tailscaled';
+  const free = `pids=$({ ${est}; } | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u); [ -z "$pids" ] || { kill -9 $pids && echo freed; }`;
+  if (!mayRestartTailscale) return free;
+  return `${free}; [ -n "$pids" ] || { { ${lis}; } | grep -qv 'users:' && sudo -n -l /usr/bin/${restart} >/dev/null 2>&1 && setsid -f sh -c 'sleep 1; sudo -n ${restart}' >/dev/null 2>&1 && echo restarting; }; true`;
 }
 
 const BACKOFF_MS = [2_000, 5_000, 15_000, 30_000, 60_000];

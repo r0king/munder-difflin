@@ -23,7 +23,7 @@ import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { LOCAL_DEVICE, normalizeDevices, type ConversationStayed, type DeviceCheckItem, type DeviceConfig, type DeviceState, type DeviceStatus } from '../shared/devices';
 import {
-  backoffDelay, baseFolder, busyForwardPorts, freeSelfConnectedCommand, engineCheck, basePathCommand, basePathFix, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, hostKeyFailed, installShimCommand, launchPath, launchScript,
+  backoffDelay, baseFolder, busyForwardPorts, freeBusyPortsCommand, engineCheck, basePathCommand, basePathFix, checkCommands, LOAD_COMMAND, parseLoad, type LoadSample, controlArgs, controlPath, execArgs, hostKeyFailed, installShimCommand, launchPath, launchScript,
   forwardArgs, masterArgs, masterExitReason, mountCommand, NOT_EMPTY, parseFenced, portBase, PROXY_SLOT_FIRST, readTranscriptCommand, sshTarget,
   terminalArgs, TMUX_CONF, tmuxConfPath, TRANSCRIPT_MISSING, writeTranscriptCommand, parseWslProbe, WSL_PROBE, wslCheckItems
 } from './deviceCommands';
@@ -72,6 +72,8 @@ export class DeviceLink extends EventEmitter {
   private master: ChildProcess | null = null;
   private running = false;
   private attempt = 0;
+  /** When tailscaled was last restarted on the device; it drops every ssh session, so not more than once per gap. */
+  private lastTailscaleRestart = 0;
   private retry: NodeJS.Timeout | null = null;
   /** Set when the link ends the master itself, so the exit says why. */
   private killReason: string | undefined;
@@ -189,13 +191,18 @@ export class DeviceLink extends EventEmitter {
       const why = masterExitReason(stderr, this.id, this.killReason, this.target());
       this.killReason = undefined;
       this.setState('offline', why);
-      // A port held by a device process connected to itself never frees
-      // itself (see freeSelfConnectedCommand): end it over a plain ssh (the
-      // master is gone), and retry at once if that was the cause.
+      // A busy port never frees itself (see freeBusyPortsCommand): free it
+      // over a plain ssh (the master is gone), and retry at once if that was
+      // the cause, or after tailscaled is back if it was restarted.
       const busy = busyForwardPorts(stderr);
       if (busy.length) {
-        void this.run(freeSelfConnectedCommand(busy), 15_000).then((r) => {
+        const mayRestart = Date.now() - this.lastTailscaleRestart > TAILSCALE_RESTART_GAP_MS;
+        void this.run(freeBusyPortsCommand(busy, mayRestart), 15_000).then((r) => {
           if (r.stdout.includes('freed')) this.attempt = 0;
+          else if (r.stdout.includes('restarting')) {
+            this.lastTailscaleRestart = Date.now();
+            this.attempt = 2; // backoff step 3 = 15 s: tailscaled needs a few seconds to come back
+          }
           this.scheduleReconnect();
         });
       // A refused host key never fixes itself: wait for a Check (reconnect).
@@ -432,6 +439,7 @@ export async function checkDevice(
 export type TranscriptCopyResult = { ok: true } | { ok: false; reason: ConversationStayed['reason'] };
 
 /** Claude's session ids are UUIDs. Anything else never becomes a path. */
+const TAILSCALE_RESTART_GAP_MS = 10 * 60_000;
 const SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
 /** A transcript runs to 200 MB, and a Tailscale relay can carry ~1 MB/s, so
  *  the write goes gzipped (about a tenth the size) and the timeout leaves
