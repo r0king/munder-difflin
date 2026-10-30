@@ -69,6 +69,16 @@ test('Edit Agent offers "Runs on" to Claude agents only and refuses a move to a 
   assert.ok(guard < save.indexOf('restartAgentProcess('), 'refuses before the agent is restarted');
 });
 
+test('Workspace agent settings: "Runs on" moves the agent the same way, and refuses an offline device first', () => {
+  const code = src('src/renderer/src/workspace/agents/AgentSettingsDrawer.tsx');
+  assert.match(code, /isClaudeProvider\(currentProvider\) \|\| !!agent\.device/, 'Claude agents, or one already on a device');
+  const move = code.slice(code.indexOf('const move = '), code.indexOf('const saveRole = '));
+  const guard = move.indexOf("deviceOffline(device || undefined, deviceStates)) { setMoveNote({ text: t('devices.errOffline'");
+  assert.ok(guard > 0, 'checks the target device state with the localized error');
+  assert.ok(guard < move.indexOf('updateAgent(') && guard < move.indexOf('restartAgentProcess('), 'refuses before anything is stored or restarted');
+  assert.match(move, /restartAgentProcess\(agent\.id, \{ resume: true, resumeOptional: true, moved: true \}\)/, 'a moved restart: main copies the conversation');
+});
+
 test('Settings → Devices validates the user and shows a failed save', () => {
   const code = src('src/renderer/src/components/DevicesSettings.tsx');
   assert.match(code, /user && !isValidDeviceUser\(user\)\) \{ setError\(t\('devices\.errUser'\)\); return; \}/);
