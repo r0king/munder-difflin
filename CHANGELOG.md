@@ -8,6 +8,18 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **God can command workers and answer their permission prompts.** Off by default, behind a new
+  `orchestratorMayControlAgents` toggle (Settings and the orchestrator workspace). With it on, god can
+  write a `command` message and have its body typed verbatim into a worker's terminal, through the same
+  idle-only queue as every other automatic message, so a worker that wants the operator's own line no
+  longer needs it typed by hand. For Claude Code workers it can also answer a tool-permission prompt:
+  a `PermissionRequest` hook holds the prompt for up to five minutes and sends god a `query` with the
+  tool and its input, and god replies `allow` or `deny`. The native prompt still shows, so the operator
+  can always answer first; the log records that an answer was sent, not that it was applied. Workers can
+  no longer write into god's folder, which stops them forging an answer, though that is a guard against
+  accidents and injected text rather than a security boundary. Running agents need a restart to pick up
+  the hook.
+
 - **Tasks show their id.** The one thing people actually refer to a card by — `bmt-12` — was not
   displayed anywhere: not on the kanban card, which printed only the title and the assignee, and not
   in the detail view behind it. It now leads the card above the title, and leads the detail view's

@@ -1,6 +1,6 @@
 # God controls worker sessions
 
-Status: approved design, not yet built.
+Status: built (part 1: toggle, acts, commands, answer seam; part 2: permission hold, forgery guard, prompt and docs).
 
 ## Problem
 

@@ -49,7 +49,10 @@ stream, retrieval, reflection, and planning.
    scope changes, unresolvable conflicts) route to the god, who surfaces them to
    the human natively in his own Claude Code session — there is no separate
    approval queue. Tool-permission prompts are the HITL gate, and they're
-   approvable remotely from a phone via `/remote-control`.
+   approvable remotely from a phone via `/remote-control`. With the opt-in
+   `orchestratorMayControlAgents` setting the god may also answer a worker's
+   prompt for it, or type a command into a worker's terminal; the operator can
+   still answer in the terminal first.
 4. **Memory: markdown first.** Per-agent `memory.md` + shared blackboard, with a
    SQLite FTS index when keyword recall isn't enough. A heavyweight vector layer
    (Letta/Mem0/Zep) is *not* needed at 5–15 agents and is architecturally wrong
@@ -181,7 +184,8 @@ is the primary control surface — tune the prompt, not the code.
   own. The router routes `to:"human"` traffic to the god (the human's proxy);
   there is no separate approval queue — human-in-the-loop is native to each
   agent's Claude Code session (permission prompts, approvable remotely from a
-  phone). Idle agents are woken when they hold unread inbox messages.
+  phone; the opt-in `orchestratorMayControlAgents` lets the god answer them or
+  type commands into workers). Idle agents are woken when they hold unread inbox messages.
 - **Phase 3 — Semantic memory** ✅ (CLI integration): `memory.ts` wraps the
   **MemPalace CLI** (not MCP, by decision). The harness keeps one shared palace
   under `harnessHome`, points every agent's `MEMPALACE_PALACE_PATH` at it, mines

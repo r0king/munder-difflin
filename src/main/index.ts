@@ -333,8 +333,11 @@ const hookServer = new HookServer(
   // Workspace → Automations "context rules" (house style and the like) ride the
   // standing-goal channel: SessionStart, then again whenever the text changes.
   (agentId) => withContextRules(standingGoalFromRoster(agentId)),
-  (agentId, event, message) => workerWake.noteHook(agentId, event, message)
+  (agentId, event, message) => workerWake.noteHook(agentId, event, message),
+  // God's live terminal: permission prompts are only held when someone can read them.
+  () => { const reg = hive.registry(); return !!ptyForAgent(reg.godId ?? 'god'); }
 );
+hive.setPermissionAnswerer((requestId, agentId, decision) => hookServer.answerPermission(requestId, agentId, decision));
 const memory = new MemoryManager(
   () => readConfig().harnessHome,
   () => { const c = readConfig(); return { enabled: c.semanticMemory !== false, model: c.embeddingModel ?? 'minilm' }; }
