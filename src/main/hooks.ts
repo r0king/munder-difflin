@@ -287,7 +287,7 @@ export class HookServer {
     const tool = p.tool_name ?? '';
     const reg = this.hive.registry();
     const godId = reg.godId ?? 'god';
-    if (!this.hive.orchestratorMayControlAgents() || !agentId || agentId === godId || reg.agents[agentId]?.isGod
+    if (!this.hive.orchestratorMayControlAgents() || !agentId || !reg.agents[agentId] || agentId === godId || reg.agents[agentId]?.isGod
       || tool === 'AskUserQuestion' || tool === 'ExitPlanMode' || !this.godLive?.()) {
       conn.end('{}');
       return;
@@ -370,7 +370,15 @@ export class HookServer {
       let payload: HookPayload = {};
       try { payload = JSON.parse(frame); } catch { /* ignore */ }
       if (typeof payload.ping === 'string') { conn.end(JSON.stringify({ pong: payload.ping, instance: this.instanceId })); return; }
-      if (payload.hook_event_name === 'PermissionRequest') { this.holdPermission(conn, payload); return; }
+      if (payload.hook_event_name === 'PermissionRequest') {
+        try { this.holdPermission(conn, payload); } catch {
+          // hive.send writes to disk: a throw must not escape the socket handler. Drop any
+          // entry this connection already registered, then let the native prompt proceed.
+          for (const [id, h] of [...this.held]) if (h.conn === conn) this.release(id);
+          conn.end('{}');
+        }
+        return;
+      }
       let res: unknown = {};
       try { res = this.handle(payload); } catch { res = {}; }
       conn.end(JSON.stringify(res ?? {}));

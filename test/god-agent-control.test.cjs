@@ -203,6 +203,7 @@ test('exempt cases reply {} at once and send nothing to god', posix, async (t) =
     [{ control: false }, ask()],
     [{}, ask({ agent_id: null })],
     [{}, ask({ agent_id: 'god-1' })],
+    [{}, ask({ agent_id: 'agent-from-a-task-subagent' })],
     [{}, ask({ tool_name: 'AskUserQuestion' })],
     [{}, ask({ tool_name: 'ExitPlanMode' })],
     [{ godLive: false }, ask()],
@@ -318,4 +319,12 @@ test('god prompt has the control line only when the toggle is on', async (t) => 
     const worker = hive.injectedPrompt({ id: 'jim-1', name: 'Jim', provider: 'claude', cwd: os.tmpdir() }, path.join(hive.root(), 'agents', 'jim-1'), hive.root(), false, false);
     assert.ok(!worker.includes('CONTROLLING WORKERS'));
   }
+});
+
+test('a throwing hive.send replies {} and holds nothing', posix, async (t) => {
+  const f = await server(t);
+  f.hive.send = () => { throw new Error('disk full'); };
+  const r = shim(f.sock, ask());
+  assert.equal(await r.done, '{}');
+  assert.equal(f.hs.held.size, 0);
 });

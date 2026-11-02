@@ -136,6 +136,7 @@ Not tested: `bypassPermissions` (the session's auto-mode classifier blocked that
 
 ## Limits
 
+- Prompts from a worker's own Task sub-agents carry an agent id that is not in the registry, so they are not routed to god; they stay with the operator.
 - The default is auto mode, which launches Claude workers with `--permission-mode bypassPermissions` (preset in `src/shared/agentProvider.ts`). Such workers rarely prompt, so the permission half matters mainly with auto mode off. The command half solves the motivating case.
 - Agents already running need a restart to get the hook and the guard.
 
