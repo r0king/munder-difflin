@@ -250,6 +250,7 @@ function AutonomySection({ god, config }: { god: Agent; config: HarnessConfig })
   };
   const autoMode = config.autoMode !== false;
   const maySpawn = config.orchestratorMaySpawn === true;
+  const mayControl = config.orchestratorMayControlAgents === true;
   return (
     <Section title={t('wsOrchestrator.config.autonomyTitle')}>
       <div className="cth-ws-orch-field">
@@ -273,6 +274,19 @@ function AutonomySection({ god, config }: { god: Agent; config: HarnessConfig })
           />
           <span className="cth-ws-orch-field-hint">
             {maySpawn ? t('wsOrchestrator.config.maySpawnHintOn', { godName: god.name }) : t('wsOrchestrator.config.maySpawnHintOff', { godName: god.name })}
+          </span>
+        </div>
+      </div>
+      <div className="cth-ws-orch-field">
+        <span className="cth-ws-orch-field-label">{t('wsOrchestrator.config.mayControl')}</span>
+        <div className="cth-ws-orch-field-control">
+          <Toggle
+            checked={mayControl}
+            onChange={(on) => save({ orchestratorMayControlAgents: on })}
+            label={mayControl ? t('wsOrchestrator.config.mayControlOn', { godName: god.name }) : t('wsOrchestrator.config.mayControlOff')}
+          />
+          <span className="cth-ws-orch-field-hint">
+            {mayControl ? t('wsOrchestrator.config.mayControlHintOn', { godName: god.name }) : t('wsOrchestrator.config.mayControlHintOff', { godName: god.name })}
           </span>
         </div>
       </div>

@@ -200,6 +200,10 @@ export interface HarnessConfig {
    *  Off does not FAIL a queued spawn request, it declines to consume one. The
    *  request sits in HIVE_ROOT/spawn-requests until the toggle is turned on. */
   orchestratorMaySpawn: boolean;
+  /** May the orchestrator type commands into workers and answer their
+   *  permission prompts? Default FALSE: anything a worker accepts only from the
+   *  operator, god can then supply. See docs/superpowers/specs/2026-11-02-god-agent-control-design.md. */
+  orchestratorMayControlAgents: boolean;
   /** The command we run when spawning a new agent. */
   defaultCommand: string;
   /** Default model for newly spawned agents (e.g. 'claude-sonnet-4-6[1m]'); unset = CLI default. */
@@ -433,6 +437,7 @@ const DEFAULTS: HarnessConfig = {
   registeredRepos: [],
   autoMode: true,
   orchestratorMaySpawn: false,
+  orchestratorMayControlAgents: false,
   defaultCommand: 'claude',
   godProvider: 'claude',
   godModel: 'claude-opus-4-8',

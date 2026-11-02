@@ -51,7 +51,12 @@ type McpDefaultsMap = { [id: string]: { enabled: boolean } } | undefined;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type MessageAct = 'request' | 'inform' | 'propose' | 'query' | 'agree' | 'refuse' | 'done';
+export type MessageAct = 'request' | 'inform' | 'propose' | 'query' | 'agree' | 'refuse' | 'done'
+  // god-only control acts, intercepted in routeOnce (see routeControl)
+  | 'command' | 'permission';
+
+/** Cap on a god command body: same as ControlRegistry.steer. */
+const COMMAND_MAX_CHARS = 10000;
 
 /** What `settleInbox` did to a released worker's mailbox. */
 export interface SettledInbox {
@@ -440,6 +445,25 @@ export class HiveManager {
   }
   orchestratorMaySpawn(): boolean {
     return this._maySpawn;
+  }
+
+  /** Whether config.orchestratorMayControlAgents is on: god may type commands
+   *  into workers and answer their permission prompts. Mirrored like the spawn
+   *  gate, and read per message by routeControl. */
+  private _mayControl = false;
+  setOrchestratorMayControlAgents(on: boolean): void {
+    this._mayControl = on;
+  }
+  orchestratorMayControlAgents(): boolean {
+    return this._mayControl;
+  }
+
+  /** Answers a god `permission` message: (in_reply_to, target agent id,
+   *  decision) → true when a held request took it. Set by index.ts, because
+   *  hive.ts does not import the hook server. Unset or false → stale bounce. */
+  private permissionAnswerer: ((requestId: string | null, agentId: string, decision: 'allow' | 'deny') => boolean) | null = null;
+  setPermissionAnswerer(fn: ((requestId: string | null, agentId: string, decision: 'allow' | 'deny') => boolean) | null): void {
+    this.permissionAnswerer = fn;
   }
 
   // — paths —
@@ -1675,6 +1699,45 @@ export class HiveManager {
     return msg;
   }
 
+  /** God's control acts: type a command into a worker's terminal, or answer a
+   *  worker's held permission prompt. Every refusal bounces to god and logs
+   *  `agent-control-refused`; bounceToGod's hop cap keeps a refusal from looping
+   *  (the bounce is delivered straight to god's inbox, never re-routed). */
+  private routeControl(msg: HiveMessage): void {
+    const reg = this.registry();
+    const godId = reg.godId ?? 'god';
+    const t = msg.to;
+    const refuse = (reason: string, why: string): void => {
+      this.appendLog({ kind: 'agent-control-refused', reason, from: msg.from, to: t, act: msg.act, id: msg.id });
+      this.bounceToGod(msg, godId, `[refused — ${why}] ${msg.subject}`);
+    };
+    if (msg.from !== godId) return refuse('not-god', `only god may send a ${msg.act}`);
+    if (!this._mayControl) return refuse('toggle-off', 'the operator has not enabled orchestratorMayControlAgents');
+    const target = reg.agents[t];
+    if (!target || t === godId || t === 'god' || t === 'human' || t === 'broadcast') {
+      return refuse('bad-target', `"${t}" is not a worker you can control; use a worker's agent id`);
+    }
+    if (target.archived) return refuse('archived-target', `"${t}" is archived and has no live terminal`);
+    if (target.isAssistant) return refuse('assistant-target', `"${t}" is the send-only prep assistant`);
+    if (msg.act === 'permission') {
+      const decision = msg.body.trim();
+      if (decision !== 'allow' && decision !== 'deny') return refuse('bad-decision', 'a permission body must be "allow" or "deny"');
+      if (!this.permissionAnswerer?.(msg.in_reply_to, t, decision)) {
+        this.bounceToGod(msg, godId, `[stale — no pending permission request ${msg.in_reply_to ?? '(no in_reply_to)'} from "${t}"; the operator may have answered it] ${msg.subject}`);
+      }
+      return;
+    }
+    // Strip control characters except newline (an ESC could end a bracketed
+    // paste or drive the TUI), then cap.
+    const body = msg.body.replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/g, '').slice(0, COMMAND_MAX_CHARS);
+    if (!body.trim()) return refuse('empty-command', 'a command needs a non-empty body');
+    if (!this.emitTerminalHandoff({ ...msg, body }, t, true)) {
+      this.bounceToGod(msg, godId, `[undeliverable — the terminal handoff to "${t}" failed (renderer unavailable)] ${msg.subject}`);
+      return;
+    }
+    this.appendLog({ kind: 'god-command', to: t, id: msg.id, text: body.slice(0, 200) });
+  }
+
   private routeMessage(msg: HiveMessage): void {
     const reg = this.registry();
     const godId = reg.godId ?? 'god';
@@ -1803,7 +1866,7 @@ export class HiveManager {
 
   /** Non-Claude providers cannot drain hive inbox; hand direct mail to the
    *  renderer so it can queue a terminal work order for the target PTY. */
-  private emitTerminalHandoff(msg: HiveMessage, targetId: string): boolean {
+  private emitTerminalHandoff(msg: HiveMessage, targetId: string, raw = false): boolean {
     const delivered = this.emit?.('hive:terminalHandoff', {
       id: msg.id,
       from: msg.from,
@@ -1812,7 +1875,8 @@ export class HiveManager {
       subject: msg.subject,
       body: msg.body,
       requiresReply: msg.requires_reply,
-      createdAt: msg.created_at
+      createdAt: msg.created_at,
+      ...(raw ? { raw: true } : {})
     }) === true;
     this.appendLog({
       kind: 'terminal-handoff',
@@ -1879,7 +1943,8 @@ export class HiveManager {
           }
           const msg = this.normalize(partial, id);
           msg.from = id; // sender is authoritative — the owning directory
-          this.routeMessage(msg);
+          if (msg.act === 'command' || msg.act === 'permission') this.routeControl(msg);
+          else this.routeMessage(msg);
           renameSync(full, join(outbox, '.sent', f)); // archive, don't reprocess
           routed++;
         } catch {

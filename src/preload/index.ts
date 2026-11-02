@@ -66,7 +66,7 @@ export interface HiveMessage {
   in_reply_to: string | null;
   from: string;
   to: string;
-  act: 'request' | 'inform' | 'propose' | 'query' | 'agree' | 'refuse' | 'done';
+  act: 'request' | 'inform' | 'propose' | 'query' | 'agree' | 'refuse' | 'done' | 'command' | 'permission';
   subject: string;
   body: string;
   hops: number;
@@ -194,11 +194,13 @@ export interface HiveTerminalHandoffEvent {
   id: string;
   from: string;
   to: string;
-  act: 'request' | 'inform' | 'propose' | 'query' | 'agree' | 'refuse' | 'done';
+  act: 'request' | 'inform' | 'propose' | 'query' | 'agree' | 'refuse' | 'done' | 'command' | 'permission';
   subject: string;
   body: string;
   requiresReply: boolean;
   createdAt: string;
+  /** God command: enqueue `body` verbatim, not as a work order. */
+  raw?: boolean;
 }
 
 export interface SpawnPtyOptions {

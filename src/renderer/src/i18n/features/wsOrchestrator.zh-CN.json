@@ -216,7 +216,12 @@
     "maySpawnOn": "你和 {{godName}}",
     "maySpawnOff": "只有你",
     "maySpawnHintOn": "{{godName}} 可以自行招人。他启动的每个智能体都会花掉你没有批准的令牌。",
-    "maySpawnHintOff": "{{godName}} 仍可提出请求，请求会在队列中等待，而不是失败。"
+    "maySpawnHintOff": "{{godName}} 仍可提出请求，请求会在队列中等待，而不是失败。",
+    "mayControl": "谁可以指挥智能体",
+    "mayControlOn": "你和 {{godName}}",
+    "mayControlOff": "只有你",
+    "mayControlHintOn": "{{godName}} 可以向工人智能体的终端输入命令，并回答它们的权限提示。工人只接受你才能给出的内容，他也能给出。",
+    "mayControlHintOff": "{{godName}} 不能在工人的终端里输入内容，也不能回答它的提示。"
   },
   "time": {
     "today": "今天",
