@@ -23,7 +23,7 @@ faq:
 
 DeepSeek V4.1 Flash 1017 is an update to DeepSeek's V4.1 Flash model, released on 17 October 2026 with open weights under the MIT License. DeepSeek's release note promises "Stronger benchmark performance, faster task completion, and shorter outputs than the previous version". It now serves the deepseek-flash name in DeepSeek's API. Checked 17 Oct 2026.
 
-Open weight coding models need an agent to drive them. [Munder Difflin](https://harnessmd.com/download) is free and open source: a desktop app that runs a team of coding agents such as Claude Code, Codex and Gemini CLI on your own computer. Our guide to [running it on open models](/blog/run-munder-difflin-on-open-models/) covers local runtimes and providers, and our [install guide](/blog/how-to-install-and-use-munder-difflin/) covers setup.
+Open weight coding models need an agent to drive them. [Munder Difflin](https://harnessmd.com/download) is free and open source: a desktop app that runs a team of AI agents for all kinds of knowledge work, coding included, on your own computer. Our guide to [running it on open models](/blog/run-munder-difflin-on-open-models/) covers local runtimes and providers, and our [install guide](/blog/how-to-install-and-use-munder-difflin/) covers setup.
 
 ## What is DeepSeek V4.1 Flash 1017?
 
@@ -57,7 +57,7 @@ DeepSeek's table compares the update with the previous Flash and with models it 
 
 DeepSeek notes: "We use the Claude Code harness for Terminal-Bench 4.0 and the Mini-SWE-V2 harness for DeepSWE v1.1." Of the eleven rows in its table, the update has the top score on four (DeepSWE v1.1, Automation-Bench, Agents' Last Exam and Apex Bench), Opus 5 on six, including Terminal-Bench 4.0 and ProgramBench, and GPT-5.6 Sol on one. These are DeepSeek's own numbers.
 
-DeepSeek's [release note](https://api-docs.deepseek.com/news/news261017) says the model "uses reinforcement learning with self-feedback to improve end-to-end project development" and is "Optimized for DeepSeek Harness, Tencent CodeBuddy, WorkBuddy, and more." On Hacker News, two posts about the release had more than 200 points each on 17 Oct.
+DeepSeek's [release note](https://api-docs.deepseek.com/news/news261017) says the model "uses reinforcement learning with self-feedback to improve end-to-end project development" and is "Optimized for DeepSeek Harness, Tencent CodeBuddy, WorkBuddy, and more." If you want the model without that tool, our page on [DeepSeek Harness alternatives](/blog/deepseek-harness-alternatives/) sorts the options. On Hacker News, two posts about the release had more than 200 points each on 17 Oct.
 
 ## How much does DeepSeek V4.1 Flash 1017 cost?
 

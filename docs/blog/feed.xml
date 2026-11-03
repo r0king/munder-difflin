@@ -1,12 +1,332 @@
 <?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
   <title>Munder Difflin Blog</title>
-  <subtitle>Guides, deep dives, and comparisons on running multi-agent Claude Code: orchestration, agent memory, automation, and the tooling landscape.</subtitle>
+  <subtitle>Guides, comparisons and pricing for AI agents and coding tools such as Claude Code, Codex and Cursor, each checked and dated. From the makers of Munder Difflin.</subtitle>
   <link href="https://munderdiffl.in/blog/feed.xml" rel="self" />
   <link href="https://munderdiffl.in/blog/" />
-  <updated>2026-10-19T00:00:00.000Z</updated>
+  <updated>2026-11-02T00:00:00.000Z</updated>
   <id>https://munderdiffl.in/blog/</id>
   <author><name>Chaitanya Giri</name><uri>https://munderdiffl.in</uri></author>
+  <entry>
+    <title>Agent Tools Today, 2 Nov 2026: ChatGPT and Codex Shared Limits, Memdoor, T3 Code</title>
+    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-11-02/" />
+    <id>https://munderdiffl.in/blog/agent-tools-today-2026-11-02/</id>
+    <published>2026-11-02T00:00:00.000Z</published>
+    <updated>2026-11-02T00:00:00.000Z</updated><category term="News" />
+    <summary>The top launches, skills, multi agent moves, rising repos and arguments in AI agents from 1 to 2 Nov 2026, each with its source and date.</summary>
+  </entry>
+  <entry>
+    <title>DeepSeek Harness Alternatives: 6 Picks by Why You Are Leaving (Nov 2026)</title>
+    <link href="https://munderdiffl.in/blog/deepseek-harness-alternatives/" />
+    <id>https://munderdiffl.in/blog/deepseek-harness-alternatives/</id>
+    <published>2026-11-02T00:00:00.000Z</published>
+    <updated>2026-11-02T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>DeepSeek Harness is a developer preview with breaking changes coming. Six alternatives by reason for leaving, with models and prices checked 2 Nov 2026.</summary>
+  </entry>
+  <entry>
+    <title>Agent Tools Today, 1 Nov 2026: ChatGPT Share Link Takeover, Prospero, Orkas</title>
+    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-11-01/" />
+    <id>https://munderdiffl.in/blog/agent-tools-today-2026-11-01/</id>
+    <published>2026-11-01T00:00:00.000Z</published>
+    <updated>2026-11-01T00:00:00.000Z</updated><category term="News" />
+    <summary>The top launches, skills, multi agent moves, rising repos and arguments in AI agents from 29 Oct to 1 Nov 2026, each with its source and date.</summary>
+  </entry>
+  <entry>
+    <title>Agent Tools Today, 31 Oct 2026: Claude Code Extension Backdoor in Cursor, Claude Code 2.1.316, OpenCode 2.2.5</title>
+    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-31/" />
+    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-31/</id>
+    <published>2026-10-31T00:00:00.000Z</published>
+    <updated>2026-10-31T00:00:00.000Z</updated><category term="News" />
+    <summary>The top launches, skills, multi agent moves, rising repos and arguments in AI agents from 29 to 31 Oct 2026, each with its source and date.</summary>
+  </entry>
+  <entry>
+    <title>Agent Tools Today, 30 Oct 2026: Mistral Large 4 Weights, Claude Code 2.1.314, Herdr App</title>
+    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-30/" />
+    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-30/</id>
+    <published>2026-10-30T00:00:00.000Z</published>
+    <updated>2026-10-30T00:00:00.000Z</updated><category term="News" />
+    <summary>The top launches, skills, multi agent moves, rising repos and arguments in AI agents from 29 to 30 Oct 2026, each with its source and date.</summary>
+  </entry>
+  <entry>
+    <title>What Is Instinct AI? Access, Privacy and 6 Alternatives You Can Use Now (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/what-is-instinct-ai/" />
+    <id>https://munderdiffl.in/blog/what-is-instinct-ai/</id>
+    <published>2026-10-30T00:00:00.000Z</published>
+    <updated>2026-10-30T00:00:00.000Z</updated><category term="Concepts" />
+    <summary>Instinct is a personal AI agent you text or call, still in private beta. What it does, what its privacy policy says, and six texting agents you can use today.</summary>
+  </entry>
+  <entry>
+    <title>Agent Tools Today, 29 Oct 2026: Gemini 4 Carbon, Copilot Connectors, OpenCode Goals</title>
+    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-29/" />
+    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-29/</id>
+    <published>2026-10-29T00:00:00.000Z</published>
+    <updated>2026-10-29T00:00:00.000Z</updated><category term="News" />
+    <summary>The top launches, skills, multi agent moves, rising repos and arguments in AI agents from 28 to 29 Oct 2026, each with its source and date.</summary>
+  </entry>
+  <entry>
+    <title>Gemini 4 Carbon: Price, Access and How It Compares to Argon (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/gemini-4-carbon/" />
+    <id>https://munderdiffl.in/blog/gemini-4-carbon/</id>
+    <published>2026-10-29T00:00:00.000Z</published>
+    <updated>2026-10-29T00:00:00.000Z</updated><category term="Concepts" />
+    <summary>Gemini 4 Carbon is Google&#39;s new frontier model, so far for a group of cyber defenders: its launch price, who can use it and how it compares to Argon.</summary>
+  </entry>
+  <entry>
+    <title>How to Run Mistral Large 4 Locally: Hardware, GGUF Sizes and vLLM (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/how-to-run-mistral-large-4/" />
+    <id>https://munderdiffl.in/blog/how-to-run-mistral-large-4/</id>
+    <published>2026-10-29T00:00:00.000Z</published>
+    <updated>2026-10-29T00:00:00.000Z</updated><category term="Guides" />
+    <summary>Mistral Large 4 weights are out. Which file fits your memory, the llama.cpp and vLLM commands, the GPUs Mistral validated and the licence, checked 29 Oct 2026.</summary>
+  </entry>
+  <entry>
+    <title>Mistral Large 4 vs Claude Opus 5.5: Price, Coding Scores and Open Weights (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/mistral-large-4-vs-claude-opus-5-5/" />
+    <id>https://munderdiffl.in/blog/mistral-large-4-vs-claude-opus-5-5/</id>
+    <published>2026-10-29T00:00:00.000Z</published>
+    <updated>2026-10-29T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Claude Opus 5.5 leads on coding scores; Mistral Large 4 costs about a tenth per output token and you can download it. Prices and scores, checked 29 Oct 2026.</summary>
+  </entry>
+  <entry>
+    <title>What Is Kimi K3.1 Pro? Price, Weights and How to Use It for Coding (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/what-is-kimi-k3-1-pro/" />
+    <id>https://munderdiffl.in/blog/what-is-kimi-k3-1-pro/</id>
+    <published>2026-10-29T00:00:00.000Z</published>
+    <updated>2026-10-29T00:00:00.000Z</updated><category term="Concepts" />
+    <summary>Kimi K3.1 Pro is Moonshot&#39;s 1M context coding model, weights due by 4 Nov. Price, Terminal-Bench score and setup in Kimi Code, Codex and Claude Code.</summary>
+  </entry>
+  <entry>
+    <title>Agent Tools Today, 28 Oct 2026: OpenCode 2.2, Entire, Hallmark</title>
+    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-28/" />
+    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-28/</id>
+    <published>2026-10-28T00:00:00.000Z</published>
+    <updated>2026-10-28T00:00:00.000Z</updated><category term="News" />
+    <summary>The top launches, skills, multi agent moves, rising repos and arguments in AI agents from 27 to 28 Oct 2026, each with its source and date.</summary>
+  </entry>
+  <entry>
+    <title>ChatGPT Dots vs Claude Cowork: Plans, Price and Safety (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/chatgpt-dots-vs-claude-cowork/" />
+    <id>https://munderdiffl.in/blog/chatgpt-dots-vs-claude-cowork/</id>
+    <published>2026-10-28T00:00:00.000Z</published>
+    <updated>2026-10-28T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>ChatGPT Dots keeps an ongoing job moving; Claude Cowork hands back finished files. Plans, prices, where each runs and how each asks first, checked 28 Oct 2026.</summary>
+  </entry>
+  <entry>
+    <title>Codex vs ChatGPT: What Is the Difference? (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/codex-vs-chatgpt/" />
+    <id>https://munderdiffl.in/blog/codex-vs-chatgpt/</id>
+    <published>2026-10-28T00:00:00.000Z</published>
+    <updated>2026-10-28T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Codex is OpenAI&#39;s coding agent and ChatGPT is its assistant. Which plans include Codex, the limits, where each runs and which to use, checked 28 Oct 2026.</summary>
+  </entry>
+  <entry>
+    <title>Agent Tools Today, 27 Oct 2026: GPT-6.1 Terra, Hob, Anthropic&#39;s S-1</title>
+    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-27/" />
+    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-27/</id>
+    <published>2026-10-27T00:00:00.000Z</published>
+    <updated>2026-10-27T00:00:00.000Z</updated><category term="News" />
+    <summary>The top launches, skills and MCP servers, multi agent moves, rising repos and arguments in AI agents from 26 to 27 Oct 2026, each with its source.</summary>
+  </entry>
+  <entry>
+    <title>Claude Cowork Alternatives: 6 AI Agents for Office Work, Free Picks Included</title>
+    <link href="https://munderdiffl.in/blog/claude-cowork-alternatives/" />
+    <id>https://munderdiffl.in/blog/claude-cowork-alternatives/</id>
+    <published>2026-10-27T00:00:00.000Z</published>
+    <updated>2026-10-27T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Claude Cowork needs a paid plan and runs in Anthropic&#39;s cloud. Six alternatives for office work, from free local apps to ChatGPT Work, checked 27 Oct 2026.</summary>
+  </entry>
+  <entry>
+    <title>GPT-6.1 Terra: Price, Specs and How to Use It in Codex (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/gpt-6-1-terra/" />
+    <id>https://munderdiffl.in/blog/gpt-6-1-terra/</id>
+    <published>2026-10-27T00:00:00.000Z</published>
+    <updated>2026-10-27T00:00:00.000Z</updated><category term="Concepts" />
+    <summary>GPT-6.1 Terra is OpenAI&#39;s fast new model for images, computer use and writing: price, specs and how to pick it in Codex, checked 27 Oct 2026.</summary>
+  </entry>
+  <entry>
+    <title>Pi vs Claude Code: Price, Models and Permissions Compared (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/pi-vs-claude-code/" />
+    <id>https://munderdiffl.in/blog/pi-vs-claude-code/</id>
+    <published>2026-10-27T00:00:00.000Z</published>
+    <updated>2026-10-27T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Pi vs Claude Code, checked 27 Oct 2026: Pi is free, MIT and works with 15+ providers; Claude Code is from $20 a month billed monthly, plan mode built in.</summary>
+  </entry>
+  <entry>
+    <title>Agent Tools Today, 26 Oct 2026: Kimi K3.1 Pro, Unified Claude Enterprise, ThinkRail</title>
+    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-26/" />
+    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-26/</id>
+    <published>2026-10-26T00:00:00.000Z</published>
+    <updated>2026-10-26T00:00:00.000Z</updated><category term="News" />
+    <summary>The top launches, skills and MCP servers, multi agent moves, rising repos and arguments in coding agents from 23 to 26 Oct 2026, each with its source.</summary>
+  </entry>
+  <entry>
+    <title>CLAUDE.md Best Practices: What to Write, Where It Lives, How Long (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/claude-md-best-practices/" />
+    <id>https://munderdiffl.in/blog/claude-md-best-practices/</id>
+    <published>2026-10-26T00:00:00.000Z</published>
+    <updated>2026-10-26T00:00:00.000Z</updated><category term="Guides" />
+    <summary>CLAUDE.md best practices from Anthropic&#39;s docs, checked 26 Oct 2026: what to put in it, where each file lives, the 200 line target and how AGENTS.md loads.</summary>
+  </entry>
+  <entry>
+    <title>Codex Alternatives: 7 Picks Beyond OpenAI&#39;s Agent (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/codex-alternatives/" />
+    <id>https://munderdiffl.in/blog/codex-alternatives/</id>
+    <published>2026-10-26T00:00:00.000Z</published>
+    <updated>2026-10-26T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Seven Codex alternatives checked 26 Oct 2026: Claude Code, Munder Difflin, Copilot CLI, OpenCode, Goose, Cline and Cursor, with licences and prices.</summary>
+  </entry>
+  <entry>
+    <title>Codex Computer Use: How to Turn It On, Plans and Limits (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/codex-computer-use/" />
+    <id>https://munderdiffl.in/blog/codex-computer-use/</id>
+    <published>2026-10-26T00:00:00.000Z</published>
+    <updated>2026-10-26T00:00:00.000Z</updated><category term="Guides" />
+    <summary>Codex computer use lets the ChatGPT desktop app see and click apps on macOS and Windows. Setup, which plans get it, locked use and how Claude&#39;s compares.</summary>
+  </entry>
+  <entry>
+    <title>Cursor Pricing (Oct 2026): Every Plan After the 12 Oct Change</title>
+    <link href="https://munderdiffl.in/blog/cursor-pricing/" />
+    <id>https://munderdiffl.in/blog/cursor-pricing/</id>
+    <published>2026-10-26T00:00:00.000Z</published>
+    <updated>2026-10-26T00:00:00.000Z</updated><category term="Guides" />
+    <summary>Cursor pricing as of 26 Oct 2026: Free, Plus $8, Premium $30, Super $100, Ultra $200, Teams seats, what changed on 12 Oct and what old plans keep.</summary>
+  </entry>
+  <entry>
+    <title>Pi Agent Alternatives: 7 Coding Agents to Try (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/pi-agent-alternatives/" />
+    <id>https://munderdiffl.in/blog/pi-agent-alternatives/</id>
+    <published>2026-10-26T00:00:00.000Z</published>
+    <updated>2026-10-26T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Seven Pi agent alternatives checked 26 Oct 2026: OpenCode, Munder Difflin, Claude Code, Codex CLI, Hermes Agent, Goose and Crush, with licences and prices.</summary>
+  </entry>
+  <entry>
+    <title>Agent Tools Today, 23 Oct 2026: Claude Duet, OpenAI CLI, Nvidia OpenShell</title>
+    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-23/" />
+    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-23/</id>
+    <published>2026-10-23T00:00:00.000Z</published>
+    <updated>2026-10-23T00:00:00.000Z</updated><category term="News" />
+    <summary>The top launches, skills and MCP servers, multi agent moves, rising repos and arguments in coding agents on 23 Oct 2026, each with its source.</summary>
+  </entry>
+  <entry>
+    <title>Open Source AI Agent Office Apps on GitHub (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/ai-agent-office-github/" />
+    <id>https://munderdiffl.in/blog/ai-agent-office-github/</id>
+    <published>2026-10-23T00:00:00.000Z</published>
+    <updated>2026-10-23T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Open source AI agent office apps on GitHub, checked 23 Oct 2026: ChatDev, Munder Difflin, OpenHands, CrewAI, AG2 and three more, with licences.</summary>
+  </entry>
+  <entry>
+    <title>Black October: What PHP2Shell Is and How to Patch (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/black-october-php2shell/" />
+    <id>https://munderdiffl.in/blog/black-october-php2shell/</id>
+    <published>2026-10-23T00:00:00.000Z</published>
+    <updated>2026-10-23T00:00:00.000Z</updated><category term="News" />
+    <summary>Black October is the scramble around PHP2Shell, two critical PHP flaws fixed on 21 Oct 2026. Who found them, the fixed versions and how to patch.</summary>
+  </entry>
+  <entry>
+    <title>Claude Duet App: iPhone, Android and Web, and How to Get It</title>
+    <link href="https://munderdiffl.in/blog/claude-duet-app/" />
+    <id>https://munderdiffl.in/blog/claude-duet-app/</id>
+    <published>2026-10-23T00:00:00.000Z</published>
+    <updated>2026-10-23T00:00:00.000Z</updated><category term="Guides" />
+    <summary>Is there a Claude Duet app? Yes, on iPhone and Android, and on a computer it runs at claude.ai. Who can get it, how the download works, and the cost.</summary>
+  </entry>
+  <entry>
+    <title>Agent Tools Today, 22 Oct 2026: Claude API 2026-10-21, LayerFS 1.0, PHP2Shell</title>
+    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-22/" />
+    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-22/</id>
+    <published>2026-10-22T00:00:00.000Z</published>
+    <updated>2026-10-22T00:00:00.000Z</updated><category term="News" />
+    <summary>The top launches, skills and MCP servers, multi agent moves, rising repos and arguments in coding agents on 22 Oct 2026, each with its source.</summary>
+  </entry>
+  <entry>
+    <title>Build Your Own Claude Duet: A Free Morning Brief Agent</title>
+    <link href="https://munderdiffl.in/blog/build-your-own-claude-duet/" />
+    <id>https://munderdiffl.in/blog/build-your-own-claude-duet/</id>
+    <published>2026-10-22T00:00:00.000Z</published>
+    <updated>2026-10-22T00:00:00.000Z</updated><category term="Guides" />
+    <summary>No Claude Duet invite? Build a proactive morning brief in Munder Difflin: one agent, one schedule and Slack replies, with a codebase as the example.</summary>
+  </entry>
+  <entry>
+    <title>Claude API Version 2026-10-21: What Breaks and How to Upgrade</title>
+    <link href="https://munderdiffl.in/blog/claude-api-version-2026-10-21/" />
+    <id>https://munderdiffl.in/blog/claude-api-version-2026-10-21/</id>
+    <published>2026-10-22T00:00:00.000Z</published>
+    <updated>2026-10-22T00:00:00.000Z</updated><category term="Guides" />
+    <summary>Claude API version 2026-10-21 removes temperature, top_p and top_k and ships new SDK majors. What returns a 400 now, what breaks proxies, and how to upgrade.</summary>
+  </entry>
+  <entry>
+    <title>Claude Duet Alternatives: 4 AI Agents You Can Use Today, No Waitlist</title>
+    <link href="https://munderdiffl.in/blog/claude-duet-alternatives/" />
+    <id>https://munderdiffl.in/blog/claude-duet-alternatives/</id>
+    <published>2026-10-22T00:00:00.000Z</published>
+    <updated>2026-10-22T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Claude Duet is waitlisted and US only. Four proactive agents you can run today, sorted by where they run: a vendor&#39;s cloud or hardware you control.</summary>
+  </entry>
+  <entry>
+    <title>Is Claude Duet Good for Developers? What It Does With Code and What It Doesn&#39;t</title>
+    <link href="https://munderdiffl.in/blog/claude-duet-for-developers/" />
+    <id>https://munderdiffl.in/blog/claude-duet-for-developers/</id>
+    <published>2026-10-22T00:00:00.000Z</published>
+    <updated>2026-10-22T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Claude Duet can prototype and build web apps, but it is built for business apps, not your repo. What developers get from it, and where Claude Code fits better.</summary>
+  </entry>
+  <entry>
+    <title>Claude Duet vs Munder Difflin: One Agent in the Cloud or a Team on Your Computer</title>
+    <link href="https://munderdiffl.in/blog/claude-duet-vs-munder-difflin/" />
+    <id>https://munderdiffl.in/blog/claude-duet-vs-munder-difflin/</id>
+    <published>2026-10-22T00:00:00.000Z</published>
+    <updated>2026-10-22T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Claude Duet is one proactive agent in Anthropic&#39;s cloud. Munder Difflin gives you a free team of AI agents for all kinds of work. How they differ, side by side.</summary>
+  </entry>
+  <entry>
+    <title>Claude Duet Waitlist: Who Gets In First, and What to Use Meanwhile</title>
+    <link href="https://munderdiffl.in/blog/claude-duet-waitlist/" />
+    <id>https://munderdiffl.in/blog/claude-duet-waitlist/</id>
+    <published>2026-10-22T00:00:00.000Z</published>
+    <updated>2026-10-22T00:00:00.000Z</updated><category term="Guides" />
+    <summary>How to join the Claude Duet waitlist, who qualifies first (US Pro and Max), what Anthropic says about timing, and three things you can use while you wait.</summary>
+  </entry>
+  <entry>
+    <title>What Is Claude Duet? Anthropic&#39;s Proactive Agent App, Explained</title>
+    <link href="https://munderdiffl.in/blog/what-is-claude-duet/" />
+    <id>https://munderdiffl.in/blog/what-is-claude-duet/</id>
+    <published>2026-10-22T00:00:00.000Z</published>
+    <updated>2026-10-22T00:00:00.000Z</updated><category term="Concepts" />
+    <summary>Claude Duet is Anthropic&#39;s proactive agent app, in research preview since 21 Oct 2026: who can join, how it works, what it asks first and its limits.</summary>
+  </entry>
+  <entry>
+    <title>Agent Tools Today, 21 Oct 2026: DeepInfer, Voxtral 3, Claude Code 2.1.305</title>
+    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-21/" />
+    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-21/</id>
+    <published>2026-10-21T00:00:00.000Z</published>
+    <updated>2026-10-21T00:00:00.000Z</updated><category term="News" />
+    <summary>The top launches, skills and MCP servers, multi agent moves, rising repos and arguments in coding agents on 21 Oct 2026, each with its source.</summary>
+  </entry>
+  <entry>
+    <title>Cline Alternatives: 6 Picks and 2 Names to Skip (Oct 2026)</title>
+    <link href="https://munderdiffl.in/blog/cline-alternatives/" />
+    <id>https://munderdiffl.in/blog/cline-alternatives/</id>
+    <published>2026-10-21T00:00:00.000Z</published>
+    <updated>2026-10-21T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Six Cline alternatives checked on 19 Oct 2026: Kilo Code, Munder Difflin, OpenCode, Codex, Claude Code and Cursor, plus two you can skip, by licence and price.</summary>
+  </entry>
+  <entry>
+    <title>Cursor vs Cline: A Paid Editor and an Open Source Agent Compared</title>
+    <link href="https://munderdiffl.in/blog/cursor-vs-cline/" />
+    <id>https://munderdiffl.in/blog/cursor-vs-cline/</id>
+    <published>2026-10-21T00:00:00.000Z</published>
+    <updated>2026-10-21T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Cursor vs Cline, checked 19 Oct 2026: Cursor&#39;s new X Subscription plans, Cline&#39;s free open source agent, which models each lets you use and which to pick.</summary>
+  </entry>
+  <entry>
+    <title>LiteLLM 1.107.0 Compromise: What It Steals and How to Check Your Machine</title>
+    <link href="https://munderdiffl.in/blog/litellm-1-107-0-compromise/" />
+    <id>https://munderdiffl.in/blog/litellm-1-107-0-compromise/</id>
+    <published>2026-10-21T00:00:00.000Z</published>
+    <updated>2026-10-21T00:00:00.000Z</updated><category term="Guides" />
+    <summary>LiteLLM 1.107.0 on PyPI carried a credential stealer and a backdoor on 21 Oct 2026: who was exposed, how to check without Python, and what to rotate.</summary>
+  </entry>
   <entry>
     <title>Agent Tools Today, 19 Oct 2026: DeepSeek Search API, Sphinx, OpenClaw 2026.10.5</title>
     <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-19/" />
@@ -14,6 +334,14 @@
     <published>2026-10-19T00:00:00.000Z</published>
     <updated>2026-10-19T00:00:00.000Z</updated><category term="News" />
     <summary>The top launches, skills and MCP servers, multi agent moves, rising repos and arguments in coding agents on 19 Oct 2026, each with its source.</summary>
+  </entry>
+  <entry>
+    <title>Codex vs Gemini CLI: Which Terminal Agent Still Fits in Oct 2026?</title>
+    <link href="https://munderdiffl.in/blog/codex-vs-gemini-cli/" />
+    <id>https://munderdiffl.in/blog/codex-vs-gemini-cli/</id>
+    <published>2026-10-19T00:00:00.000Z</published>
+    <updated>2026-10-19T00:00:00.000Z</updated><category term="Comparisons" />
+    <summary>Codex vs Gemini CLI, checked 19 Oct 2026: who can still sign in to Gemini CLI after the move to Antigravity CLI, Codex paid plans from $8, and which to pick.</summary>
   </entry>
   <entry>
     <title>Hermes Agent Alternatives: 7 Picks for Chat, Code and Cloud</title>
@@ -158,333 +486,5 @@
     <published>2026-10-13T00:00:00.000Z</published>
     <updated>2026-10-13T00:00:00.000Z</updated><category term="News" />
     <summary>The top launches, skills and plugins, multi agent moves, rising repos and arguments in coding agents on 13 Oct 2026, each with its source.</summary>
-  </entry>
-  <entry>
-    <title>Google Let Gemini 4 Argon Loose on Its Own Coding Backlog. Here Are the Receipts.</title>
-    <link href="https://munderdiffl.in/blog/gemini-4-argon-inside-google/" />
-    <id>https://munderdiffl.in/blog/gemini-4-argon-inside-google/</id>
-    <published>2026-10-13T00:00:00.000Z</published>
-    <updated>2026-10-13T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>Google&#39;s own numbers for Gemini 4 Argon on real code: 134 bugs triaged in under 3 hours, 30% fewer rollbacks, a framework tuned overnight. Checked 13 Oct 2026.</summary>
-  </entry>
-  <entry>
-    <title>Gemini 4 Argon Pricing: Half Price Until 30 November, Then the Real Bill Arrives</title>
-    <link href="https://munderdiffl.in/blog/gemini-4-argon-pricing/" />
-    <id>https://munderdiffl.in/blog/gemini-4-argon-pricing/</id>
-    <published>2026-10-13T00:00:00.000Z</published>
-    <updated>2026-10-13T00:00:00.000Z</updated><category term="Guides" />
-    <summary>Gemini 4 Argon pricing, checked 13 Oct 2026: $2 input and $10 output per 1M tokens through 30 Nov, then $4 and $20. No free tier. Worked examples inside.</summary>
-  </entry>
-  <entry>
-    <title>Gemini 4 Argon vs Claude Opus 5.5 vs GPT-6 Astra: Google Published a Table It Does Not Fully Win</title>
-    <link href="https://munderdiffl.in/blog/gemini-4-argon-vs-claude-opus-5-5/" />
-    <id>https://munderdiffl.in/blog/gemini-4-argon-vs-claude-opus-5-5/</id>
-    <published>2026-10-13T00:00:00.000Z</published>
-    <updated>2026-10-13T00:00:00.000Z</updated><category term="Comparisons" />
-    <summary>Google&#39;s own table: Gemini 4 Argon tops 13 of 19 rows, GPT-6 Astra 3 and Claude Opus 5.5 2. The coding rows split. List prices compared.</summary>
-  </entry>
-  <entry>
-    <title>Gemini 4 Argon: Google&#39;s Flagship Model Shares a Name With a Gas That Barely Reacts</title>
-    <link href="https://munderdiffl.in/blog/gemini-4-argon/" />
-    <id>https://munderdiffl.in/blog/gemini-4-argon/</id>
-    <published>2026-10-13T00:00:00.000Z</published>
-    <updated>2026-10-13T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>Gemini 4 Argon went on general release on 13 Oct 2026: $2 input and $10 output per 1M tokens through 30 Nov, a 1M token window, and where you can use it.</summary>
-  </entry>
-  <entry>
-    <title>How to Use Gemini 4 Argon: Five Ways In, and Free Is Not One of Them</title>
-    <link href="https://munderdiffl.in/blog/how-to-use-gemini-4-argon/" />
-    <id>https://munderdiffl.in/blog/how-to-use-gemini-4-argon/</id>
-    <published>2026-10-13T00:00:00.000Z</published>
-    <updated>2026-10-13T00:00:00.000Z</updated><category term="Guides" />
-    <summary>How to use Gemini 4 Argon on 13 Oct 2026: the Gemini app, AI Mode, AI Studio, the API with model ID gemini-4-argon, and Antigravity. What each route needs.</summary>
-  </entry>
-  <entry>
-    <title>Muse Wonder and Muse Code: Meta&#39;s new models, prices and scores</title>
-    <link href="https://munderdiffl.in/blog/muse-wonder/" />
-    <id>https://munderdiffl.in/blog/muse-wonder/</id>
-    <published>2026-10-13T00:00:00.000Z</published>
-    <updated>2026-10-13T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>Meta&#39;s Muse Wonder and Muse Wonder Full: API price, Muse Code plans, context window and Meta&#39;s own coding scores, checked 13 Oct 2026.</summary>
-  </entry>
-  <entry>
-    <title>Agent Tools Today, 12 Oct 2026: WordCraft 0.5.0, Genkit Dart 1.0, 500 Billion Tokens</title>
-    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-12/" />
-    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-12/</id>
-    <published>2026-10-12T00:00:00.000Z</published>
-    <updated>2026-10-12T00:00:00.000Z</updated><category term="News" />
-    <summary>The top launches, skills and plugins, multi agent moves, rising repos and arguments in coding agents on 12 Oct 2026, each with its source.</summary>
-  </entry>
-  <entry>
-    <title>Claude routines: what they are, triggers, cost and limits</title>
-    <link href="https://munderdiffl.in/blog/claude-code-routines/" />
-    <id>https://munderdiffl.in/blog/claude-code-routines/</id>
-    <published>2026-10-12T00:00:00.000Z</published>
-    <updated>2026-10-12T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>Claude routines run a saved Claude Code prompt in the cloud on a schedule, an API call or a GitHub event. Plans, steps and limits, checked 12 Oct 2026.</summary>
-  </entry>
-  <entry>
-    <title>Agent Tools Today, 11 Oct 2026: Dynamic Workflows, TypeSafe AI&#39;s Raise, OpenCode 1.19.0</title>
-    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-11/" />
-    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-11/</id>
-    <published>2026-10-11T00:00:00.000Z</published>
-    <updated>2026-10-11T00:00:00.000Z</updated><category term="News" />
-    <summary>The top launches, skills and plugins, multi agent moves, rising repos and arguments in coding agents on 11 Oct 2026, each with its source.</summary>
-  </entry>
-  <entry>
-    <title>Claude Code Projects: what they are and who can use them</title>
-    <link href="https://munderdiffl.in/blog/claude-code-projects/" />
-    <id>https://munderdiffl.in/blog/claude-code-projects/</id>
-    <published>2026-10-11T00:00:00.000Z</published>
-    <updated>2026-10-11T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>Claude Code Projects, checked 11 Oct 2026: a public beta on Pro and Max where Claude runs your tasks as parallel threads. Access, limits and plan use.</summary>
-  </entry>
-  <entry>
-    <title>Claude Managed Agents dynamic workflows: limits and cost</title>
-    <link href="https://munderdiffl.in/blog/claude-managed-agents-dynamic-workflows/" />
-    <id>https://munderdiffl.in/blog/claude-managed-agents-dynamic-workflows/</id>
-    <published>2026-10-11T00:00:00.000Z</published>
-    <updated>2026-10-11T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>Dynamic workflows let a Claude Managed Agents agent write a program that runs many agents. How to turn them on, beta limits and cost, checked 11 Oct 2026.</summary>
-  </entry>
-  <entry>
-    <title>Agent Tools Today, 10 Oct 2026: MXC SDK 1.0, Claude Code 2.1.296, Microsoft-Decision-1</title>
-    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-10/" />
-    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-10/</id>
-    <published>2026-10-10T00:00:00.000Z</published>
-    <updated>2026-10-10T00:00:00.000Z</updated><category term="News" />
-    <summary>The top launches, skills and plugins, multi agent moves, rising repos and arguments in coding agents on 10 Oct 2026, each with its source.</summary>
-  </entry>
-  <entry>
-    <title>Codex Usage Limits vs Claude Code: What Each Plan Gives You</title>
-    <link href="https://munderdiffl.in/blog/codex-vs-claude-code-usage-limits/" />
-    <id>https://munderdiffl.in/blog/codex-vs-claude-code-usage-limits/</id>
-    <published>2026-10-10T00:00:00.000Z</published>
-    <updated>2026-10-10T00:00:00.000Z</updated><category term="Comparisons" />
-    <summary>Codex usage limits vs Claude Code usage limits, checked 10 Oct 2026: the five hour window, weekly limits, credits and how to check usage on each plan.</summary>
-  </entry>
-  <entry>
-    <title>Agent Tools Today, 9 Oct 2026: Gemini Agent, Codex CLI 0.162.0, Step 5 Preview</title>
-    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-09/" />
-    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-09/</id>
-    <published>2026-10-09T00:00:00.000Z</published>
-    <updated>2026-10-09T00:00:00.000Z</updated><category term="News" />
-    <summary>The top launches, skills and plugins, multi agent moves, rising repos and arguments in coding agents on 9 Oct 2026, each with its source.</summary>
-  </entry>
-  <entry>
-    <title>Agent Tools Today, 8 Oct 2026: Claude Haiku 5.5, GPT-6 Intelligent UI, Docker Agent</title>
-    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-08/" />
-    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-08/</id>
-    <published>2026-10-08T00:00:00.000Z</published>
-    <updated>2026-10-08T00:00:00.000Z</updated><category term="News" />
-    <summary>The top launches, skills and plugins, multi agent moves, rising repos and arguments in coding agents on 8 Oct 2026, each with its source.</summary>
-  </entry>
-  <entry>
-    <title>Claude Code agent teams: what they are, how to use them</title>
-    <link href="https://munderdiffl.in/blog/claude-code-agent-teams/" />
-    <id>https://munderdiffl.in/blog/claude-code-agent-teams/</id>
-    <published>2026-10-08T00:00:00.000Z</published>
-    <updated>2026-10-08T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>Claude Code agent teams, checked 8 Oct 2026: what they are, the experimental setting that turns them on, how they differ from subagents, token cost and limits.</summary>
-  </entry>
-  <entry>
-    <title>Claude Haiku 5.5: price, benchmarks and where it fits</title>
-    <link href="https://munderdiffl.in/blog/claude-haiku-5-5/" />
-    <id>https://munderdiffl.in/blog/claude-haiku-5-5/</id>
-    <published>2026-10-08T00:00:00.000Z</published>
-    <updated>2026-10-08T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>Claude Haiku 5.5 is Anthropic&#39;s new small model. Its tiered price, Anthropic&#39;s own scores and how to pick it in Claude Code, checked 8 Oct 2026.</summary>
-  </entry>
-  <entry>
-    <title>Cursor Alternatives: 7 AI Coding Tools to Switch To</title>
-    <link href="https://munderdiffl.in/blog/cursor-alternatives/" />
-    <id>https://munderdiffl.in/blog/cursor-alternatives/</id>
-    <published>2026-10-08T00:00:00.000Z</published>
-    <updated>2026-10-08T00:00:00.000Z</updated><category term="Comparisons" />
-    <summary>Seven Cursor alternatives checked on 8 Oct 2026: Claude Code, Codex, Cline, OpenCode, Zed, Devin Desktop and GitHub Copilot, by licence and price.</summary>
-  </entry>
-  <entry>
-    <title>GPT-6 in ChatGPT: who gets it, when, and Intelligent UI</title>
-    <link href="https://munderdiffl.in/blog/gpt-6-intelligent-ui/" />
-    <id>https://munderdiffl.in/blog/gpt-6-intelligent-ui/</id>
-    <published>2026-10-08T00:00:00.000Z</published>
-    <updated>2026-10-08T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>GPT-6 with Intelligent UI in ChatGPT: Plus, Pro, Business and Enterprise from 7 Oct 2026, then Free and Go. Codex models are not changing in this release.</summary>
-  </entry>
-  <entry>
-    <title>Claude Agent SDK: what it is, languages, cost and limits</title>
-    <link href="https://munderdiffl.in/blog/what-is-claude-agent-sdk/" />
-    <id>https://munderdiffl.in/blog/what-is-claude-agent-sdk/</id>
-    <published>2026-10-08T00:00:00.000Z</published>
-    <updated>2026-10-08T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>The Claude Agent SDK is Claude Code as a Python and TypeScript library. Install commands, features, billing, licence and limits, checked 8 Oct 2026.</summary>
-  </entry>
-  <entry>
-    <title>ZCode: Z.ai&#39;s coding agent harness, explained</title>
-    <link href="https://munderdiffl.in/blog/what-is-zcode/" />
-    <id>https://munderdiffl.in/blog/what-is-zcode/</id>
-    <published>2026-10-08T00:00:00.000Z</published>
-    <updated>2026-10-08T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>ZCode is Z.ai&#39;s Apache-2.0 coding workspace: desktop app, browser view and terminal agent. How to install it, which models it lists, and what it costs.</summary>
-  </entry>
-  <entry>
-    <title>Agent Tools Today, 7 Oct 2026: Mistral Large 4, EmbeddingGemma 2, OpenAI Decisions API</title>
-    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-07/" />
-    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-07/</id>
-    <published>2026-10-07T00:00:00.000Z</published>
-    <updated>2026-10-07T00:00:00.000Z</updated><category term="News" />
-    <summary>The top launches, skills and plugins, multi agent moves, rising repos and arguments in coding agents on 7 Oct 2026, each with its source.</summary>
-  </entry>
-  <entry>
-    <title>Codex vs Cursor: Which Should You Pick in 2026?</title>
-    <link href="https://munderdiffl.in/blog/codex-vs-cursor/" />
-    <id>https://munderdiffl.in/blog/codex-vs-cursor/</id>
-    <published>2026-10-07T00:00:00.000Z</published>
-    <updated>2026-10-07T00:00:00.000Z</updated><category term="Comparisons" />
-    <summary>Codex vs Cursor, checked 7 Oct 2026: what each is, licence, paid plans from $8 a month, models, where each runs, and whether Codex works inside Cursor.</summary>
-  </entry>
-  <entry>
-    <title>Gemini CLI vs Claude Code: price, licence, models</title>
-    <link href="https://munderdiffl.in/blog/gemini-cli-vs-claude-code/" />
-    <id>https://munderdiffl.in/blog/gemini-cli-vs-claude-code/</id>
-    <published>2026-10-07T00:00:00.000Z</published>
-    <updated>2026-10-07T00:00:00.000Z</updated><category term="Comparisons" />
-    <summary>Gemini CLI vs Claude Code, checked 7 Oct 2026: whether Gemini CLI is still free, what each costs, licence, models, features and who should pick which.</summary>
-  </entry>
-  <entry>
-    <title>Hermes Agent vs OpenClaw: which self-hosted AI assistant to pick</title>
-    <link href="https://munderdiffl.in/blog/hermes-agent-vs-openclaw/" />
-    <id>https://munderdiffl.in/blog/hermes-agent-vs-openclaw/</id>
-    <published>2026-10-07T00:00:00.000Z</published>
-    <updated>2026-10-07T00:00:00.000Z</updated><category term="Comparisons" />
-    <summary>Hermes Agent vs OpenClaw, checked 7 Oct 2026: licence, latest release, install, channels, models, memory, skills, security notes and who should pick which.</summary>
-  </entry>
-  <entry>
-    <title>OpenAI Decisions API: what it is, price and limits</title>
-    <link href="https://munderdiffl.in/blog/openai-decisions-api/" />
-    <id>https://munderdiffl.in/blog/openai-decisions-api/</id>
-    <published>2026-10-07T00:00:00.000Z</published>
-    <updated>2026-10-07T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>The OpenAI Decisions API is a beta endpoint that returns a probability, a pick or a score. Price, limits and how to call it, checked 7 Oct 2026.</summary>
-  </entry>
-  <entry>
-    <title>Agent Tools Today, 6 Oct 2026: OpenAI Text Watermarks, Reflection Beam, Cloudflare Web Search</title>
-    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-06/" />
-    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-06/</id>
-    <published>2026-10-06T00:00:00.000Z</published>
-    <updated>2026-10-06T00:00:00.000Z</updated><category term="News" />
-    <summary>The top launches, skills and plugins, multi agent moves, rising repos and arguments in coding agents on 6 Oct 2026, each with its source.</summary>
-  </entry>
-  <entry>
-    <title>Claude Cowork vs Claude Code: Which One Do You Need?</title>
-    <link href="https://munderdiffl.in/blog/claude-cowork-vs-claude-code/" />
-    <id>https://munderdiffl.in/blog/claude-cowork-vs-claude-code/</id>
-    <published>2026-10-06T00:00:00.000Z</published>
-    <updated>2026-10-06T00:00:00.000Z</updated><category term="Comparisons" />
-    <summary>Claude Cowork does office work, Claude Code writes software. What each is, where it runs, which plans include it and what it can touch, checked 6 Oct 2026.</summary>
-  </entry>
-  <entry>
-    <title>Mistral Large 4 (Le Chonk): size, price, scores and weights</title>
-    <link href="https://munderdiffl.in/blog/mistral-large-4/" />
-    <id>https://munderdiffl.in/blog/mistral-large-4/</id>
-    <published>2026-10-06T00:00:00.000Z</published>
-    <updated>2026-10-06T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>Mistral Large 4 is a 1 trillion parameter open weight model in public preview. Context window, API price, Mistral&#39;s own scores and weights, checked 6 Oct 2026.</summary>
-  </entry>
-  <entry>
-    <title>OpenAI text watermarking: textGrain, who gets it, limits</title>
-    <link href="https://munderdiffl.in/blog/openai-text-watermarking/" />
-    <id>https://munderdiffl.in/blog/openai-text-watermarking/</id>
-    <published>2026-10-06T00:00:00.000Z</published>
-    <updated>2026-10-06T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>OpenAI text watermarking (textGrain) is opt in for the API now and is coming to eligible ChatGPT and Codex text in the EU. Limits checked 6 Oct 2026.</summary>
-  </entry>
-  <entry>
-    <title>OpenCode vs Claude Code: Licence, Price and Models Compared</title>
-    <link href="https://munderdiffl.in/blog/opencode-vs-claude-code/" />
-    <id>https://munderdiffl.in/blog/opencode-vs-claude-code/</id>
-    <published>2026-10-06T00:00:00.000Z</published>
-    <updated>2026-10-06T00:00:00.000Z</updated><category term="Comparisons" />
-    <summary>OpenCode vs Claude Code, checked 6 Oct 2026: licence, price to start, models, where each runs, and whether a Claude subscription works in OpenCode.</summary>
-  </entry>
-  <entry>
-    <title>Reflection AI Beam: the 501B open weight model, explained</title>
-    <link href="https://munderdiffl.in/blog/reflection-beam/" />
-    <id>https://munderdiffl.in/blog/reflection-beam/</id>
-    <published>2026-10-06T00:00:00.000Z</published>
-    <updated>2026-10-06T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>Reflection AI Beam is a 501B parameter open weight model. Size, Reflection&#39;s own scores, licence and when you can get it, checked 6 Oct 2026.</summary>
-  </entry>
-  <entry>
-    <title>Agent Tools Today, 5 Oct 2026: Paperclip Goes Full Auto, Strata&#39;s Codex API, Cloudflare&#39;s Git Contest</title>
-    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-05/" />
-    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-05/</id>
-    <published>2026-10-05T00:00:00.000Z</published>
-    <updated>2026-10-05T00:00:00.000Z</updated><category term="News" />
-    <summary>The top launches, skills and plugins, multi agent moves, rising repos and arguments in coding agents on 5 Oct 2026, each with its source.</summary>
-  </entry>
-  <entry>
-    <title>ASD-STE100 Prompting: Karpathy&#39;s 4 Tricks for Clearer AI Answers</title>
-    <link href="https://munderdiffl.in/blog/asd-ste100-prompting/" />
-    <id>https://munderdiffl.in/blog/asd-ste100-prompting/</id>
-    <published>2026-10-05T00:00:00.000Z</published>
-    <updated>2026-10-05T00:00:00.000Z</updated><category term="Guides" />
-    <summary>Ask your AI to answer in ASD-STE100, the aerospace manual standard, about 80% of the way. Plus Karpathy&#39;s three other tricks: diagrams, HTML and video.</summary>
-  </entry>
-  <entry>
-    <title>Claude Code Alternatives: 7 Coding Agents to Switch To</title>
-    <link href="https://munderdiffl.in/blog/claude-code-alternatives/" />
-    <id>https://munderdiffl.in/blog/claude-code-alternatives/</id>
-    <published>2026-10-05T00:00:00.000Z</published>
-    <updated>2026-10-05T00:00:00.000Z</updated><category term="Comparisons" />
-    <summary>Seven Claude Code alternatives checked on 5 Oct 2026: Codex CLI, OpenCode, Cursor, Gemini CLI, Cline, Pi and Aider, by licence, starting price and models.</summary>
-  </entry>
-  <entry>
-    <title>Codex Pricing: Every Plan, Usage Limit and API Rate (Oct 2026)</title>
-    <link href="https://munderdiffl.in/blog/codex-pricing/" />
-    <id>https://munderdiffl.in/blog/codex-pricing/</id>
-    <published>2026-10-05T00:00:00.000Z</published>
-    <updated>2026-10-05T00:00:00.000Z</updated><category term="Guides" />
-    <summary>Codex pricing checked 5 Oct 2026: which ChatGPT plans include Codex, US prices from $0 to $500, how usage limits are counted, credits and API key rates.</summary>
-  </entry>
-  <entry>
-    <title>How to Use Claude Code: Setup, First Task and the Commands That Matter</title>
-    <link href="https://munderdiffl.in/blog/how-to-use-claude-code/" />
-    <id>https://munderdiffl.in/blog/how-to-use-claude-code/</id>
-    <published>2026-10-05T00:00:00.000Z</published>
-    <updated>2026-10-05T00:00:00.000Z</updated><category term="Guides" />
-    <summary>How to use Claude Code, checked 5 Oct 2026: install it, sign in, run a first task, then the commands, shortcuts and habits a beginner needs.</summary>
-  </entry>
-  <entry>
-    <title>OpenClaw Alternatives: 7 Picks for Chat, Code and Cloud</title>
-    <link href="https://munderdiffl.in/blog/openclaw-alternatives/" />
-    <id>https://munderdiffl.in/blog/openclaw-alternatives/</id>
-    <published>2026-10-05T00:00:00.000Z</published>
-    <updated>2026-10-05T00:00:00.000Z</updated><category term="Comparisons" />
-    <summary>Seven OpenClaw alternatives sorted by job: Hermes Agent, Munder Difflin, NanoClaw, ZeroClaw, nanobot, Goose and Claude. Licences and prices checked 5 Oct 2026.</summary>
-  </entry>
-  <entry>
-    <title>Agent Tools Today, 4 Oct 2026: You should Know, OpenClaw&#39;s Android Wait, Codex Wish List</title>
-    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-04/" />
-    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-04/</id>
-    <published>2026-10-04T00:00:00.000Z</published>
-    <updated>2026-10-04T00:00:00.000Z</updated><category term="News" />
-    <summary>The top 5 launches, skills and plugins, multi agent moves, rising repos and arguments in coding agents on 4 Oct 2026, each with its source.</summary>
-  </entry>
-  <entry>
-    <title>Agent Tools Today, 3 Oct 2026: Claude Code Mods, OpenDots, Conductor Mobile</title>
-    <link href="https://munderdiffl.in/blog/agent-tools-today-2026-10-03/" />
-    <id>https://munderdiffl.in/blog/agent-tools-today-2026-10-03/</id>
-    <published>2026-10-03T00:00:00.000Z</published>
-    <updated>2026-10-03T00:00:00.000Z</updated><category term="News" />
-    <summary>The top 5 launches, skills and MCP servers, multi agent moves, rising repos and arguments in coding agents on 3 Oct 2026, each with its source.</summary>
-  </entry>
-  <entry>
-    <title>What Is Claude Cowork? Plans, Prices and How to Use It</title>
-    <link href="https://munderdiffl.in/blog/what-is-claude-cowork/" />
-    <id>https://munderdiffl.in/blog/what-is-claude-cowork/</id>
-    <published>2026-10-03T00:00:00.000Z</published>
-    <updated>2026-10-03T00:00:00.000Z</updated><category term="Concepts" />
-    <summary>Claude Cowork is Anthropic&#39;s agent for multi-step office work. Which plans include it, what it costs, where it runs and how to start, checked 3 Oct 2026.</summary>
   </entry>
 </feed>
