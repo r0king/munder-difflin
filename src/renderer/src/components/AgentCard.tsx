@@ -45,6 +45,12 @@ export interface AgentCardProps {
   /** Opens the note editor (the strip owns the editing overlay). When set, the
    *  card shows a small ✎ affordance on its note row. */
   onEditNote?: () => void;
+  /** The device this agent runs on (Settings → Devices); shown as a tag. */
+  device?: string;
+  /** Its device's link is down: the card greys out, "offline · reconnecting". */
+  deviceOffline?: boolean;
+  /** On a device, this engine's usage cannot be read: say so, not a wrong zero. */
+  usageUnavailable?: boolean;
 }
 
 const fmtK = (n: number): string => `${Math.round(n / 1000)}k`;
@@ -57,7 +63,7 @@ const fmtK = (n: number): string => `${Math.round(n / 1000)}k`;
 export function AgentCard({
   name, character, accent, status, ptyId, project, action, progress = 0,
   contextTokens, contextLimit, selected, isGod, onClick, onRename,
-  doingCount = 0, onTaskNoteClick, draggable, note, onEditNote
+  doingCount = 0, onTaskNoteClick, draggable, note, onEditNote, device, deviceOffline, usageUnavailable
 }: AgentCardProps) {
   const { t } = useTranslation();
   const [hover, setHover] = useState(false);
@@ -88,7 +94,7 @@ export function AgentCard({
   const gaugeColor = progress >= 7 ? 'var(--cth-coral)'
     : progress >= 6 ? 'var(--cth-lemon)'
       : `var(--cth-${accent})`;
-  const gaugeTitle = contextTokens !== undefined && contextLimit
+  const gaugeTitle = usageUnavailable ? t('devices.usageUnavailable') : contextTokens !== undefined && contextLimit
     ? t('agentCard.contextTitle', { used: fmtK(contextTokens), limit: fmtK(contextLimit), pct: Math.round((contextTokens / contextLimit) * 100) })
     : t('agentCard.contextGaugeTitle');
 
@@ -125,7 +131,8 @@ export function AgentCard({
     .filter(Boolean).join(', ') || 'none';
 
   // One context line: what it's DOING while working, WHERE it lives while idle.
-  const infoLine = (status !== 'idle' && action) ? action : project;
+  // A device agent cut off from the floor says so instead.
+  const infoLine = deviceOffline ? t('devices.offlineReconnecting') : (status !== 'idle' && action) ? action : project;
   const noteFirstLine = (note ?? '').split('\n').find((l) => l.trim()) ?? '';
 
   return (
@@ -153,7 +160,9 @@ export function AgentCard({
         position: 'relative',
         transform: lift ? `translateY(${lift}px)` : 'none',
         boxShadow: outerShadow,
-        transition: 'transform 90ms steps(2, end), box-shadow 90ms steps(2, end)'
+        transition: 'transform 90ms steps(2, end), box-shadow 90ms steps(2, end)',
+        // Its device's link is down: greyed until it reattaches.
+        ...(deviceOffline ? { opacity: 0.55, filter: 'grayscale(1)' } : {})
       }}
     >
       {/* The taken note, stuck to the card like on the desk: this worker is
@@ -222,6 +231,14 @@ export function AgentCard({
                     background: `var(--cth-${accent})`, color: 'var(--cth-ink-900)',
                     padding: '1px 4px 0', flexShrink: 0
                   }}>{t('agentCard.boss')}</span>                )}
+                {device && (
+                  <span title={device} style={{
+                    fontFamily: 'var(--cth-font-display)', fontSize: 7, lineHeight: '11px',
+                    background: 'var(--cth-cream-200)', boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
+                    color: 'var(--cth-ink-900)', padding: '1px 4px 0', flexShrink: 0,
+                    maxWidth: 64, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                  }}>{device.toUpperCase()}</span>
+                )}
               </span>
               {/* flexShrink:0 — the badge is a fixed 2-to-5 character chip; when
                   it was allowed to shrink, the browser resolved the overflow by

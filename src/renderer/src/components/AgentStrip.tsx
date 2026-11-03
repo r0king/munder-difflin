@@ -4,9 +4,12 @@ import { AgentCard } from './AgentCard';
 import { PixelButton } from './PixelButton';
 import { Icon } from './Icon';
 import { useStore, type Agent } from '@/store/store';
+import { deviceLabel, deviceOffline, effectiveDevice, useDeviceStates } from '@/store/devices';
 import { type HarnessConfig } from '@/store/config';
 import { useRestoreTeam } from '@/hooks/useRestoreTeam';
 import { useRtl } from '@/i18n/useDirection';
+import { inferAgentProvider } from '@shared/agentProvider';
+import { usageUnavailableOnDevice } from '@shared/devices';
 
 export interface AgentStripProps {
   /** Needed to rebuild a spawn command when a restorable agent predates the
@@ -15,6 +18,7 @@ export interface AgentStripProps {
 }
 
 export function AgentStrip({ config }: AgentStripProps) {
+  const deviceStates = useDeviceStates((s) => s.states);
   const { t } = useTranslation();
   const rtl = useRtl();
   const agents = useStore(s => s.agents);
@@ -154,6 +158,9 @@ export function AgentStrip({ config }: AgentStripProps) {
             }}
             note={a.note}
             onEditNote={a.isGod ? undefined : () => setNoteEditId(a.id)}
+            device={deviceLabel(a.device, a.lastDevice, t('devices.thisLaptop'))}
+            deviceOffline={deviceOffline(effectiveDevice(a.device, a.lastDevice), deviceStates)}
+            usageUnavailable={!!effectiveDevice(a.device, a.lastDevice) && usageUnavailableOnDevice(inferAgentProvider(a.command, a.provider))}
           />
           {/* The note itself lives INSIDE the card (its own row above the gauge).
               This is the transient EDITOR: a fixed popover ABOVE the card —

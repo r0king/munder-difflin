@@ -8,6 +8,14 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **god can compact any agent.** Slash commands only act on your own session, so nobody but the
+  operator could `/compact` an agent. god now drops `compact-requests/<id>.json` =
+  `{"agent": "<id>", "description": "<optional focus>"}` in the hive root. The harness types the compact
+  command through the standup's idle-only queue, never mid-tool-call, and archives the request to
+  `.done/` once the agent's PostCompact hook fires, or to `.failed/` with a reason (unknown agent,
+  archived, no live session, 60-minute timeout). Optional, off by default: `ctxAutoCompact: true` in
+  config.json files a request for any agent at or above `ctxAutoCompactPct` (75) of its context, at
+  most once per `ctxAutoCompactEveryMin` (30) per agent.
 - **God can command workers and answer their permission prompts.** Off by default, behind a new
   `orchestratorMayControlAgents` toggle (Settings and the orchestrator workspace). With it on, god can
   write a `command` message and have its body typed verbatim into a worker's terminal, through the same
@@ -45,6 +53,33 @@ All notable changes to this project are documented here. The format is based on
   not mention keeps the built-in one, so a bad edit costs a list rather than a picker. The payload is
   data and never markup, and a model id is length-capped and stripped of control characters before it
   can reach a `--model` flag on a spawn command line. Same mechanism as the Settings hero card.
+
+### Changed
+
+- **An idle agent gets a prompt.** An agent quiet for 20 minutes with an empty inbox is pinged once,
+  so context rules such as "Idle time: propose quality work" get a turn to run in. It is not pinged
+  again until mail reaches it or it works for more than five minutes, so a quiet agent costs one turn
+  per idle stretch. God, paused or halted agents, and an agent with a permission prompt open are never
+  pinged. `idlePingMin` in config.json sets the minutes; `0` turns it off.
+- **claude.ai connectors only for designers.** Figma, Gmail, Google Calendar and the other claude.ai
+  connectors now load only in agents whose role is on `claudeAiConnectorRoles` (default
+  `["Designer"]`). Every other agent's session settings carry `disableClaudeAiConnectors`, so your own
+  sessions and `~/.claude.json` are untouched.
+- **Agents say what they are waiting on.** When a message's work will outlast the turn (a queued test
+  run, a long build), the protocol now asks the agent to reply to the sender at once with what it is
+  waiting on, so held mail no longer reads as unread.
+
+### Fixed
+
+- **Memory condense works again.** Every standup condense aborted from 12:29Z on 2026-10-28. The
+  hidden Haiku session pasted its prompt as soon as the TUI went quiet, and the TUI was not yet taking
+  input, so the paste vanished and nothing was ever submitted. The run then read the newest transcript
+  in the hive home, which is god's own session ("no parseable summary"). The session now runs under its
+  own `--session-id` and reads only that transcript. It pastes again until the transcript exists, and
+  strips the parent session's `CLAUDE_*` markers like agent PTYs do (an inherited
+  `CLAUDE_CODE_CHILD_SESSION` turns transcript saving off). A memory whose newest `reflectRecentKeep`
+  sections already fill 95% of the file is skipped as `recent-too-large` before the LLM call, instead
+  of spending a Haiku call every 30 minutes to abort `not-smaller`.
 
 ## [0.4.6] — 2026-08-27
 

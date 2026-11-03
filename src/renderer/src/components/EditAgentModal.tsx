@@ -1,9 +1,13 @@
 import { useEffect, useState, type CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
+import { restartAgentProcess } from '@/workspace/agents/restartAgent';
 import { PixelPanel } from './PixelPanel';
 import { PixelButton } from './PixelButton';
 import { SpritePortrait } from './SpritePortrait';
 import { ProviderLogo } from './ProviderLogo';
 import { useStore, type Agent } from '@/store/store';
+import { deviceOffline, useDeviceStates } from '@/store/devices';
+import { AUTO_DEVICE } from '@shared/devices';
 import { OFFICE_CAST, type OfficeCharacterName } from '@/scene/office/cast';
 import { type AccentColorName } from '@/design/tokens';
 import {
@@ -42,6 +46,9 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
   const [model, setModel] = useState<string | undefined>(agent.model);
   const [description, setDescription] = useState(agent.description);
   const [goal, setGoal] = useState(agent.goal ?? '');
+  const [device, setDevice] = useState(agent.device ?? '');
+  const [moveError, setMoveError] = useState<string>();
+  const { t } = useTranslation();
 
   useEffect(() => {
     void window.cth.getConfig().then(setConfig).catch(() => setConfig(null));
@@ -56,10 +63,14 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
     setModel(agent.model);
     setDescription(agent.description);
     setGoal(agent.goal ?? '');
+    setDevice(agent.device ?? '');
+    setMoveError(undefined);
   }, [agent.id]);
 
   const pickProvider = (id: AgentProvider) => {
     setProvider(id);
+    // Only Claude runs on a device in v1; another engine goes home.
+    if (!isClaudeProvider(id)) setDevice('');
     if (!config) {
       setModel(undefined);
       return;
@@ -71,6 +82,14 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
   const preset = providerPreset(provider);
 
   const save = () => {
+    // A move kills the agent before main can refuse it, so refuse here first:
+    // a device that is not online would leave it dead with the new device
+    // stored. Moving back to this laptop is always allowed.
+    const moving = (device || undefined) !== (agent.device || undefined);
+    if (moving && deviceOffline(device || undefined, useDeviceStates.getState().states)) {
+      setMoveError(t('devices.errOffline', { device }));
+      return;
+    }
     const trimmedName = name.trim() || agent.name;
     const trimmedDescription = description.trim() || 'a fresh harness';
     const trimmedGoal = goal.trim();
@@ -86,9 +105,17 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
       model,
       command,
       description: trimmedDescription,
-      goal: trimmedGoal || undefined
+      goal: trimmedGoal || undefined,
+      device: device || undefined
     });
     onClose();
+    // A move restarts the agent on its new device and continues its
+    // conversation: main copies the transcript across (devices phase 2,
+    // item 1), or starts fresh and says why. Stopping it on the old device
+    // is the restart's own kill.
+    if (moving && agent.ptyId) {
+      void restartAgentProcess(agent.id, { resume: true, resumeOptional: true, moved: true });
+    }
   };
 
   return (
@@ -254,6 +281,25 @@ export function EditAgentModal({ agent, onClose }: EditAgentModalProps) {
                 Engine changes are saved for the next restart. Use Command Center → Floor to restart a live session onto a new provider/model now.
               </span>
             </Section>
+
+            {isClaudeProvider(provider) && (config?.devices ?? []).length > 0 && (
+              <Section label={t('addAgent.sections.workspace.label')} hint={t('devices.restartsHint')}>
+                <Row label={t('devices.runsOn')}>
+                  <select value={device} onChange={(e) => { setDevice(e.target.value); setMoveError(undefined); }} style={inputStyle}>
+                    <option value="">{t('devices.thisLaptop')}</option>
+                    {/* god is never placed automatically (spec §4). */}
+                    {!agent.isGod && <option value={AUTO_DEVICE}>{t('devices.auto')}</option>}
+                    {(config?.devices ?? []).map((d) => <option key={d.id} value={d.id}>{d.id}</option>)}
+                  </select>
+                  {agent.isGod && device && (
+                    <span style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-coral)' }}>
+                      {t('devices.godWarning', { device })}
+                    </span>
+                  )}
+                </Row>
+                {moveError && <span style={{ fontSize: 12, color: 'var(--cth-coral)', lineHeight: '16px' }}>{moveError}</span>}
+              </Section>
+            )}
 
               </div>
               <div style={{ minWidth: 0 }}>

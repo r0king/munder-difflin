@@ -1,10 +1,24 @@
 import { spawn } from 'node:child_process';
 import { openForRead, safeResolve } from './fs';
+import { gitCommand } from './deviceCommands';
 
-/** Run git in `cwd` with `args`. Returns stdout text or an error. */
-function runGit(cwd: string, args: string[], timeoutMs = 8000): Promise<{
+/** Runs a command on a device; a DeviceLink (devices.ts) is one. Structural,
+ *  so git.ts needs no import of the device code. */
+export interface RemoteExec {
+  exec(cmd: string, timeoutMs?: number): Promise<{ ok: boolean; code: number; stdout: string; stderr: string; error?: string }>;
+}
+
+/** Run git in `cwd` with `args`. Returns stdout text or an error. With
+ *  `remote`, git runs on that device (`git -C <cwd> …` over its link): an
+ *  agent there has its repo and its worktrees on the device's own disk. */
+function runGit(cwd: string, args: string[], timeoutMs = 8000, remote?: RemoteExec): Promise<{
   ok: true; stdout: string;
 } | { ok: false; error: string }> {
+  if (remote) {
+    return remote.exec(gitCommand(cwd, args), timeoutMs).then((r) => r.ok
+      ? { ok: true as const, stdout: r.stdout }
+      : { ok: false as const, error: r.error ?? (r.stderr.trim() || `git exited ${r.code}`) });
+  }
   return new Promise((resolve) => {
     const proc = spawn('git', args, { cwd });
     let stdout = '';
@@ -56,8 +70,8 @@ export interface GitAheadBehind {
   upstream: string | null;
 }
 
-export async function getBranch(cwd: string): Promise<GitBranchInfo | { error: string }> {
-  const head = await runGit(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
+export async function getBranch(cwd: string, remote?: RemoteExec): Promise<GitBranchInfo | { error: string }> {
+  const head = await runGit(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], undefined, remote);
   if (!head.ok) return { error: head.error };
   const name = head.stdout.trim();
   if (name === 'HEAD') return { current: null, detached: true };
@@ -149,8 +163,8 @@ export async function getAheadBehind(cwd: string): Promise<GitAheadBehind | { er
 }
 
 /** Best-effort detect: is `cwd` actually a git repo? */
-export async function isRepo(cwd: string): Promise<boolean> {
-  const res = await runGit(cwd, ['rev-parse', '--is-inside-work-tree']);
+export async function isRepo(cwd: string, remote?: RemoteExec): Promise<boolean> {
+  const res = await runGit(cwd, ['rev-parse', '--is-inside-work-tree'], undefined, remote);
   return res.ok && res.stdout.trim() === 'true';
 }
 
@@ -261,13 +275,13 @@ function agentBranchFor(wtPath: string): string {
  *  `baseBranch`. Tries to create a fresh `agent/<id>` branch first; if that
  *  branch already exists, falls back to checking out `baseBranch` directly. */
 export async function addWorktree(
-  cwd: string, wtPath: string, baseBranch: string
+  cwd: string, wtPath: string, baseBranch: string, remote?: RemoteExec
 ): Promise<{ ok: boolean; error?: string }> {
   const branch = agentBranchFor(wtPath);
-  const fresh = await runGit(cwd, ['worktree', 'add', wtPath, '-b', branch, baseBranch]);
+  const fresh = await runGit(cwd, ['worktree', 'add', wtPath, '-b', branch, baseBranch], undefined, remote);
   if (fresh.ok) return { ok: true };
   // Branch likely already exists (or the path is taken) — retry without -b.
-  const fallback = await runGit(cwd, ['worktree', 'add', wtPath, baseBranch]);
+  const fallback = await runGit(cwd, ['worktree', 'add', wtPath, baseBranch], undefined, remote);
   if (fallback.ok) return { ok: true };
   return { ok: false, error: fallback.error };
 }
@@ -275,9 +289,9 @@ export async function addWorktree(
 /** Best-effort removal of an agent's worktree. Forced so a dirty tree doesn't
  *  block teardown; failures are surfaced but callers may ignore them. */
 export async function removeWorktree(
-  cwd: string, wtPath: string
+  cwd: string, wtPath: string, remote?: RemoteExec
 ): Promise<{ ok: boolean; error?: string }> {
-  const res = await runGit(cwd, ['worktree', 'remove', '--force', wtPath]);
+  const res = await runGit(cwd, ['worktree', 'remove', '--force', wtPath], undefined, remote);
   if (res.ok) return { ok: true };
   return { ok: false, error: res.error };
 }

@@ -11,6 +11,8 @@
  *     (hivePatchAgentRole), the two places EditAgentModal / the hire flow keep.
  *   - token cap → setAgentTokenCap, main's atomic per-agent write (the breaker
  *     reads it; WORK tokens: input + output + cache writes).
+ *   - runs on → the device on the agent (updateAgent), then a moved restart,
+ *     as EditAgentModal does: main copies the conversation across.
  *
  * Text saves when you leave the field; there is no Save button. A restart is
  * the one explicit action, because it interrupts the agent.
@@ -18,8 +20,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore, type Agent } from '@/store/store';
+import { deviceOffline, useDeviceStates } from '@/store/devices';
+import { AUTO_DEVICE } from '@shared/devices';
 import {
   inferAgentProvider,
+  isClaudeProvider,
   modelProvidersForAgent,
   modelsForProvider,
   providerPreset,
@@ -47,7 +52,12 @@ export function AgentSettingsDrawer({ agent, config, onClose }: { agent: Agent; 
   const [cap, setCap] = useState(savedCap ? String(savedCap) : '');
   const [capNote, setCapNote] = useState<{ text: string; error?: boolean } | null>(null);
   const [result, setResult] = useState('');
+  const [device, setDevice] = useState(agent.device ?? '');
+  const [moveConfirming, setMoveConfirming] = useState(false);
+  const [moveNote, setMoveNote] = useState<{ text: string; error?: boolean } | null>(null);
+  const deviceStates = useDeviceStates((s) => s.states);
 
+  useEffect(() => { setDevice(agent.device ?? ''); }, [agent.device]);
   useEffect(() => { setCap(savedCap ? String(savedCap) : ''); }, [savedCap]);
   useEffect(() => { setRole(agent.description ?? ''); }, [agent.description]);
 
@@ -90,6 +100,25 @@ export function AgentSettingsDrawer({ agent, config, onClose }: { agent: Agent; 
       resumeOptional: true
     });
     if (r.ok) setResult(r.resumed ? t('wsAgents.settings.appliedContinued', { name: agent.name }) : t('wsAgents.settings.appliedFresh', { name: agent.name }));
+  };
+
+  // Only Claude runs on a device in v1; an agent already on one can still go home.
+  const showRunsOn = (config.devices ?? []).length > 0 && (isClaudeProvider(currentProvider) || !!agent.device);
+  const deviceChanged = (device || undefined) !== (agent.device || undefined);
+
+  const move = async (): Promise<void> => {
+    // A move kills the agent before main can refuse it: refuse an offline
+    // device here first (EditAgentModal's guard). Home is always allowed.
+    if (deviceOffline(device || undefined, deviceStates)) { setMoveNote({ text: t('devices.errOffline', { device }), error: true }); return; }
+    if (busyAgent && agent.ptyId && !moveConfirming) { setMoveConfirming(true); return; }
+    setMoveConfirming(false);
+    setMoveNote(null);
+    updateAgent(agent.id, { device: device || undefined });
+    const where = device === AUTO_DEVICE ? t('devices.auto') : device || t('devices.thisLaptop');
+    // A stopped agent just starts there next time.
+    if (!agent.ptyId) { setMoveNote({ text: t('wsAgents.settings.moved', { name: agent.name, device: where }) }); return; }
+    const r = await restartAgentProcess(agent.id, { resume: true, resumeOptional: true, moved: true });
+    if (r.ok) setMoveNote({ text: t('wsAgents.settings.moved', { name: agent.name, device: where }) });
   };
 
   const saveRole = async (): Promise<void> => {
@@ -179,6 +208,41 @@ export function AgentSettingsDrawer({ agent, config, onClose }: { agent: Agent; 
           {restartError && <span className="cth-ws-agents-note" data-tone="error">{restartErrorText(t, restartError)}</span>}
           {result && !restartError && <span className="cth-ws-agents-note" data-tone="ok">{result}</span>}
         </div>
+
+        {showRunsOn && (
+          <div className="cth-ws-agents-field">
+            <label className="cth-ws-agents-label" htmlFor={`ws-dev-${agent.id}`}>{t('devices.runsOn')}</label>
+            <select
+              id={`ws-dev-${agent.id}`}
+              className="cth-ws-agents-select"
+              value={device}
+              disabled={restarting}
+              onChange={(e) => { setDevice(e.target.value); setMoveConfirming(false); setMoveNote(null); }}
+            >
+              <option value="">{t('devices.thisLaptop')}</option>
+              <option value={AUTO_DEVICE}>{t('devices.auto')}</option>
+              {(config.devices ?? []).map((d) => <option key={d.id} value={d.id}>{d.id}</option>)}
+            </select>
+            <span className="cth-ws-agents-note">{t('devices.restartsHint')}</span>
+            <div className="cth-ws-agents-ticket-row">
+              <Button
+                size="sm"
+                variant={moveConfirming ? 'danger' : 'primary'}
+                disabled={!deviceChanged || restarting}
+                onClick={() => { void move(); }}
+              >
+                {restarting ? t('wsAgents.settings.restarting')
+                  : moveConfirming ? t('wsAgents.settings.confirmRestart', { name: agent.name })
+                    : t('wsAgents.settings.move')}
+              </Button>
+              {moveConfirming && (
+                <Button size="sm" variant="ghost" onClick={() => setMoveConfirming(false)}>{t('wsAgents.settings.cancel')}</Button>
+              )}
+            </div>
+            {moveConfirming && <span className="cth-ws-agents-note">{t('wsAgents.settings.busyWarning', { name: agent.name })}</span>}
+            {moveNote && <span className="cth-ws-agents-note" data-tone={moveNote.error ? 'error' : 'ok'}>{moveNote.text}</span>}
+          </div>
+        )}
 
         <div className="cth-ws-agents-field">
           <label className="cth-ws-agents-label" htmlFor={`ws-role-${agent.id}`}>{t('wsAgents.settings.role')}</label>

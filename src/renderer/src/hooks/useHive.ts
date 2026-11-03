@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useStore, type Agent, type QueuedMessage, type StationKind, type ToolKind } from '@/store/store';
+import { setDeviceStatus } from '@/store/devices';
 import {
   buildSpawnCommand,
   ASSISTANT_MODEL,
@@ -1085,6 +1086,8 @@ export function useHive(config: HarnessConfig | null): void {
         project,
         tmuxTarget: '',
         cwd: rec.cwd,
+        device: rec.device,
+        lastDevice: rec.lastDevice,
         status: 'idle',
         action: 'starting up',
         progress: 0,
@@ -1137,11 +1140,14 @@ export function useHive(config: HarnessConfig | null): void {
   useEffect(() => {
     if (!config?.onboardingComplete) return;
 
-       const fire = (action: 'compact' | 'clear', rule: ContextRule): void => {
+       const fire = (action: 'compact' | 'clear', rule: ContextRule, onlyId?: string): void => {
       const { agents, messageQueues, enqueueMessage } = useStore.getState();
       const now = Date.now();
       for (const a of agents) {
         if (!a.ptyId) continue;
+        // A compact-requests entry targets one agent (main re-asks every tick
+        // until it is idle and compacts; the dedupe and latch below absorb that).
+        if (onlyId && a.id !== onlyId) continue;
         // Gate #109-2: don't enqueue a context command for an agent that cannot
         // currently receive one (e.g. god 'blocked' on a human prompt). Enqueuing
         // anyway left a stuck /compact at the head of the queue that dedupe then
@@ -1194,11 +1200,11 @@ export function useHive(config: HarnessConfig | null): void {
     // that emits it; access it defensively so this lands independently of that.
     const off = (window.cth as unknown as {
       onContextTrigger?: (
-        cb: (p: { action: 'compact' | 'clear'; rule: ContextRule }) => void
+        cb: (p: { action: 'compact' | 'clear'; rule: ContextRule; agentId?: string }) => void
       ) => () => void;
     }).onContextTrigger?.((p) => {
       if (!p?.rule) return;
-      fire(p.action === 'clear' ? 'clear' : 'compact', p.rule);
+      fire(p.action === 'clear' ? 'clear' : 'compact', p.rule, p.agentId);
     });
 
     // LEGACY fallback: main still emits the old parameterless auto-compact until
@@ -1211,6 +1217,13 @@ export function useHive(config: HarnessConfig | null): void {
 
     return () => { off?.(); offLegacy?.(); };
   }, [config?.onboardingComplete]);
+
+  // Devices: seed every link's state once, then follow main's pushes. The
+  // agent cards (offline · reconnecting) and Settings → Devices read them.
+  useEffect(() => {
+    void window.cth.listDevices().then((list) => list.forEach(setDeviceStatus)).catch(() => { /* no devices yet */ });
+    return window.cth.onDeviceState(setDeviceStatus);
+  }, []);
 
   // 7) Auto-revive wedged PTYs after the Mac sleeps/locks. Kevin's main-process
   //    keepalive catches up its schedules on wake and DETECTS terminals that were

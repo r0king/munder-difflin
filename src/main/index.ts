@@ -62,9 +62,21 @@ import { IntegrationBroker } from './integrationBroker';
 import * as integrations from './integrations';
 import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, INTEGRATION_TEMPLATES } from '../shared/integrations';
 import { RosterStore } from './roster';
+import { DeviceRegistry, checkDevice, copyTranscript, localLoad, readLoad, remoteTerminal, type DeviceLink } from './devices';
+import type { RemoteHome } from './hive';
+import { RemoteFloor, DEFAULT_REMOTE_FLOOR_PORT, type FloorActionResult } from './remoteFloor';
+import { FloorActivity, createFloorSource } from './remoteFloorSource';
+import { startSftpServer, type SftpServer } from './sftpServer';
+import {
+  REMOTE_HOOK_COMMAND, TMUX_LS, dirExistsCommand, hasSessionCommand, isDetach,
+  engineCheck, killSessionCommand, mergeHomeJsonCommand, parseRemoteEnv, parseTmuxLs, planReconcile, REMOTE_ENV_PROBE, writeHomeFileCommand, remoteAgentEnv, rosterAgentsOn, sessionName,
+  pickDevice, takePausedCommand, transcriptExistsCommand, validateSpawnDevice, type LoadSample
+} from './deviceCommands';
+import { AUTO_DEVICE, DEFAULT_OFFLINE_PAUSE_MIN, DEVICE_PROVIDERS, LOCAL_DEVICE, normalizeDeviceId, type ConversationStayed, type DeviceCheckItem, type DeviceStatus } from '../shared/devices';
 import { buildWorkerLaunch } from './workerLaunch';
+import { CompactRequests } from './compactRequests';
 import { ControlRegistry } from './control';
-import { WorkerWakeWatchdog, WORKER_WAKE_REPORT_MS, activityEvidenceAt, type WorkerWakeFacts } from './workerWake';
+import { WorkerWakeWatchdog, WORKER_WAKE_REPORT_MS, activityEvidenceAt, idlePingText, type WorkerWakeFacts } from './workerWake';
 import { inboxNudgeText } from '../shared/hiveNudge';
 import { busyText } from '../shared/toolActivity';
 import { resolveGodName } from '../shared/godIdentity';
@@ -268,7 +280,12 @@ const control = new ControlRegistry();
 // lets the transcript fallback find an agent's cwd from the hive registry.
 const telemetry = new TelemetryCollector({
   emit: (channel, payload) => { try { liveWebContents()?.send(channel, payload); } catch { /* window tore down */ } },
-  resolveCwd: (agentId) => hive.registry().agents[agentId]?.cwd ?? null,
+  // A device agent's transcripts are on the device. The same path here holds
+  // other sessions, so its fallback reads nothing and OTLP is its only source.
+  resolveCwd: (agentId) => {
+    const a = hive.registry().agents[agentId];
+    return a && !normalizeDeviceId(a.device) ? a.cwd : null;
+  },
   // D11: scopes the transcript fallback to this agent's own session instead of
   // summing every transcript in a (routinely shared) cwd.
   resolveSessionId: (agentId) => hive.lastSession(agentId)
@@ -325,6 +342,8 @@ function standingGoalFromRoster(agentId: string): string | null {
 const workerWake = new WorkerWakeWatchdog();
 // HookServer needs BOTH: Oscar's control registry (HITL pause/gate/steer/halt via
 // hook returns) AND Jim's breaker (feed recordToolUse on each PostToolUse).
+// What each agent's hooks last said it is doing, for the control page.
+const floorActivity = new FloorActivity();
 const hookServer = new HookServer(
   hive,
   () => liveWebContents(),
@@ -334,9 +353,40 @@ const hookServer = new HookServer(
   // Workspace → Automations "context rules" (house style and the like) ride the
   // standing-goal channel: SessionStart, then again whenever the text changes.
   (agentId) => withContextRules(standingGoalFromRoster(agentId)),
-  (agentId, event, message) => workerWake.noteHook(agentId, event, message),
+  (agentId, event, message) => {
+    workerWake.noteHook(agentId, event, message);
+    floorActivity.note(agentId, event, message);
+    if (event === 'PostCompact' && agentId) compactRequests.noteCompacted(agentId);
+  },
   // God's live terminal: permission prompts are only held when someone can read them.
   () => { const reg = hive.registry(); return !!ptyForAgent(reg.godId ?? 'god'); }
+);
+// god (or the auto threshold below) drops HIVE_ROOT/compact-requests/<id>.json;
+// polled on the spawn-requests tick. See compactRequests.ts.
+const compactRequests = new CompactRequests(
+  () => { const r = hive.root(); return r ? join(r, 'compact-requests') : null; },
+  {
+    agent: (id) => hive.registry().agents[id],
+    live: (id) => !!ptyForAgent(id),
+    liveAgents: () => Object.keys(hive.registry().agents).filter((id) => ptyForAgent(id)),
+    ctxPct: (id) => {
+      const c = hookServer.contextFor(id);
+      return c && c.limit > 0 ? Math.round((c.tokens / c.limit) * 100) : null;
+    },
+    // The standup's renderer path, scoped to one agent and with the pressure gate
+    // zeroed: an explicit request is the decision. Not emitContextTrigger, whose
+    // legacy alias would compact every agent.
+    queue: (agentId, description) => {
+      try {
+        liveWebContents()?.send('trigger:context', {
+          action: 'compact',
+          agentId,
+          // No description → the standup's own focus text, not a bare /compact.
+          rule: { ...contextRule('compact'), ...(description ? { message: description } : {}), minContextPct: 0, minContextPctLargeWindow: 0 }
+        });
+      } catch { /* window gone */ }
+    }
+  }
 );
 hive.setPermissionAnswerer((requestId, agentId, decision) => hookServer.answerPermission(requestId, agentId, decision));
 const memory = new MemoryManager(
@@ -385,6 +435,10 @@ let floorSeq = 0;
 
 /** When true, skip the quit interceptor (user already confirmed). */
 let allowQuit = false;
+/** Closing the last window or a closing-time conclusion can call
+ *  teardownAndQuit again while it runs; the second entry must not tear down
+ *  twice. */
+let quitting = false;
 
 /** Agents spawned with `isolate: true` get a dedicated git worktree; this maps
  *  the agent/pty id → the worktree path so we can tear it down on kill. */
@@ -469,6 +523,21 @@ const preservedWorktrees = new Map<string, PreservedWorktree>();
  * handler or node-pty's onExit).
  */
 function teardownPty(id: string): void {
+  // A device agent: end its tmux session there (best effort; an offline
+  // device's leftover session is killed by the next reconcile). Kept as a
+  // promise: a restart waits for it, and so does the worktree removal below.
+  const remote = remotePtys.get(id);
+  const remoteLink = remote ? devices.get(remote.deviceId) : undefined;
+  let remoteKill: Promise<unknown> = Promise.resolve();
+  if (remote) {
+    remotePtys.delete(id);
+    if (remoteLink) {
+      const kill = remoteLink.exec(killSessionCommand(sessionName(remote.agentId)));
+      remoteKill = kill;
+      pendingRemoteKills.set(id, kill);
+      void kill.finally(() => { if (pendingRemoteKills.get(id) === kill) pendingRemoteKills.delete(id); });
+    }
+  }
   // Ephemeral-worker flag, read BEFORE the cleanup below deletes the entry. All
   // worker deaths (done-release, idle/token reap, manual stop, crash) funnel
   // through here, so this is the one place their floor card gets archived
@@ -494,6 +563,8 @@ function teardownPty(id: string): void {
     // W1 — kill this agent's proxy-bridge sidecar (qwen), if any, so a dead
     // PTY never leaves an orphan loopback listener. No-op for non-proxy agents.
     try { hive.stopProxyBridge(agentId); } catch (e) { console.error('[hive] stopProxyBridge failed:', e); }
+    // …and its forward to a device, if it ran on one.
+    for (const l of devices.all()) void l.removeForward(`proxy:${agentId}`);
     if (hive.enabled()) {
       try { hive.setArchived(agentId, true); } catch (e) { console.error('[hive] setArchived failed:', e); }
     }
@@ -509,7 +580,24 @@ function teardownPty(id: string): void {
     // teardown routes — a worker that finished (controller kill), crashed, or was
     // idle-reaped all land here. Normal agents keep the immediate force-remove.
     const worker = liveWorkers.get(id);
-    if (worker) {
+    if (remote) {
+      // A device agent's worktree lives on the device, so it is removed THERE,
+      // after its agent is gone. Never fall back to local git: paths are the same
+      // on every machine, so the same path on this laptop can be a different,
+      // real worktree, and removeWorktree forces.
+      // ponytail: a device WORKER's worktree is kept (the unintegrated-work gate
+      // in finalizeWorkerWorktree is local-only), and so is any worktree whose
+      // device left the registry. Add a remote gate when workers run on devices.
+      if (worker) liveWorkers.delete(id);
+      if (worker || !remoteLink) {
+        console.warn(`[worktree] keeping ${wtPath} on device ${remote.deviceId}`);
+      } else {
+        void remoteKill
+          .then(() => removeWorktree(origCwd, wtPath, remoteLink))
+          .then(r => { if (!r.ok) console.error('[worktree] removeWorktree failed:', r.error); })
+          .catch(e => console.error('[worktree] removeWorktree threw:', e));
+      }
+    } else if (worker) {
       liveWorkers.delete(id);
       void finalizeWorkerWorktree(wtPath, origCwd, worker);
     } else {
@@ -621,6 +709,12 @@ function removeWorkerScratch(workerId: string): void {
 // relaunch carries `noAutoInstall`, so the installer can never fire (let alone loop) a
 // second time — a binary that's somehow still missing just spawns and exits normally.
 ptyManager.setExitHandler((id, exitCode, info) => {
+  // A device agent's terminal is an ssh client of its tmux session there.
+  // Unless the agent itself ended, the terminal dying is only a detach (the
+  // link dropped, the window closed): the agent keeps working on the device
+  // and is reattached when the link is next online.
+  const remote = remotePtys.get(id);
+  if (remote) { void onRemotePtyExit(id, remote, exitCode, info); return; }
   // Record an ABNORMAL death before teardown — teardownPty drops the
   // pty->agent mapping, so after it runs we can no longer say WHOSE process
   // died. Only abnormal exits are recorded (recordAgentExit returns early on a
@@ -658,6 +752,28 @@ ptyManager.setExitHandler((id, exitCode, info) => {
   }
   teardownPty(id);
 });
+
+async function onRemotePtyExit(
+  id: string,
+  remote: RemotePty,
+  exitCode: number | undefined,
+  info?: { signal?: number; tail?: string; command?: string }
+): Promise<void> {
+  const link = devices.get(remote.deviceId);
+  const has = link?.state === 'online'
+    ? await link.exec(hasSessionCommand(sessionName(remote.agentId)), 5_000)
+    : null;
+  if (remotePtys.get(id) !== remote) return; // restarted meanwhile
+  if (isDetach(link?.state ?? 'offline', has?.code ?? -1)) {
+    remote.detached = true;
+    return;
+  }
+  // The agent ended on the device: the same path as a local exit.
+  try {
+    hive.recordAgentExit(remote.agentId, { exitCode, signal: info?.signal, tail: info?.tail, command: info?.command });
+  } catch (e) { console.error('[pty] recordAgentExit failed:', e); }
+  teardownPty(id);
+}
 
 /** Keep the system from suspending the harness while agents are running.
  *  Windows Modern Standby suspends desktop apps (and their child `claude`
@@ -1357,12 +1473,17 @@ function writeFleetSnapshot(): void {
           // only moves on model traffic, so it grows through a long test run.
           running: busy ? busyText(busy, now) : null,
           inboxBacklog: hive.inboxBacklog(id),
-          onHold: !!a.onHold
+          onHold: !!a.onHold,
+          // Where the agent runs: a device id, or 'local' for this laptop.
+          // normalizeDeviceId: a registry entry with device '' is this laptop too.
+          device: normalizeDeviceId(a.device) ?? LOCAL_DEVICE
         };
       });
     // `hooks` is the control plane's own health (#277): god and the operator
     // can read from fleet.json whether hooks are being enforced at all.
     hive.writeFleetSnapshot({ ts: now, agents, hooks: hookServer.health() });
+    // The same beat refreshes the control page.
+    floorSource.changed();
   } catch (e) {
     console.error('[fleet] snapshot failed:', e);
   }
@@ -2582,6 +2703,157 @@ function installAppMenu(): void {
 }
 
 
+// ─── Devices (docs/superpowers/specs/2026-10-29-devices-design.md) ──────────
+// One SSH link per configured device. startDevices() runs once the telemetry
+// collector has a port (it is one of each link's three forwards). The SFTP
+// server that devices mount the hive through is shared by every link.
+let sftp: SftpServer | null = null;
+let sftpError: string | undefined;
+let devicesStarted = false;
+const devices = new DeviceRegistry(() => ({
+  hiveRoot: hive.root() ?? '',
+  hookSock: hive.sockPath() ?? '',
+  sftpPort: sftp?.port ?? null,
+  sftpError,
+  telemetryPort: portOf(hive.otelEndpoint())
+}));
+
+/** A device agent's terminal: an `ssh -tt` client of its tmux session there.
+ *  Kept so a detach (the link dropped) can be told apart from the agent
+ *  ending, and so the same terminal can be reattached when the link is back. */
+interface RemotePty {
+  deviceId: string;
+  agentId: string;
+  spawn: SpawnOptions;
+  owner: Electron.WebContents | null;
+  /** The terminal died but the agent still runs on the device. */
+  detached?: boolean;
+}
+/** By pty id. Set at spawn, dropped in teardownPty. */
+const remotePtys = new Map<string, RemotePty>();
+/** A device agent's kill-session, by pty id. A restart waits for it, or its
+ *  `new-session -A` would attach to the session being killed. */
+const pendingRemoteKills = new Map<string, Promise<unknown>>();
+
+function portOf(url: string | null): number | null {
+  if (!url) return null;
+  const p = Number(new URL(url).port);
+  return Number.isInteger(p) && p > 0 ? p : null;
+}
+
+/** The device an agent runs on, or undefined for this laptop. */
+function agentDevice(agentId: string): string | undefined {
+  return normalizeDeviceId(hive.registry().agents[agentId]?.device);
+}
+
+/** Devices whose last Check passed. Only these, and this laptop, take Auto
+ *  agents (devices phase 2, item 2). */
+const deviceCheckOk = new Map<string, boolean>();
+
+/** Run Check on one device and remember whether every item passed. */
+async function runDeviceCheck(id: string): Promise<DeviceCheckItem[]> {
+  const root = hive.root();
+  if (!root) return [];
+  const agents = rosterAgentsOn(roster.read(), id);
+  const folders = [...new Set(agents.map((a) => a.cwd).filter((c): c is string => !!c))];
+  // Every other engine an agent here uses, once per binary.
+  const engines = new Map<string, AgentProvider>();
+  for (const a of agents) {
+    const provider = inferAgentProvider(a.command, a.provider as AgentProvider | undefined);
+    if (provider === 'claude') continue;
+    const bin = a.command?.trim().split(/\s+/)[0] || providerPreset(provider).defaultCommand;
+    if (bin) engines.set(bin, provider);
+  }
+  const items = await checkDevice(devices.get(id), root, folders, undefined, [...engines].map(([bin, provider]) => ({ provider, bin })));
+  deviceCheckOk.set(id, items.every((i) => i.ok));
+  return items;
+}
+// Every connect re-runs Check, so "last Check passed" holds after an app
+// restart, or after a fix made on the device, without anyone pressing Check.
+devices.on('online', (link: DeviceLink) => { void runDeviceCheck(link.id); });
+
+/** "Runs on: Auto". A restart that continues a conversation stays where it
+ *  last ran while that machine is up. Otherwise: the least-loaded of this
+ *  laptop and every online device whose last Check passed. Returns a device
+ *  id, or undefined for this laptop. */
+async function placeAuto(lastDevice: string | undefined, resuming: boolean): Promise<string | undefined> {
+  if (resuming) {
+    if (!lastDevice) return undefined;
+    if (devices.get(lastDevice)?.state === 'online') return lastDevice;
+  }
+  const links = devices.all().filter((l) => l.state === 'online' && deviceCheckOk.get(l.id) === true);
+  const remote = (await Promise.all(links.map(readLoad))).filter((x): x is LoadSample => !!x);
+  return normalizeDeviceId(pickDevice([localLoad(), ...remote]));
+}
+
+/** What ensureAgent needs to write a non-Claude engine's home-config hooks
+ *  on a device (devices phase 2, item 5). */
+async function remoteHomeFor(link: DeviceLink, agentId: string): Promise<RemoteHome> {
+  const r = await link.exec(REMOTE_ENV_PROBE);
+  const env = r.ok ? parseRemoteEnv(r.stdout) : null;
+  if (!env) throw new Error(`Could not find node on ${link.id}. Run Check in Settings → Devices.`);
+  return {
+    ...env,
+    // One forward per agent; teardownPty releases it.
+    forward: (localPort) => link.addForward(`proxy:${agentId}`, localPort),
+    write: async (files) => {
+      for (const f of files) {
+        const cmd = f.mergeKey ? mergeHomeJsonCommand(f.path, f.mergeKey) : writeHomeFileCommand(f.path);
+        const w = await link.exec(cmd, 30_000, f.content);
+        if (!w.ok) throw new Error(`Could not write ~/${f.path} on ${link.id}: ${w.error ?? (w.stderr.trim() || `exit ${w.code}`)}`);
+      }
+    }
+  };
+}
+
+/** Start the shared SFTP server (once) and one link per configured device. */
+async function startDevices(): Promise<void> {
+  if (!hive.enabled()) return;
+  if (!sftp && !sftpError) {
+    try { sftp = await startSftpServer(); }
+    catch (e) { sftpError = e instanceof Error ? e.message : String(e); console.error('[devices]', sftpError); }
+  }
+  devicesStarted = true;
+  devices.sync(readConfig().devices ?? []);
+}
+
+const LINK_BACK_NUDGE = 'The link to the floor is back. Carry on where you left off.';
+
+devices.on('online', (link: DeviceLink) => { void onDeviceOnline(link); });
+
+/** A device came (back) online: settle its tmux sessions, reattach this
+ *  floor's terminals there, and nudge each agent that paused while cut off.
+ *  The wake beat then nudges agents with unread mail, as it always does. */
+async function onDeviceOnline(link: DeviceLink): Promise<void> {
+  // 1. Reconcile. A session belongs to an agent on this floor, or to one the
+  //    restore flow is bringing back (the roster). Every other md-* session
+  //    was left by a crash or by a quit while the device was offline.
+  const ls = await link.exec(TMUX_LS);
+  if (ls.ok) {
+    const keep = [
+      ...rosterAgentsOn(roster.read(), link.id).map((a) => a.id),
+      ...[...remotePtys.values()].filter((r) => r.deviceId === link.id).map((r) => r.agentId)
+    ];
+    for (const name of planReconcile(parseTmuxLs(ls.stdout), keep).kill) {
+      await link.exec(killSessionCommand(name));
+    }
+  }
+  for (const [ptyId, r] of [...remotePtys]) {
+    if (r.deviceId !== link.id) continue;
+    // 2. Reattach (`new-session -A`) a terminal that died while the link was down.
+    if (r.detached) {
+      if (r.owner?.isDestroyed()) continue; // its floor window closed; the session waits for a restore
+      r.detached = false;
+      try { (r.owner ?? liveWebContents())?.send(`pty:relaunch:${ptyId}`); } catch { /* window gone */ }
+      const res = ptyManager.spawn(r.spawn, r.owner);
+      if (!res.ok) { r.detached = true; console.error('[devices] reattach failed for', ptyId, res.error); continue; }
+    }
+    // 3. Paused while cut off: one nudge, once the TUI has repainted.
+    const p = await link.exec(takePausedCommand(r.agentId));
+    if (p.ok && p.stdout.includes('paused')) setTimeout(() => nudgeWorker(ptyId, LINK_BACK_NUDGE), 3_000);
+  }
+}
+
 // ─── IPC: pty lifecycle ─────────────────────────────────────────────────────
 /** Codex stores its rollout transcripts under a PER-AGENT CODEX_HOME
  *  (<hive>/agents/<id>/.codex/sessions/<Y>/<M>/<D>/rollout-*-<sessionId>.jsonl).
@@ -2666,13 +2938,24 @@ ipcMain.handle('pty:spawn', async (evt, opts: AgentSpawnOptions) => {
   return spawnAgentCore(opts, owner);
 });
 
+/** Resolves once a connecting link leaves 'connecting' (online, or offline
+ *  after a failed attempt) or `ms` passes, whichever comes first. */
+function onlineWithin(link: DeviceLink, ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const done = (): void => { clearTimeout(t); link.off('state', onState); resolve(); };
+    const onState = (): void => { if (link.state !== 'connecting') done(); };
+    const t = setTimeout(done, ms);
+    link.on('state', onState);
+  });
+}
+
 /** Core agent-spawn logic — provider inference, the missing-CLI installer
  *  short-circuit, git-worktree isolation, hive provisioning, model/resume flags,
  *  and the final PTY spawn. Extracted VERBATIM from the `pty:spawn` IPC handler so
  *  it can ALSO be invoked by the god-triggered ephemeral-worker watcher (which has
  *  no renderer `evt`). `owner` is the window that should receive this PTY's output
  *  (null → the primary window). Behavior-identical to the prior inline handler. */
-async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebContents | null): Promise<{ ok: boolean; error?: string; cwd?: string; worktreePath?: string; resumeNotFound?: boolean; resumed?: boolean; seedPrompt?: string }> {
+async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebContents | null): Promise<{ ok: boolean; error?: string; cwd?: string; worktreePath?: string; resumeNotFound?: boolean; resumed?: boolean; seedPrompt?: string; conversationStayed?: ConversationStayed; device?: string }> {
   // ── cwd INGESTION — expand `~` exactly once, here ───────────────────────────
   // This is the single door every agent spawn comes through (`pty:spawn` IPC and
   // the god-triggered ephemeral-worker watcher), so it is where a user-typed
@@ -2691,6 +2974,64 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   const claudeProvider = isClaudeProvider(provider);
   opts.provider = provider;
   if (opts.hive) opts.hive = { ...opts.hive, provider };
+  // ── Device placement (Settings → Devices) ───────────────────────────────────
+  // An explicit `hive.device` wins ('' says "this laptop", which is how a move
+  // back home is spelled); otherwise the agent stays where the registry last
+  // had it, so the restore, revive and voice paths need not carry it.
+  // Where it ran last time (registry.json, written by the previous spawn).
+  // A different place is a move, and a move brings its conversation along
+  // (devices phase 2, item 1).
+  const prevDevice = opts.hive ? normalizeDeviceId(hive.registry().agents[opts.hive.id]?.device) : undefined;
+  const requested = opts.hive
+    ? normalizeDeviceId(opts.hive.device !== undefined ? opts.hive.device : hive.registry().agents[opts.hive.id]?.device)
+    : undefined;
+  // "Runs on: Auto" is decided here, once per start, and never again while
+  // the agent runs (devices phase 2, item 2). The registry then records the
+  // machine it picked, which is the next start's "last ran on".
+  const resuming = !!opts.hive && (!!opts.resumeSessionId?.trim() || (opts.resume === true && !!hive.lastSession(opts.hive.id)));
+  // god is never placed automatically and never moved by the app (spec §4);
+  // the renderer offers no Auto for it, and a hand-edited roster gets this.
+  if (requested === AUTO_DEVICE && opts.hive?.isGod) {
+    return { ok: false, error: 'god is never placed automatically: pick This laptop or a device.' };
+  }
+  const deviceId = requested === AUTO_DEVICE ? await placeAuto(prevDevice, resuming) : requested;
+  const moved = !!opts.hive && !!hive.registry().agents[opts.hive.id] && prevDevice !== deviceId;
+  let conversationStayed: ConversationStayed | undefined;
+  let link: DeviceLink | undefined;
+  if (opts.hive && deviceId) {
+    link = devices.get(deviceId);
+    if (!link) return { ok: false, error: `Unknown device "${deviceId}". Add it in Settings → Devices.` };
+    if (!DEVICE_PROVIDERS.includes(provider)) {
+      return { ok: false, error: `${providerPreset(provider).label} does not run on devices; run it on this laptop.` };
+    }
+    // Restore runs seconds after launch, while the link is still mounting the
+    // hive: wait for it rather than refuse (oscar and kelly, 2026-10-29).
+    if (link.state === 'connecting') await onlineWithin(link, 60_000);
+    if (link.state !== 'online') return { ok: false, error: `${deviceId} is offline` };
+    // A restart's kill-session (teardownPty) must land before the new session
+    // starts, or `new-session -A` would attach to the old one.
+    await pendingRemoteKills.get(opts.id);
+    if (!(await link.exec(dirExistsCommand(opts.cwd))).ok) {
+      return { ok: false, error: `cwd does not exist on ${deviceId}: ${opts.cwd}` };
+    }
+    // The engine's CLI must be there too, on the device's login PATH. (Check
+    // covers claude; the local auto-installer never runs for a device.)
+    if (!claudeProvider) {
+      const e = engineCheck(provider, opts.command);
+      if (!(await link.exec(e.cmd)).ok) {
+        return { ok: false, error: `${opts.command} is not installed on ${deviceId}. Install it there: ${e.fix}` };
+      }
+    }
+  }
+  if (opts.hive) opts.hive = { ...opts.hive, device: deviceId };
+  // A non-Claude engine's home-config hooks are written on the device; its
+  // $HOME and node are read once here. A device that cannot answer fails
+  // the spawn now rather than start an agent the floor cannot hear.
+  let remoteHome: RemoteHome | undefined;
+  if (link && !claudeProvider && opts.hive) {
+    try { remoteHome = await remoteHomeFor(link, opts.hive.id); }
+    catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+  }
   // Activation-funnel entry (v0.4.6): every spawn REQUEST, so (attempted − spawned)
   // measures the fallout the whole rebuild exists to see. Gated on !noAutoInstall so
   // the missing-CLI relaunch (the only re-entry, index.ts install-exit handler) does
@@ -2713,7 +3054,8 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // isn't archived and no worktree is torn down) before the relaunch takes over.
   {
     const bin = opts.command.trim().split(/\s+/)[0] || opts.command;
-    if (bin && !opts.noAutoInstall && !ptyManager.isCommandAvailable(bin)) {
+    // A device agent's CLI lives on the device; Settings → Devices → Check covers it.
+    if (!link && bin && !opts.noAutoInstall && !ptyManager.isCommandAvailable(bin)) {
       // The installer commands are `npm install -g …`. Probe for npm the same way
       // we probe for the engine CLI, so a no-Node machine gets the node-free rung
       // (or an honest manual hint) instead of watching `npm: not found` scroll by.
@@ -2775,7 +3117,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // `isolate:true` recipe spawned against an already-existing worktree path would
   // make addWorktree below conflict (path/branch exists) and fall back to the base
   // cwd — reuse-existing-worktree handling here is the follow-up.
-  if (opts.isolate === true && await isRepo(opts.cwd)) {
+  if (opts.isolate === true && await isRepo(opts.cwd, link)) {
     try {
       const origCwd = opts.cwd;
       const wtRoot = join(readConfig().harnessHome ?? origCwd, 'worktrees');
@@ -2788,14 +3130,14 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
       if (!resolve(wtPath).startsWith(resolve(wtRoot) + sep)) {
         console.error('[worktree] refusing unsafe worktree path for id:', opts.hive?.id ?? opts.id);
       } else {
-        const br = await getBranch(origCwd);
+        const br = await getBranch(origCwd, link);
         const baseBranch = 'current' in br && br.current ? br.current : 'main';
-        const wt = await addWorktree(origCwd, wtPath, baseBranch);
+        const wt = await addWorktree(origCwd, wtPath, baseBranch, link);
         if (wt.ok) {
           opts.cwd = wtPath;
           worktreePaths.set(opts.id, wtPath);
           worktreeOrigins.set(opts.id, origCwd);
-          const deps = await linkWorktreeDeps(origCwd, wtPath);
+          const deps = await linkWorktreeDeps(origCwd, wtPath, link);
           if (!deps.ok) console.error('[worktree] dependency link failed:', deps.error);
         } else {
           console.error('[worktree] addWorktree failed:', wt.error);
@@ -2851,10 +3193,15 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
           theme: readConfig().terminalTheme ?? 'light',
           // W3 — default-MCP consent state + the bundled skills source dir.
           mcpDefaults: caps.mcpDefaults,
+          claudeAiConnectorRoles: readConfig().claudeAiConnectorRoles ?? ['Designer'],
           skillsDir: skillsResourceDir(),
           // The shared palace is mutated by the agent's own `mempalace` calls, so
           // the OS sandbox must let it through (empty when memory is off).
-          extraWritableDirs: [memory.env().MEMPALACE_PALACE_PATH].filter((p): p is string => !!p)
+          extraWritableDirs: [memory.env().MEMPALACE_PALACE_PATH].filter((p): p is string => !!p),
+          // A device agent runs the device's own copy of the hook shim.
+          hookCommand: link ? REMOTE_HOOK_COMMAND : undefined,
+          // A non-Claude engine's home-config hooks go to the device's home.
+          remote: remoteHome
         }
       );
       opts.args = [...(opts.args ?? []), ...inj.args, ...caps.args];
@@ -2870,6 +3217,11 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
       // Hive provisioning is best-effort; never block a spawn on it.
       console.error('[hive] ensureAgent failed:', e);
     }
+  }
+  // A device agent reaches hooks and telemetry over its link's forwarded
+  // ports, and pauses after this many minutes cut off from the floor.
+  if (link) {
+    opts.env = remoteAgentEnv(opts.env ?? {}, link.portBase, readConfig().deviceOfflinePauseMin ?? DEFAULT_OFFLINE_PAUSE_MIN);
   }
   // Long-run guardrails + tiering (Lane A #6.4/#6.6). All additive to the args
   // already assembled (incl. the hive injection); an explicit choice always wins.
@@ -2930,9 +3282,41 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     // actually present (already or after the copy); otherwise fall back to a fresh
     // session rather than launching a `--resume` against a missing id.
     const explicitSid = typeof opts.resumeSessionId === 'string' ? opts.resumeSessionId.trim() : '';
-    const sid = explicitSid || (opts.resume === true ? hive.lastSession(opts.hive.id) : undefined);
-    if (sid && !args.includes('--resume')) {
-      if (seedSessionTranscript(opts.cwd, sid)) {
+    // A typed id is tried alone; a recorded one falls back to this agent's
+    // earlier ids (hive.resumeCandidates says why).
+    const candidates = explicitSid ? [explicitSid] : opts.resume === true ? hive.resumeCandidates(opts.hive.id) : [];
+    if (candidates.length && !args.includes('--resume')) {
+      let sid: string | undefined;
+      let stayed: ConversationStayed | undefined;
+      for (const c of candidates) {
+        // A move: copy the conversation from where it ran. When that fails (the
+        // old device is offline, the file is missing) the agent starts fresh
+        // and the floor says so, rather than resume an older copy that may sit
+        // on the new machine from an earlier stay.
+        let copied = true;
+        if (moved) {
+          const from = prevDevice ? devices.get(prevDevice) : undefined;
+          const r = prevDevice && !from
+            ? { ok: false as const, reason: 'offline' as const } // the device was removed from Settings
+            : await copyTranscript(from, link, opts.cwd, c);
+          if (!r.ok) {
+            copied = false;
+            stayed ??= { device: prevDevice ?? LOCAL_DEVICE, reason: r.reason };
+            if (r.reason === 'offline') break; // no older id will copy either
+          }
+        }
+        // On a device the transcript must already be there: copying one in from
+        // another folder (seedSessionTranscript) is a laptop-only step.
+        const present = copied && (link
+          ? (await link.exec(transcriptExistsCommand(opts.cwd, c))).ok
+          : seedSessionTranscript(opts.cwd, c));
+        if (present) { sid = c; break; }
+      }
+      if (!sid && stayed) {
+        conversationStayed = stayed;
+        console.warn(`[devices] conversation ${candidates[0]} stayed on ${stayed.device} (${stayed.reason}); starting fresh`);
+      }
+      if (sid) {
         args.push('--resume', sid);
         didResume = true;
       } else if (explicitSid) {
@@ -2954,7 +3338,9 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // Claude resume — incl. transcript seeding + only-attach-when-present — is
   // handled in the Claude-only block above; this generic flag path covers the
   // other CLIs (it must not blindly attach `--resume` when the seed failed).
-  if (opts.hive && !claudeProvider) {
+  // A moved non-Claude agent starts fresh: its engine's session store is not
+  // the file spec §1 copies, and resuming an id the new machine lacks fails.
+  if (opts.hive && !claudeProvider && !moved) {
     const preset = providerPreset(provider);
     const rf = preset.resumeFlag;
     const rsub = preset.resumeSubcommand;
@@ -2993,7 +3379,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
       }
     }
   }
-  if (opts.requireResume === true && !didResume) {
+  if (opts.requireResume === true && !didResume && !conversationStayed) {
     return {
       ok: false,
       error: 'Existing session could not be resumed; no replacement process was started.',
@@ -3011,8 +3397,9 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // Pre-accept Claude Code's bypass-mode warning + folder-trust dialog so the
   // agent (spawned with --permission-mode bypassPermissions) doesn't stall on an
   // interactive prompt it can't answer and exit code 1. Best-effort, never blocks.
-  // Claude-only — other CLIs handle their own permission UX.
-  if (claudeProvider) {
+  // Claude-only — other CLIs handle their own permission UX. A device agent's
+  // answers go into the DEVICE's ~/.claude, from its launch.sh.
+  if (claudeProvider && !link) {
     try { ensureClaudePermissionsAccepted(opts.cwd); } catch { /* never block spawn */ }
   }
   // Suppress first-run interactive prompts for providers that need it (e.g. Codex
@@ -3077,10 +3464,40 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // Start/enable the daemon under this agent's isolated CODEX_HOME and connect
   // the TUI to it so the thread is visible in ChatGPT mobile. Best-effort: an
   // unavailable/older Codex install still gets a normal local terminal.
-  if (provider === 'codex' && opts.hive?.id) {
+  if (provider === 'codex' && opts.hive?.id && !link) {
     await enableCodexRemoteForSpawn(opts, opts.hive.id);
   }
-  const res = ptyManager.spawn(opts, owner);
+  // A device agent's terminal is an ssh client of its tmux session there;
+  // remoteTerminal writes the launch.sh that session runs.
+  let res: { ok: boolean; error?: string };
+  const hiveRoot = hive.root();
+  if (link && opts.hive && hiveRoot) {
+    // remoteTerminal throws when it refuses to write launch.sh (a folder that
+    // resolves outside the hive) or the write fails; that is a failed spawn the
+    // floor reports, not an exception for the IPC handler.
+    let remoteSpawn: ReturnType<typeof remoteTerminal> | undefined;
+    let refused = 'could not write launch.sh';
+    try {
+      remoteSpawn = remoteTerminal(link, hiveRoot, {
+        ptyId: opts.id, agentId: opts.hive.id, cwd: opts.cwd,
+        env: opts.env ?? {}, args: opts.args ?? [], cols: opts.cols, rows: opts.rows,
+        // The engine's own CLI; claude is found by the device's login PATH.
+        command: claudeProvider ? 'claude' : opts.command
+      });
+    } catch (e) {
+      refused = e instanceof Error ? e.message : String(e);
+    }
+    if (!remoteSpawn) {
+      res = { ok: false, error: refused };
+    } else {
+      res = ptyManager.spawn(remoteSpawn, owner);
+      if (res.ok) remotePtys.set(opts.id, { deviceId: link.id, agentId: opts.hive.id, spawn: remoteSpawn, owner });
+    }
+  } else if (link) {
+    res = { ok: false, error: 'Agents on devices need the hive: set a hive folder first.' };
+  } else {
+    res = ptyManager.spawn(opts, owner);
+  }
   if (res.ok) analytics.track('agent_spawned', { provider });
   else analytics.track('agent_spawn_failed', { provider, reason: spawnFailReason(res.error) });
   syncKeepAwake(); // arm the power-save blocker while ≥1 agent PTY is alive (#18)
@@ -3091,7 +3508,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   const worktreePath = worktreePaths.get(opts.id);
   // `cwd` echoes back the TILDE-EXPANDED absolute path so the renderer's agent
   // record matches what the registry and the PTY actually used.
-  return { ...res, cwd: opts.cwd, ...(worktreePath ? { worktreePath } : {}), ...(resumeNotFound ? { resumeNotFound: true } : {}), ...(didResume ? { resumed: true } : {}), ...(seedPrompt ? { seedPrompt } : {}) };
+  return { ...res, cwd: opts.cwd, ...(worktreePath ? { worktreePath } : {}), ...(resumeNotFound ? { resumeNotFound: true } : {}), ...(didResume ? { resumed: true } : {}), ...(seedPrompt ? { seedPrompt } : {}), ...(conversationStayed ? { conversationStayed } : {}), ...(opts.hive ? { device: deviceId ?? '' } : {}) };
 }
 ipcMain.handle('pty:write', (_evt, id: string, data: string) => {
   if (typeof id !== 'string' || typeof data !== 'string') return { ok: false, error: 'invalid args' };
@@ -3115,6 +3532,19 @@ ipcMain.handle('pty:kill', (_evt, id: string) => {
   return res;
 });
 ipcMain.handle('pty:list', () => ptyManager.list());
+
+// ─── IPC: devices ───────────────────────────────────────────────────────────
+ipcMain.handle('devices:list', () => devices.statuses());
+// Check covers each folder an agent on that device uses (floor + restore list).
+ipcMain.handle('devices:check', async (_evt, id: unknown) => (typeof id === 'string' ? runDeviceCheck(id) : []));
+// Every floor shows device states (Settings → Devices, agent cards), the
+// same way it hears about a saved config.
+devices.on('state', (s: DeviceStatus) => {
+  for (const w of allWindows) {
+    if (w.isDestroyed() || w.webContents.isDestroyed()) continue;
+    w.webContents.send('devices:state', s);
+  }
+});
 
 // ─── IPC: analytics (the ONE renderer-facing seam) ──────────────────────────
 /** Count one human-sent message (TELEMETRY.md → `message_sent`). A COUNT, and
@@ -3837,7 +4267,9 @@ ipcMain.handle('history:search', (_evt, query: unknown, limit: unknown) =>
 // ─── IPC: quit confirmation ─────────────────────────────────────────────────
 /** Tear the harness down and quit. Shared by the hard "kill all & quit" path
  *  and the closing-time conclusion (after the god confirmed the floor saved). */
-function teardownAndQuit(): void {
+async function teardownAndQuit(): Promise<void> {
+  if (quitting) return;
+  quitting = true;
   allowQuit = true;
   // Each teardown step is best-effort: a throw here (e.g. a dying child or a
   // half-torn-down socket) must never abort the quit or pop a crash dialog.
@@ -3851,6 +4283,7 @@ function teardownAndQuit(): void {
   try { telemetry.stop(); } catch (e) { console.error('[quit] telemetry.stop:', e); }
   try { stopSlackServer(); } catch (e) { console.error('[quit] slack.stop:', e); }
   try { stopWebhookServer(); } catch (e) { console.error('[quit] webhook.stop:', e); }
+  try { void remoteFloor?.stop(); } catch (e) { console.error('[quit] remoteFloor.stop:', e); }
   try { memory.stop(); } catch (e) { console.error('[quit] memory.stop:', e); }
   try { reflector.stop(); } catch (e) { console.error('[quit] reflector.stop:', e); }
   try { persist.close(); } catch (e) { console.error('[quit] persist.close:', e); }
@@ -3860,11 +4293,18 @@ function teardownAndQuit(): void {
   // here rather than waiting for will-quit. Idempotent.
   try { disposeFeatures(); } catch (e) { console.error('[quit] disposeFeatures:', e); }
   try { ptyManager.killAll(); } catch (e) { console.error('[quit] killAll:', e); }
+  // Device agents keep running in their tmux sessions (killAll above ended
+  // only the ssh terminals, with the exit handler already cleared). The next
+  // start's reconcile keeps every session the roster owns, and the restore
+  // reattaches to it (`new-session -A`) mid-conversation. Left alone that
+  // long, the device's hook shim pauses them (deviceOfflinePauseMin).
+  try { devices.stopAll(); } catch (e) { console.error('[quit] devices.stopAll:', e); }
+  try { sftp?.close(); } catch { /* noop */ }
   app.quit();
 }
 ipcMain.handle('app:confirmClose', () => {
   closingTime.cancel(); // a hard quit overrides a closing time in progress
-  teardownAndQuit();
+  void teardownAndQuit();
 });
 ipcMain.handle('app:cancelClose', () => {
   // The modal closes on the renderer side. The one thing main owes anybody here
@@ -3898,7 +4338,69 @@ const closingTime = new ClosingTimeController(
   // at their next hook boundary instead of waiting for a Stop.
   control
 );
-hive.setRoutedObserver((msg, targets) => closingTime.onRouted(msg, targets));
+// ─── Control page (devices phase 2, item 8) ─────────────────────────────────
+// The phone-first page remoteFloor.ts serves over Tailscale. Off by default;
+// Settings → Devices → Control page turns it on. Everything it shows and does
+// goes through the floor's own state and handlers (remoteFloorSource.ts).
+const floorSource = createFloorSource({
+  registry: () => hive.registry(),
+  tasks: () => hive.tasks(),
+  patchTask: (id, patch) => hive.patchTask(id, patch as Partial<Omit<HiveTask, 'id'>>),
+  send: (msg, from) => hive.send(msg, from),
+  messages: (limit) => hive.voiceMessages({ limit }),
+  isGod: (id) => hive.isGod(id),
+  activity: (id) => floorActivity.get(id),
+  paused: (id) => { const s = control.snapshot(id); return s.paused || s.halted; },
+  deliveryPaused: (id) => controlSnapshotWithFloorHold(id).autoDeliveryPaused,
+  // The hive:agentContext figure: the status line's tokens over its window.
+  contextPct: (id) => { const c = hookServer.contextFor(id); return c && c.limit > 0 ? Math.round((c.tokens / c.limit) * 100) : null; },
+  costToday: (id) => costTotals.usdTodayFor(id),
+  devices: () => devices.statuses(),
+  halt: (id) => control.halt(id),
+  restart: (id) => restartFromPage(id),
+  setAutoDelivery: (id, paused) => setAutoDeliveryPaused(id, paused),
+  messageSent: () => analytics.trackMessageSent('hive')
+});
+devices.on('state', () => floorSource.changed());
+
+let remoteFloor: RemoteFloor | null = null;
+let remoteFloorPort = 0;
+/** Start, stop or move the control page to match the config. */
+function syncRemoteFloor(cfg: { remoteFloorEnabled?: boolean; remoteFloorPort?: number }): void {
+  const want = cfg.remoteFloorEnabled === true && hive.enabled();
+  const port = cfg.remoteFloorPort ?? DEFAULT_REMOTE_FLOOR_PORT;
+  if (remoteFloor && (!want || port !== remoteFloorPort)) { void remoteFloor.stop(); remoteFloor = null; }
+  if (want && !remoteFloor) {
+    remoteFloorPort = port;
+    remoteFloor = new RemoteFloor({ source: floorSource, port });
+    void remoteFloor.start().catch((e) => console.error('[remote-floor] start failed:', e));
+  }
+}
+ipcMain.handle('remoteFloor:address', () => remoteFloor?.address() ?? null);
+
+// Restart lives in the renderer (restartAgentProcess), so the page asks the
+// floor window and waits for its answer, at most two minutes.
+let restartSeq = 0;
+const pendingRestarts = new Map<number, (r: FloorActionResult) => void>();
+ipcMain.on('remoteFloor:restartDone', (_evt, reqId: unknown, result: unknown) => {
+  const done = typeof reqId === 'number' ? pendingRestarts.get(reqId) : undefined;
+  const r = result as { ok?: unknown; error?: unknown } | null;
+  done?.({ ok: r?.ok === true, ...(typeof r?.error === 'string' ? { error: r.error } : {}) });
+});
+function restartFromPage(agentId: string): Promise<FloorActionResult> {
+  // A halted agent's flag would stop the new process at its first hook.
+  control.resume(agentId);
+  const wc = liveWebContents();
+  if (!wc) return Promise.resolve({ ok: false, error: 'The floor window is closed.' });
+  const reqId = ++restartSeq;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { pendingRestarts.delete(reqId); resolve({ ok: false, error: 'The floor did not answer.' }); }, 120_000);
+    pendingRestarts.set(reqId, (r) => { clearTimeout(timer); pendingRestarts.delete(reqId); resolve(r); });
+    wc.send('remoteFloor:restart', { reqId, agentId });
+  });
+}
+
+hive.setRoutedObserver((msg, targets) => { closingTime.onRouted(msg, targets); floorSource.changed(); });
 ipcMain.handle('app:startClosingTime', () => closingTime.start());
 ipcMain.handle('app:cancelClosingTime', () => closingTime.cancel());
 
@@ -3954,6 +4456,8 @@ ipcMain.handle('hive:agentUsage', (_evt, cwd: unknown) =>
 // (re)started session zeroes the gauge instead of leaving a stale value up.
 ipcMain.handle('hive:agentContext', (_evt, agentId: unknown) => {
   if (typeof agentId !== 'string') return null;
+  // A device agent's transcript is on the device; its status line is the source.
+  if (agentDevice(agentId)) return null;
   const tp = hookServer.transcriptPath(agentId);
   if (!tp) return null;
   return readContextTokens(tp) ?? 0;
@@ -4033,9 +4537,9 @@ ipcMain.handle('control:pause', (_evt, agentId: unknown, on: unknown) => {
   control.pause(agentId, on === true);
   return control.snapshot(agentId);
 });
-ipcMain.handle('control:autoDelivery', (_evt, agentId: unknown, paused: unknown) => {
-  if (typeof agentId !== 'string') return null;
-  const on = paused === true;
+/** Pause or resume one agent's auto-delivery, and persist it. The floor's
+ *  switch and the control page both come through here. */
+function setAutoDeliveryPaused(agentId: string, on: boolean): void {
   control.pauseAutoDelivery(agentId, on);
   const current = new Set(readConfig().autoDeliveryPausedAgents ?? []);
   if (on) current.add(agentId); else current.delete(agentId);
@@ -4044,6 +4548,10 @@ ipcMain.handle('control:autoDelivery', (_evt, agentId: unknown, paused: unknown)
   // Classic floor switch reads it as "paused"; resuming from there must lift it
   // too, or that switch would flip to "auto" while nothing moved.
   if (!on) liftFloorDeliveryPause();
+}
+ipcMain.handle('control:autoDelivery', (_evt, agentId: unknown, paused: unknown) => {
+  if (typeof agentId !== 'string') return null;
+  setAutoDeliveryPaused(agentId, paused === true);
   return controlSnapshotWithFloorHold(agentId);
 });
 ipcMain.handle('control:resume', (_evt, agentId: unknown) => {
@@ -4693,6 +5201,8 @@ interface SpawnRequest {
   // from the worker id.
   character?: string;
   accent?: string;
+  /** A device id (Settings → Devices) to run the worker on; default this laptop. */
+  device?: string;
 }
 
 /** Polling cadence — matches the hive router. */
@@ -4795,7 +5305,17 @@ async function processSpawnRequest(filePath: string): Promise<void> {
   // Worker request files are hand/LLM-authored, so `~/…` shows up here too — expand
   // before the existence check (Node reads `~` literally).
   const cwd = typeof raw.cwd === 'string' && raw.cwd.trim() ? expandTilde(raw.cwd) : '';
-  if (!cwd || !existsSync(cwd)) { fail(`"cwd" missing or not found (${cwd || 'unset'})`); return; }
+  // Where it runs. An unknown or offline device fails the request here, with
+  // the reason, rather than queueing work no machine will pick up.
+  const placement = validateSpawnDevice(raw.device, Object.fromEntries(devices.statuses().map((s) => [s.id, s.state])));
+  if (placement.error) { fail(placement.error); return; }
+  // "auto" is placed here, once, so the folder and CLI checks below run on
+  // the machine the worker will actually run on.
+  const auto = placement.device === AUTO_DEVICE;
+  if (auto) placement.device = await placeAuto(undefined, false);
+  const link = placement.device ? devices.get(placement.device) : undefined;
+  // A device's folder is checked on the device, by spawnAgentCore.
+  if (!cwd || (!link && !existsSync(cwd))) { fail(`"cwd" missing or not found (${cwd || 'unset'})`); return; }
 
   // Request line → executable + argv (auto-mode inheritance, tokenization,
   // model-flag dedupe). Pure and unit-tested — see workerLaunch.ts for why this
@@ -4821,19 +5341,22 @@ async function processSpawnRequest(filePath: string): Promise<void> {
   }
   // Missing-CLI → FAIL FAST. A headless worker has no human to watch an installer,
   // so we never run the cc49e1e install banner here — we reject and tell god.
-  if (!ptyManager.isCommandAvailable(bin)) { fail(`engine CLI "${bin}" is not installed`); return; }
+  // On a device the CLI is the device's (Settings → Devices → Check covers it).
+  if (!link && !ptyManager.isCommandAvailable(bin)) { fail(`engine CLI "${bin}" is not installed`); return; }
 
   const isolate = raw.isolate !== false; // default true
   // Base branch the worktree will be cut from (for the ahead-of-base safety check).
   let baseBranch = 'main';
-  try { const br = await getBranch(cwd); if ('current' in br && br.current) baseBranch = br.current; } catch { /* keep default */ }
+  try { const br = await getBranch(cwd, link); if ('current' in br && br.current) baseBranch = br.current; } catch { /* keep default */ }
 
   const meta: AgentMeta = {
     id: workerId,
     name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : `Worker ${reqId.slice(0, 12)}`,
     provider: raw.provider,
     role: 'worker',
-    cwd
+    cwd,
+    // '' = this laptop, said outright so a reused worker id never inherits a device.
+    device: placement.device ?? ''
   };
   // Phase 2: grant this worker a broker capability over the currently-enabled
   // integrations and inject the broker URL + a per-worker capability TOKEN (a handle,
@@ -4877,6 +5400,8 @@ async function processSpawnRequest(filePath: string): Promise<void> {
       command: launch.command,
       role: meta.role,
       worktreePath: res.worktreePath,
+      device: auto ? AUTO_DEVICE : placement.device,
+      lastDevice: auto ? (placement.device ?? '') : undefined,
       character: typeof raw.character === 'string' ? raw.character : undefined,
       accent: typeof raw.accent === 'string' ? raw.accent : undefined
     });
@@ -5094,6 +5619,15 @@ async function ephemeralWorkerTick(): Promise<void> {
       if (existsSync(f)) await processSpawnRequest(f);
     }
 
+    // Compact requests ride this tick. Not gated on orchestratorMaySpawn: a
+    // compaction spends nothing new, it shrinks what an agent already holds.
+    try {
+      compactRequests.tick(cfg.ctxAutoCompact ? {
+        pct: cfg.ctxAutoCompactPct ?? 75,
+        everyMs: Math.max(1, cfg.ctxAutoCompactEveryMin ?? 30) * 60_000
+      } : null);
+    } catch (e) { console.error('[compact] tick error:', e); }
+
     // (3) GC preserved worktrees whose work has since integrated. Throttled to
     //     GC_SWEEP_MS and a no-op when nothing is preserved (the common case).
     const now = Date.now();
@@ -5112,6 +5646,8 @@ function startEphemeralWorkerWatcher(): void {
   if (workerWatchTimer || !hive.enabled()) return;
   const dir = spawnRequestsDir();
   if (dir) { try { mkdirSync(dir, { recursive: true }); } catch { /* noop */ } }
+  const root = hive.root();
+  if (root) { try { mkdirSync(join(root, 'compact-requests'), { recursive: true }); } catch { /* noop */ } }
   workerWatchTimer = setInterval(() => { void ephemeralWorkerTick(); }, WORKER_TICK_MS);
 }
 
@@ -5203,6 +5739,8 @@ function bootstrapHiveServices(): void {
   // builder reads this, so an agent spawned earlier would never learn it.
   hive.setRuntimeInfo({ version: app.getVersion(), packaged: app.isPackaged, appPath: app.getAppPath() });
   hive.setOrchestratorMaySpawn(readConfig().orchestratorMaySpawn === true);
+  syncRemoteFloor(readConfig());
+  hive.setDeviceIds((readConfig().devices ?? []).map((d) => d.id));
   hive.setOrchestratorMayControlAgents(readConfig().orchestratorMayControlAgents === true);
   // An app-start marker in the event log. log.jsonl had twelve event kinds and
   // none of them meant "the app restarted", so a relaunch, and more importantly a
@@ -5250,6 +5788,9 @@ function bootstrapHiveServices(): void {
   void telemetry.start().then((r) => {
     if (r.ok && r.endpoint) { hive.setOtelEndpoint(r.endpoint); console.log('[telemetry] collector listening', r.endpoint); }
     else console.error('[telemetry] collector failed to start:', r.error);
+    // Devices forward OTLP to the collector, so they start once it has a port
+    // (or once it has failed, with no telemetry forward).
+    void startDevices();
   });
   memory.start(); // init shared palace + mine loop (no-op without mempalace)
   reflector.start(); // bound oversized memory.md files on a timer (no-op until threshold)
@@ -5268,12 +5809,8 @@ let hookHealthTimer: ReturnType<typeof setInterval> | null = null;
 /** Type the renderer's guarded nudge into one worker's PTY — text first, Enter a
  *  tick later (the exact submitToPty pattern: a single-chunk write would land the
  *  "\r" inside the input box and never submit). Best-effort + never throws. */
-function nudgeWorker(ptyId: string, ids: string[] = []): void {
-  // Same text the renderer queues (#187's inboxNudgeText), so the two wake paths
-  // produce byte-identical nudges: the queue's one-pending rule recognises either
-  // via isInboxNudge, and a watchdog nudge names its ids so the agent can still
-  // tell "I filed this last turn" from "woken for nothing".
-  const wrote = ptyManager.write(ptyId, inboxNudgeText(ids));
+function nudgeWorker(ptyId: string, text: string): void {
+  const wrote = ptyManager.write(ptyId, text);
   if (!wrote.ok) { console.warn(`[worker-wake] write failed for ${ptyId}: ${wrote.error}`); return; }
   setTimeout(() => {
     try {
@@ -5344,7 +5881,21 @@ function runWorkerWakeBeat(): void {
     const ids = hive.inbox(agentId).map((m) => m.id).filter(Boolean);
     if (!ids.length) { console.log(`[worker-wake] ${agentId} drained before delivery, skipping`); continue; }
     console.log(`[worker-wake] nudging ${agentId} on ${ptyId} (${ids.length} pending)`);
-    nudgeWorker(ptyId, ids);
+    // Same text the renderer queues (#187's inboxNudgeText), so the two wake paths
+    // produce byte-identical nudges: the queue's one-pending rule recognises either
+    // via isInboxNudge, and a watchdog nudge names its ids so the agent can still
+    // tell "I filed this last turn" from "woken for nothing".
+    nudgeWorker(ptyId, inboxNudgeText(ids));
+  }
+  // Idle ping: an agent quiet with an empty inbox never gets a prompt, so its
+  // idle-time context rules never run. One ping per idle stretch (workerWake.ts).
+  const idleMin = readConfig().idlePingMin ?? 20;
+  for (const agentId of workerWake.idlePings(facts, now, idleMin * 60_000)) {
+    const ptyId = ptyForAgent(agentId);
+    if (!ptyId) continue;
+    console.log(`[idle-ping] ${agentId} on ${ptyId} (quiet ${idleMin}+ min)`);
+    try { hive.appendLog({ kind: 'idle-ping', agentId, idleMin }); } catch { /* best-effort */ }
+    nudgeWorker(ptyId, idlePingText(idleMin));
   }
   // A worker sitting on old mail without a nudge is the failure this watchdog
   // exists for — say WHY it is being held, once per cooldown, so the log can
@@ -5579,10 +6130,15 @@ app.on('before-quit', (e) => {
 // Every window loads the config once at start-up, so tell them all when a
 // setting is saved — a floor left out would keep showing what it opened with.
 onConfigWritten((config) => {
+  // Settings → Devices added, removed or changed a device.
+  if (devicesStarted) devices.sync(config.devices ?? []);
+  hive.setDeviceIds((config.devices ?? []).map((d) => d.id));
   for (const w of allWindows) {
     if (w.isDestroyed() || w.webContents.isDestroyed()) continue;
     w.webContents.send('config:changed', config);
   }
+  // Settings → Devices → Control page.
+  syncRemoteFloor(config);
 });
 
 app.on('window-all-closed', () => {
@@ -5590,7 +6146,7 @@ app.on('window-all-closed', () => {
     // Full teardown, not a bare killAll: this path must also stop the proxy
     // sidecars and helper servers — on Windows a child is NOT killed when its
     // parent exits, so anything skipped here outlives the app.
-    teardownAndQuit();
+    void teardownAndQuit();
   }
 });
 

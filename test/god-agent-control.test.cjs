@@ -303,7 +303,7 @@ test('PermissionRequest is installed with timeout 330 and the forgery guard is w
 test('only HOOK_SHIM has the 320 s PermissionRequest timer', () => {
   const src = fs.readFileSync(path.resolve(__dirname, '..', 'src/main/hive.ts'), 'utf8');
   assert.equal(src.split("payload.hook_event_name === 'PermissionRequest' ? 320000 : 5000").length - 1, 1);
-  const shims = [...src.matchAll(/^const (\w*HOOK_SHIM) = `/gm)].map((m) => m[1]);
+  const shims = [...src.matchAll(/^(?:export )?const (\w*HOOK_SHIM) = `/gm)].map((m) => m[1]);
   assert.ok(shims.includes('HOOK_SHIM') && shims.length > 1);
   const hookShim = src.slice(src.indexOf('const HOOK_SHIM = `'), src.indexOf('const AGY_HOOK_SHIM = `'));
   assert.ok(hookShim.includes('320000'));

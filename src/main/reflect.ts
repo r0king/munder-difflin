@@ -38,8 +38,10 @@ const DEFAULT_TIMEOUT_MS = 180_000;
 const PINNED_HEADING = '## 📌 Durable facts (pinned — never condensed)';
 const CONDENSED_HEADING = '## 🗜 Condensed history';
 const RECENT_HEADING = '## Recent';
+/** A rewrite must land under this fraction of the old size (a no-op condense is a failure). */
+const SHRINK_GATE = 0.95;
 
-0/** Line-oriented output protocol. The prompt and parser share these literals so
+/** Line-oriented output protocol. The prompt and parser share these literals so
  *  the contract cannot drift without changing both sides together. */
 const CONDENSED_MARKER = '<<<CONDENSED>>>';
 const HOIST_MARKER = '<<<HOIST>>>';
@@ -212,6 +214,14 @@ export class MemoryReflector {
     const evict = parsed.recent.slice(0, Math.max(0, parsed.recent.length - keepCount));
     if (evict.length === 0) {
       return { id, condensed: false, reason: 'nothing-to-evict', oldBytes };
+    }
+    // What stays verbatim (header, pinned, the newest K) is a floor no summary
+    // can go under. Already over the gate, every pass would burn a Haiku call
+    // to abort not-smaller (stanley, oscar: every 30 min on 2026-10-28).
+    const keptBytes = Buffer.byteLength(rebuild(parsed.header, pinnedLines(parsed.pinned), '', keep), 'utf8');
+    if (keptBytes >= oldBytes * SHRINK_GATE) {
+      this.logAbort(id, 'recent-too-large', 'lower reflectRecentKeep', { oldBytes, keptBytes, recentKeep: keep.length });
+      return { id, condensed: false, reason: 'recent-too-large', oldBytes };
     }
 
     // 1) BACK UP first — a lossless cold copy makes every later step recoverable.
@@ -401,7 +411,7 @@ export function verify(args: {
   if (newBytes <= 200) return { ok: false, reason: 'too-small' };
   if (!condensed.trim()) return { ok: false, reason: 'empty-condensed' };
   // 3) Actually smaller (a no-op condense is a failure).
-  if (!(newBytes < oldBytes * 0.95)) return { ok: false, reason: 'not-smaller' };
+  if (!(newBytes < oldBytes * SHRINK_GATE)) return { ok: false, reason: 'not-smaller' };
   // 2) Pinned preserved: every old pinned line survives (hoist only adds).
   const newPinned = new Set(pinnedLines(re.pinned));
   for (const line of oldPinnedLines) if (!newPinned.has(line)) return { ok: false, reason: 'pinned-line-dropped' };

@@ -13,6 +13,7 @@ export type { HeroPayload } from '../shared/heroPayload';
 import type { ModelCatalog } from '../shared/modelCatalogPayload';
 export type { ModelCatalog, CatalogModel } from '../shared/modelCatalogPayload';
 import type { HookEvent } from '../shared/hookEvents';
+import type { ConversationStayed, DeviceCheckItem, DeviceConfig, DeviceStatus } from '../shared/devices';
 export type { HookEvent } from '../shared/hookEvents';
 import type { LocalSkill, CatalogSkill } from '../main/skills';
 export type { LocalSkill, CatalogSkill } from '../main/skills';
@@ -58,6 +59,8 @@ export interface HiveAgentMeta {
   isGod?: boolean;
   /** Michael's prep assistant — send-only; enriches prompts and forwards them. */
   isAssistant?: boolean;
+  /** The device this agent runs on; '' or absent = this laptop; 'auto' = picked at start (main resolves it). Mirrors src/main/hive.ts. */
+  device?: string;
 }
 
 export interface HiveMessage {
@@ -270,6 +273,14 @@ export interface HarnessConfig {
   /** Recently-opened hive home folders (most-recent first). Mirrors src/main/config.ts. */
   recentHives?: string[];
   registeredRepos: string[];
+  /** Other machines agents can run on. Mirrors src/main/config.ts. */
+  devices?: DeviceConfig[];
+  /** Minutes cut off before a device's agents pause (default 10, 0 = never). Mirrors src/main/config.ts. */
+  deviceOfflinePauseMin?: number;
+  /** The control page is on. Mirrors src/main/config.ts. */
+  remoteFloorEnabled?: boolean;
+  /** The control page's port (default 47980). Mirrors src/main/config.ts. */
+  remoteFloorPort?: number;
   autoMode: boolean;
   defaultCommand: string;
   defaultModel?: string;
@@ -590,7 +601,7 @@ const api = {
   // ─── PTY ─────────────────────────────────────────────────────────────────
   /** `cwd` in the result is the TILDE-EXPANDED absolute path main actually spawned
    *  into — the renderer stores that, not the raw `~/…` the user typed. */
-  spawnPty: (opts: SpawnPtyOptions): Promise<{ ok: boolean; error?: string; cwd?: string; worktreePath?: string; resumeNotFound?: boolean; resumed?: boolean; seedPrompt?: string }> =>
+  spawnPty: (opts: SpawnPtyOptions): Promise<{ ok: boolean; error?: string; cwd?: string; worktreePath?: string; resumeNotFound?: boolean; resumed?: boolean; seedPrompt?: string; conversationStayed?: ConversationStayed; device?: string }> =>
     ipcRenderer.invoke('pty:spawn', opts),
   writePty: (id: string, data: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('pty:write', id, data),
@@ -633,6 +644,33 @@ const api = {
     const listener = () => cb();
     ipcRenderer.on(channel, listener);
     return () => ipcRenderer.removeListener(channel, listener);
+  },
+
+  // ─── Devices ─────────────────────────────────────────────────────────────
+  /** Every configured device's link state, for a first paint. */
+  listDevices: (): Promise<DeviceStatus[]> => ipcRenderer.invoke('devices:list'),
+  /** Settings → Devices → Check: each setup item, pass or fail with its fix. */
+  checkDevice: (id: string): Promise<DeviceCheckItem[]> => ipcRenderer.invoke('devices:check', id),
+  /** A device's link changed state (online, connecting, offline + reason). */
+  onDeviceState: (cb: (s: DeviceStatus) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, s: DeviceStatus) => cb(s);
+    ipcRenderer.on('devices:state', listener);
+    return () => ipcRenderer.removeListener('devices:state', listener);
+  },
+
+  // ─── Control page (devices phase 2) ───────────────────────────────────────
+  /** Where the control page listens, or null while it is off or waiting for Tailscale. */
+  remoteFloorAddress: (): Promise<{ ip: string; port: number } | null> => ipcRenderer.invoke('remoteFloor:address'),
+  /** The control page asked to restart an agent. `cb` runs the floor's own
+   *  restart; its result goes back to main. */
+  onRemoteRestart: (cb: (agentId: string) => Promise<{ ok: boolean; error?: string }>): (() => void) => {
+    const listener = (_e: IpcRendererEvent, req: { reqId: number; agentId: string }) => {
+      void cb(req.agentId)
+        .catch((e: unknown) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }))
+        .then((r) => ipcRenderer.send('remoteFloor:restartDone', req.reqId, r));
+    };
+    ipcRenderer.on('remoteFloor:restart', listener);
+    return () => ipcRenderer.removeListener('remoteFloor:restart', listener);
   },
 
   // ─── Dialog ──────────────────────────────────────────────────────────────
@@ -908,7 +946,7 @@ const api = {
   onHiveAgentSpawned: (
     cb: (rec: {
       id: string; name: string; provider?: string; cwd: string;
-      command?: string; role?: string; worktreePath?: string;
+      command?: string; role?: string; worktreePath?: string; device?: string; lastDevice?: string;
       character?: string; accent?: string;
     }) => void
   ): (() => void) => {
@@ -1216,8 +1254,8 @@ const api = {
   /** Fires when a context rule comes due. `rule` rides along because main owns
    *  only the CADENCE — the renderer applies the per-agent pressure gate and
    *  queues the command for each agent that qualifies. */
-  onContextTrigger: (cb: (evt: { action: 'compact' | 'clear'; rule: ContextRule }) => void): (() => void) => {
-    const listener = (_e: IpcRendererEvent, payload: { action: 'compact' | 'clear'; rule: ContextRule }) => cb(payload);
+  onContextTrigger: (cb: (evt: { action: 'compact' | 'clear'; rule: ContextRule; agentId?: string }) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, payload: { action: 'compact' | 'clear'; rule: ContextRule; agentId?: string }) => cb(payload);
     ipcRenderer.on('trigger:context', listener);
     return () => ipcRenderer.removeListener('trigger:context', listener);
   },

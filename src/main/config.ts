@@ -11,6 +11,7 @@ import {
 } from '../shared/agentProvider';
 import { defaultMcpDefaults } from '../shared/mcpCatalog';
 import { MAX_AGENT_TOKEN_CAP } from '../shared/tokenCaps';
+import { normalizeDevices, type DeviceConfig } from '../shared/devices';
 import { expandTilde, normalizeHiveHome } from './fs';
 import type { IntegrationRecord } from '../shared/integrations';
 import {
@@ -200,6 +201,21 @@ export interface HarnessConfig {
    *  Off does not FAIL a queued spawn request, it declines to consume one. The
    *  request sits in HIVE_ROOT/spawn-requests until the toggle is turned on. */
   orchestratorMaySpawn: boolean;
+  /** Auto-compact any live agent whose context fill is at or above
+   *  `ctxAutoCompactPct` (default 75), at most once per `ctxAutoCompactEveryMin`
+   *  (default 30) per agent. It files a HIVE_ROOT/compact-requests entry, so it
+   *  waits for the agent to be idle like any other request. Default OFF. */
+  ctxAutoCompact?: boolean;
+  ctxAutoCompactPct?: number;
+  ctxAutoCompactEveryMin?: number;
+  /** Ping a hive agent (never god) that has been quiet this many minutes with an
+   *  empty inbox, once per idle stretch, so its idle-time context rules run.
+   *  Default 20; 0 turns it off. */
+  idlePingMin?: number;
+  /** Roles (exact, case-insensitive) whose Claude sessions keep the claude.ai
+   *  connectors (Figma, Gmail, …). Every other agent spawns with them off.
+   *  Default ['Designer']; [] turns them off for everyone. */
+  claudeAiConnectorRoles?: string[];
   /** May the orchestrator type commands into workers and answer their
    *  permission prompts? Default FALSE: anything a worker accepts only from the
    *  operator, god can then supply. See docs/superpowers/specs/2026-11-02-god-agent-control-design.md. */
@@ -428,6 +444,19 @@ export interface HarnessConfig {
   /** Never condense a file smaller than this; also the section-trigger byte floor.
    *  DECIDED: 16 KB. */
   reflectMinBytes?: number;
+
+  // ─── Devices (docs/superpowers/specs/2026-10-29-devices-design.md) ────────
+  /** Other Linux machines agents can run on. This laptop is the implicit
+   *  `local` and is never stored here. */
+  devices?: DeviceConfig[];
+  /** Minutes a device's agents keep working while cut off from the floor
+   *  before their turn is stopped ("paused"). Default 10; 0 = never pause. */
+  deviceOfflinePauseMin?: number;
+  /** The phone-first control page (Settings → Devices → Control page). Off
+   *  unless true. It binds only to this laptop's Tailscale address. */
+  remoteFloorEnabled?: boolean;
+  /** Its port; default 47980 (remoteFloor.ts DEFAULT_REMOTE_FLOOR_PORT). */
+  remoteFloorPort?: number;
 }
 
 const DEFAULTS: HarnessConfig = {
@@ -706,6 +735,22 @@ export function writeConfig(patch: Partial<HarnessConfig>): HarnessConfig {
     const { home, recentHives } = normalizeHiveHome(patch.harnessHome, current.recentHives ?? []);
     next.harnessHome = home;
     next.recentHives = recentHives;
+  }
+  // A device's host and user end up in ssh's argv, so a malformed entry is
+  // dropped here rather than reaching a spawn (see normalizeDevices).
+  if ('devices' in patch) next.devices = normalizeDevices(patch.devices);
+  if ('deviceOfflinePauseMin' in patch) {
+    const m = patch.deviceOfflinePauseMin;
+    if (typeof m === 'number' && Number.isFinite(m) && m >= 0) next.deviceOfflinePauseMin = m;
+    else delete next.deviceOfflinePauseMin;
+  }
+  // The control page: on only when exactly true; a port outside 1024–65535
+  // is dropped, which means the default.
+  if ('remoteFloorEnabled' in patch) next.remoteFloorEnabled = patch.remoteFloorEnabled === true;
+  if ('remoteFloorPort' in patch) {
+    const p = patch.remoteFloorPort;
+    if (typeof p === 'number' && Number.isInteger(p) && p >= 1024 && p <= 65535) next.remoteFloorPort = p;
+    else delete next.remoteFloorPort;
   }
   return persistConfig(next);
 }

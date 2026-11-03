@@ -211,6 +211,9 @@ test('no Arabic string is left as its English source', () => {
     'addAgent.projectPlaceholder',           // /path/to/your/project — a filesystem path
     'onboarding.home.placeholder',           // /path/to/HarnessAgents — same
     'mcpDefaults.toggleNote',                // "{{id}}: {{state}}" — pure interpolation
+    'devices.items.node',                    // command names the user installs
+    'devices.items.tmux',
+    'devices.items.sshfs',
     'webhooksSection.summary'                // "{{count}} · {{state}}" — same
   ]);
   const e = pathsOf(en), a = pathsOf(ar);

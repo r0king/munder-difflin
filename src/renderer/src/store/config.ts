@@ -16,6 +16,7 @@ import type {
 import { isNewer } from '@shared/updateState';
 import modelCatalog from '@shared/modelCatalog.json';
 import type { CatalogModel, ModelCatalog } from '@shared/modelCatalogPayload';
+import type { DeviceConfig } from '@shared/devices';
 
 export {
   AGENT_PROVIDER_PRESETS,
@@ -65,6 +66,14 @@ export interface HarnessConfig {
    *  Mirrors src/main/config.ts. */
   recentHives?: string[];
   registeredRepos: string[];
+  /** Other machines agents can run on. Mirrors src/main/config.ts. */
+  devices?: DeviceConfig[];
+  /** Minutes cut off before a device's agents pause (default 10, 0 = never). Mirrors src/main/config.ts. */
+  deviceOfflinePauseMin?: number;
+  /** The control page is on. Mirrors src/main/config.ts. */
+  remoteFloorEnabled?: boolean;
+  /** The control page's port (default 47980). Mirrors src/main/config.ts. */
+  remoteFloorPort?: number;
   autoMode: boolean;
   /** May the orchestrator ("Michael") spin up agents on its own? Default FALSE,
    *  so an absent value reads as off. Mirrors src/main/config.ts. */

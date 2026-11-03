@@ -163,6 +163,10 @@ export interface AgentMeta {
   /** Michael's prep assistant — enriches prompts and forwards them to Michael.
    *  Send-only: excluded from broadcast fan-out so it never drains an inbox. */
   isAssistant?: boolean;
+  /** The device this agent runs on (Settings → Devices). Absent = this
+   *  laptop. Kept in registry.json, so a restart that does not name a device
+   *  stays where it was. */
+  device?: string;
 }
 
 export interface RegistryAgent extends AgentMeta {
@@ -193,6 +197,32 @@ export interface RegistryAgent extends AgentMeta {
 export interface Registry {
   godId: string | null;
   agents: Record<string, RegistryAgent>;
+}
+
+/** Devices phase 2, item 5: for an agent on a device, an engine's hook files
+ *  that live in the user's home go to the DEVICE's home. They are built here,
+ *  as for a local agent; only the write is remote. The hooks run the
+ *  device's node and the device's own copy of the shim, because the hive
+ *  there is a mount that fails while the link is down. */
+export interface RemoteHome {
+  /** The device's $HOME, and its login shell's node (absolute paths). */
+  home: string;
+  node: string;
+  /** Write files under the device's home. `path` is relative to it. With
+   *  `mergeKey`, `content` (JSON) replaces that one key of an existing JSON
+   *  file instead of the whole file. */
+  write(files: Array<{ path: string; content: string; mergeKey?: string }>): Promise<void>;
+  /** Forward a loopback port of this laptop to the device's loopback;
+   *  resolves the device-side port, or null when that failed. */
+  forward(localPort: number): Promise<number | null>;
+}
+
+/** Where a device keeps its own copies of the hook shims (the same folder
+ *  phase 1's installShimCommand copies cth-hook.cjs into). */
+const DEVICE_SHIM_DIR = '.cache/munder-difflin';
+
+function deviceHookCommand(r: RemoteHome, script: string, ...args: string[]): string {
+  return [`"${r.node}"`, `"${r.home}/${DEVICE_SHIM_DIR}/${script}"`, ...args].join(' ');
 }
 
 /** Build env + extra spawn args that make an agent process hive-aware. */
@@ -239,12 +269,19 @@ function shortRand(): string {
  *  agents took the hive's .git to 7.5GB, at which point git's own auto-gc tried to
  *  repack it and took 22GB of RAM doing so — the machine swapped, the app stopped
  *  responding. None of it was ever wanted in history: it is Codex's private
- *  scratch state, and it stays on disk (so resume still works) either way. */
+ *  scratch state, and it stays on disk (so resume still works) either way.
+ *
+ *  `launch.sh` is a device agent's start script (devices.ts remoteTerminal). It
+ *  holds the agent's env, MD_BROKER_TOKEN and the other capability tokens with
+ *  it. The hive root's .gitignore entry for each agent's launch.sh keeps it
+ *  out of git, but mempalace only reads .gitignore files from the agent dir
+ *  down, and it mines `.sh` files, so without this line every agent could find
+ *  those tokens with `mempalace search`. */
 /** Proxy-bridge sidecar bind attempts per spawn, and the pause before each retry. */
 const PROXY_BIND_ATTEMPTS = 3;
 const PROXY_BIND_BACKOFF_MS = [250, 750];
 
-const MINE_IGNORE_LINES = ['settings.json', 'cursor.json', 'inbox/', 'outbox/', '.codex/'];
+const MINE_IGNORE_LINES = ['settings.json', 'cursor.json', 'inbox/', 'outbox/', '.codex/', 'launch.sh'];
 
 /** Idempotently ensure `<agentDir>/.gitignore` excludes the non-memory files.
  *  Append-only: writes only the missing lines, leaving any existing entries. */
@@ -448,6 +485,21 @@ export class HiveManager {
   }
   orchestratorMaySpawn(): boolean {
     return this._maySpawn;
+  }
+
+  /** The configured device ids, mirrored like the spawn gate above (hive.ts
+   *  does not import config), so god's prompt can name them. */
+  private _deviceIds: string[] = [];
+  setDeviceIds(ids: string[]): void {
+    this._deviceIds = [...ids];
+  }
+  /** god's one line about devices (spec: god), on the spawn instructions. A
+   *  device worker's worktree outlives it (teardownPty keeps it, since the
+   *  unintegrated-work gate cannot run there), so god is told to clean it up. */
+  private deviceSpawnHint(): string {
+    return this._deviceIds.length
+      ? ` Optional \`device\` (auto, ${this._deviceIds.join(', ')}) runs the worker on another machine instead of this laptop: heavy work (type-checks, suites, builds) is best placed on a device, and \`"device": "auto"\` picks the least-loaded machine when the worker starts, so use it for heavy work. The default stays this laptop. An unknown or offline device fails the request with the reason. Claude Code, Codex, Antigravity, Grok, Qwen, Crush and custom engines run on a device, and a device worker's worktree is kept on the device after it finishes: integrate its branch and remove the worktree, or ask the human.`
+      : '';
   }
 
   /** Whether config.orchestratorMayControlAgents is on: god may type commands
@@ -680,7 +732,9 @@ export class HiveManager {
     // can include tokens, paths and prompt fragments, and the hive repo is
     // committed on every change — a secret written there would be permanent.
     // log.jsonl gets the structured, non-sensitive fields; the dump stays local.
-    const want = ['fleet.json', 'hooks.sock', 'cost-ledger.jsonl', 'crashes/', '.DS_Store'];
+    // agents/*/launch.sh carries a device agent's env (capability tokens), and
+    // the hive repo is committed on every change.
+    const want = ['fleet.json', 'hooks.sock', 'cost-ledger.jsonl', 'crashes/', '.DS_Store', 'agents/*/launch.sh'];
     let lines: string[] = [];
     if (existsSync(gitignore)) { try { lines = readFileSync(gitignore, 'utf8').split('\n'); } catch { lines = []; } }
     const missing = want.filter((w) => !lines.includes(w));
@@ -752,6 +806,9 @@ export class HiveManager {
       /** Consent state for the default-MCP bundle (W3). Threaded from the live
        *  HarnessConfig by the caller; undefined → catalog defaults apply. */
       mcpDefaults?: { [id: string]: { enabled: boolean } };
+      /** Roles that keep the claude.ai connectors (exact, case-insensitive);
+       *  every other Claude agent spawns without them. Undefined → all keep them. */
+      claudeAiConnectorRoles?: string[];
       /** App-resources `skills/` source dir (W3). The bundled read-only skills are
        *  copied into the agent's `.claude/skills/` per spawn; undefined or missing
        *  is a no-op (tolerated until Kevin populates the resource dir). */
@@ -760,6 +817,14 @@ export class HiveManager {
        *  MemPalace dir, which `mempalace` mutates). Absolute paths; ignored
        *  for providers without a sandbox. */
       extraWritableDirs?: string[];
+      /** Run every hook and the status line through this command instead of
+       *  the hive's shim. Set for an agent on a device: the hive there is an
+       *  sshfs mount that fails with EIO while the link is down, which is
+       *  exactly when the shim must still run to pause the agent, so the
+       *  device runs its own copy (REMOTE_HOOK_COMMAND in deviceCommands.ts). */
+      hookCommand?: string;
+      /** A non-Claude agent on a device: where its home-config hooks go. */
+      remote?: RemoteHome;
     } = {}
   ): Promise<SpawnInjection> {
     const root = this.root();
@@ -805,7 +870,12 @@ export class HiveManager {
     // the roster (cwdValid) rather than silently spawning into a nonexistent dir.
     // Store the EXPANDED cwd, never the raw `~/…` the user typed — the registry is
     // read by hooks, the roster and the worker watcher, none of which run a shell.
-    const cwd = this.cwdValidity(meta.cwd);
+    // A device agent's folder exists on the device, and spawnAgentCore has
+    // already checked it there (`test -d`); the same path here proves nothing.
+    // A respawn that does not name a device keeps the prior one (see the
+    // spread below), so judge the folder by that same effective device.
+    const device = 'device' in meta ? meta.device : prev?.device;
+    const cwd = device ? { valid: true, issue: null } : this.cwdValidity(meta.cwd);
     reg.agents[meta.id] = {
       ...prev,
       ...meta,
@@ -896,9 +966,11 @@ export class HiveManager {
         env.HIVE_SOCK = sock;
         try {
           if (desc.kind === 'hooks') {
-            if (desc.shim === 'agy') this.installAgyHooks();
+            if (desc.shim === 'agy') await this.installAgyHooks(opts.remote);
             else if (desc.shim === 'codex') {
-              env.CODEX_HOME = this.installCodexHooks(dir, meta.id);
+              // On a device, CODEX_HOME is still in the hive (the device mounts
+              // it), but its hooks run the device's node and shim copy.
+              env.CODEX_HOME = this.installCodexHooks(dir, meta.id, opts.remote ? deviceHookCommand(opts.remote, 'cth-hook.cjs') : undefined);
               // Codex refuses to run hooks from a config dir without persisted
               // "hook trust" (normally an interactive gate). Our hooks.json is
               // hive-authored inside an isolated CODEX_HOME, so we bypass that gate
@@ -939,7 +1011,7 @@ export class HiveManager {
               // the bridge is trusted and ~/.gemini/settings.json stays untouched.
               env.GEMINI_CLI_SYSTEM_SETTINGS_PATH = this.installGeminiHooks(dir);
             }
-            else if (desc.shim === 'grok') this.installGrokHooks();
+            else if (desc.shim === 'grok') await this.installGrokHooks(opts.remote);
           } else if (desc.kind === 'proxy') {
             // Stable per-spawn session id, stamped on every synthesized payload so
             // recordSession (registry resume key) and the cost ledger persist.
@@ -962,8 +1034,11 @@ export class HiveManager {
             // upstream directly (degraded: no synthesized hive events, but it still
             // runs). Deliberate degradation is fine; SILENT degradation is not, so
             // the failure goes to log.jsonl, the renderer and the spawn result.
-            if (port > 0) {
-              const loopback = `http://127.0.0.1:${port}`;
+            // On a device, the CLI reaches this laptop's sidecar through a port
+            // forwarded to the device's own loopback (base+3, base+4, …).
+            const reach = port > 0 && opts.remote ? await opts.remote.forward(port) : port;
+            if (reach && reach > 0) {
+              const loopback = `http://127.0.0.1:${reach}`;
               if (meta.provider === 'crush') {
                 // Crush has NO base-URL env override, so the generic env-rewrite is a
                 // no-op for it. Route it instead via a per-agent CRUSH_GLOBAL_CONFIG
@@ -1027,7 +1102,10 @@ export class HiveManager {
     if (sock && shim) {
       env.HIVE_SOCK = sock;
       const settingsPath = join(dir, 'settings.json');
-      this.writeJson(settingsPath, this.hookSettings(shim, meta.cwd, opts.mcpDefaults, opts.theme, this.sandboxWritableDirs(meta, dir, root, opts.extraWritableDirs), meta.isGod ? undefined : this.agentDir(this.registry().godId ?? 'god')));
+      const role = (meta.role ?? '').trim().toLowerCase();
+      const connectors = !opts.claudeAiConnectorRoles
+        || opts.claudeAiConnectorRoles.some((r) => r.trim().toLowerCase() === role);
+      this.writeJson(settingsPath, this.hookSettings(shim, meta.cwd, opts.mcpDefaults, opts.theme, this.sandboxWritableDirs(meta, dir, root, opts.extraWritableDirs), connectors, opts.hookCommand, meta.isGod ? undefined : this.agentDir(this.registry().godId ?? 'god')));
       args.push('--settings', settingsPath);
     }
     return { args, env };
@@ -1253,6 +1331,29 @@ export class HiveManager {
     return this.registry().agents[agentId]?.sessionId;
   }
 
+  /** Session ids to try for a resume, newest first: lastSession(), then the
+   *  earlier ones from log.jsonl. A resumed Claude reports a fresh id before
+   *  its first turn and that id has no transcript, so a restart before that
+   *  turn must fall back to an older id or the conversation is lost
+   *  (oscar on 2026-10-29: four restarts, four fresh starts). */
+  resumeCandidates(agentId: string, max = 10): string[] {
+    const out: string[] = [];
+    const add = (s: unknown): void => { if (typeof s === 'string' && s && !out.includes(s)) out.push(s); };
+    add(this.lastSession(agentId));
+    const root = this.root();
+    try {
+      const lines = root ? readFileSync(join(root, 'log.jsonl'), 'utf8').split('\n') : [];
+      for (let i = lines.length - 1; i >= 0 && out.length < max; i--) {
+        if (!lines[i].includes('"session"') || !lines[i].includes(agentId)) continue;
+        try {
+          const e = JSON.parse(lines[i]) as { kind?: string; agentId?: string; sessionId?: unknown };
+          if (e.kind === 'session' && e.agentId === agentId) add(e.sessionId);
+        } catch { /* a torn line */ }
+      }
+    } catch { /* no log yet */ }
+    return out.slice(0, max);
+  }
+
   /** Claude Code settings that route every relevant hook through the shim, plus
    *  (W3) the default MCP bundle merged into this PER-SESSION settings file. cwd
    *  scopes the filesystem/git servers; cfg (the consent map) gates which servers
@@ -1269,10 +1370,11 @@ export class HiveManager {
     return Array.from(new Set(out));
   }
 
-  private hookSettings(shim: string, cwd: string, cfg: McpDefaultsMap, theme?: 'light' | 'dark', writableDirs: string[] = [], godDir?: string): unknown {
+  private hookSettings(shim: string, cwd: string, cfg: McpDefaultsMap, theme?: 'light' | 'dark', writableDirs: string[] = [], claudeAiConnectors = true, hookCommand?: string, godDir?: string): unknown {
     // Bundled node, NOT bare `node` — see nodeLauncherPath(). Claude runs each of
     // these through `sh -c` with a stripped PATH, where `node` is often absent.
-    const cmd = this.nodeRun(shim);
+    // A device agent passes its own command (see ensureAgent's hookCommand).
+    const cmd = hookCommand ?? this.nodeRun(shim);
     const entry = (matcher?: string) => ({
       ...(matcher ? { matcher } : {}),
       hooks: [{ type: 'command', command: cmd }]
@@ -1296,6 +1398,9 @@ export class HiveManager {
       // Claude merges this additively. Omitted entirely when empty so a settings
       // file with no enabled servers is unchanged from before.
       ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
+      // claude.ai connectors (Figma, Gmail, …) only for the roles allowed them.
+      // Per session, so the user's own sessions and ~/.claude.json are untouched.
+      ...(claudeAiConnectors ? {} : { disableClaudeAiConnectors: true }),
       // The status line gets the session status JSON after every response —
       // including context_window.{total_input_tokens,context_window_size},
       // the only clean programmatic source for the session's REAL context
@@ -1526,7 +1631,7 @@ export class HiveManager {
       lines,
       // Native separators (join, not string-concatenated `/`) so a Windows agent is
       // handed a path its own shell/tools accept, not `C:\…\agents\god/inbox/`.
-      `Open the files in ${join(dir, 'inbox')} for full detail, act on each, then move handled ones to ${join(dir, 'inbox', '.done')}. Reply via your outbox if a message requires it.`
+      `Open the files in ${join(dir, 'inbox')} for full detail, act on each, then move handled ones to ${join(dir, 'inbox', '.done')}. Reply via your outbox if a message requires it, and at once if its work will outlast this turn: say what you are waiting on.`
     ].join('\n');
     return { block: true, reason };
   }
@@ -1622,7 +1727,11 @@ export class HiveManager {
     // saying nothing, and COMMANDS.md documents it either way for the case where
     // the operator turns it on after god was already running.
     const spawnQueueLine = meta.isGod && this.orchestratorMaySpawn()
-      ? `SPAWNING A WORKER: you can start an ephemeral worker yourself by writing ONE JSON file into ${inRoot('spawn-requests')}/<id>.json. Required: \`objective\` (what the worker must do) and \`cwd\` (the repo it runs in). Optional: \`name\`, \`command\` (overrides the provider default), \`provider\` (selects its default CLI when command is omitted), \`model\`, \`isolate\` (default true = its own git worktree), \`tokenCap\`, and \`slack\` ({channel, thread_ts}) to route its failures back to a thread. The harness polls that directory, spawns \`worker-<id>\`, and moves the request to \`spawn-requests/.done/\` on success or \`.failed/\` with a reason. This is the ONLY way you can spawn; a hire manifest under research/hires/ needs the human to confirm it in the UI, so it is not a route you can complete on your own. Reuse an existing agent first, as above — a worker is a fresh spend every time.`
+      ? `SPAWNING A WORKER: you can start an ephemeral worker yourself by writing ONE JSON file into ${inRoot('spawn-requests')}/<id>.json. Required: \`objective\` (what the worker must do) and \`cwd\` (the repo it runs in). Optional: \`name\`, \`command\` (overrides the provider default), \`provider\` (selects its default CLI when command is omitted), \`model\`, \`isolate\` (default true = its own git worktree), \`tokenCap\`, and \`slack\` ({channel, thread_ts}) to route its failures back to a thread. The harness polls that directory, spawns \`worker-<id>\`, and moves the request to \`spawn-requests/.done/\` on success or \`.failed/\` with a reason. This is the ONLY way you can spawn; a hire manifest under research/hires/ needs the human to confirm it in the UI, so it is not a route you can complete on your own. Reuse an existing agent first, as above — a worker is a fresh spend every time.` + this.deviceSpawnHint()
+      : '';
+    // Not gated: a compaction spends nothing new.
+    const compactQueueLine = meta.isGod
+      ? `COMPACTING AN AGENT: slash commands act only on your own session, so to /compact any agent (yourself included) write ONE JSON file into ${inRoot('compact-requests')}/<id>.json: {"agent": "<agent id>", "description": "<optional focus text passed to /compact>"}. The harness types it the next time that agent is idle (never mid-tool-call) and moves the request to \`compact-requests/.done/\` once the agent has compacted, or to \`.failed/\` with a \`reason\` (unknown agent, archived, no live session, timeout after 60 min). Use it when an agent's \`ctx\` is high before you hand it a big task.`
       : '';
     // Gated on the toggle like spawnQueueLine. An instruction, not enforcement.
     const controlLine = meta.isGod && this.orchestratorMayControlAgents()
@@ -1652,6 +1761,7 @@ export class HiveManager {
       knowledgeLine,
       godLine,
       spawnQueueLine,
+      compactQueueLine,
       controlLine,
       runtimeLine,
       slackLine,
@@ -2180,16 +2290,19 @@ export class HiveManager {
    *  Runtime-scoped by AGENT_ID (the shim no-ops for non-hive agy sessions), so
    *  this global config never disturbs the user's own `agy` usage. Best-effort,
    *  idempotent (only our own group is overwritten). */
-  private installAgyHooks(): void {
+  private async installAgyHooks(remote?: RemoteHome): Promise<void> {
     const root = this.root();
     if (!root) return;
     const shim = join(root, 'bin', 'agy-hook.cjs');
     mkdirSync(join(root, 'bin'), { recursive: true });
     writeFileSync(shim, AGY_HOOK_SHIM, 'utf8');
     // Bundled node, not bare `node` — agy's hooks run with a stripped PATH too.
-    const command = (event: string) => process.platform === 'win32'
-      ? this.nodeRunUnquoted(shim, event)
-      : this.nodeRun(shim, event);
+    // On a device: the device's node, by absolute path, for the same reason.
+    const command = (event: string) => remote
+      ? deviceHookCommand(remote, 'agy-hook.cjs', event)
+      : process.platform === 'win32'
+        ? this.nodeRunUnquoted(shim, event)
+        : this.nodeRun(shim, event);
     const tool = (event: string) => ({
       matcher: '*',
       hooks: [{ type: 'command', command: command(event), timeout: 0 }]
@@ -2204,6 +2317,15 @@ export class HiveManager {
       PostInvocation: [plain('PostInvocation')],
       Stop: [plain('Stop')]
     };
+    if (remote) {
+      // The device's own home; other tools' hooks in these files are kept.
+      await remote.write([
+        { path: `${DEVICE_SHIM_DIR}/agy-hook.cjs`, content: AGY_HOOK_SHIM },
+        { path: '.gemini/config/hooks.json', content: JSON.stringify(group), mergeKey: 'munder-hive' },
+        { path: '.gemini/antigravity-cli/hooks.json', content: JSON.stringify(group), mergeKey: 'munder-hive' }
+      ]);
+      return;
+    }
     const gem = join(homedir(), '.gemini');
     for (const p of [join(gem, 'config', 'hooks.json'), join(gem, 'antigravity-cli', 'hooks.json')]) {
       try {
@@ -2278,7 +2400,7 @@ export class HiveManager {
    *  ~/.codex/auth.json is linked in and their config.toml is copied + extended
    *  (login + model/provider/trust settings still apply).
    *  Returns the CODEX_HOME path for the caller to put in the worker's env. */
-  private installCodexHooks(dir: string, agentId: string): string {
+  private installCodexHooks(dir: string, agentId: string, hookCommand?: string): string {
     const home = join(dir, '.codex');
     try {
       mkdirSync(home, { recursive: true });
@@ -2334,15 +2456,16 @@ export class HiveManager {
       const shim = this.shimPath();
       let config = existsSync(join(userHome, 'config.toml'))
         ? readFileSync(join(userHome, 'config.toml'), 'utf8') : '';
-      if (shim) {
+      if (shim || hookCommand) {
         const events = ['PreToolUse', 'PostToolUse', 'Stop', 'SubagentStop',
           'SessionStart', 'UserPromptSubmit', 'PreCompact', 'PostCompact'];
         // Preserve the existing Windows .cmd shape: nested command quotes pass
         // through a different shell stack there (#350). The reported Codex bug
         // is POSIX, where ordinary shell quoting is both necessary and verified.
-        const command = process.platform === 'win32'
-          ? this.nodeRunUnquoted(shim)
-          : this.nodeRun(shim);
+        // A device agent's command is given (the device's node and shim copy).
+        const command = hookCommand ?? (process.platform === 'win32'
+          ? this.nodeRunUnquoted(shim!)
+          : this.nodeRun(shim!));
         config += '\n# --- munder-hive lifecycle hooks (auto-generated; do not edit) ---\n';
         for (const ev of events) {
           config += `\n[[hooks.${ev}]]\n[[hooks.${ev}.hooks]]\ntype = "command"\ncommand = ${JSON.stringify(command)}\ntimeout = 30\n`;
@@ -2600,7 +2723,7 @@ export class HiveManager {
    *  Grok sessions/resume stay in the user's normal GROK_HOME. The adapter is
    *  strictly scoped by AGENT_ID, so ordinary Grok sessions exit without doing
    *  anything. Best-effort and idempotent. */
-  private installGrokHooks(): void {
+  private async installGrokHooks(remote?: RemoteHome): Promise<void> {
     const root = this.root();
     if (!root) return;
     try {
@@ -2612,7 +2735,7 @@ export class HiveManager {
         // Let Grok apply its event-aware defaults (5s normally, 600s for Stop).
         // Grok is a HOOK bridge (not a proxy sidecar), so it is hit by the same
         // `node: command not found` 127 — bundled node here too.
-        hooks: [{ type: 'command', command: this.nodeRun(shim) }]
+        hooks: [{ type: 'command', command: remote ? deviceHookCommand(remote, 'grok-hook.cjs') : this.nodeRun(shim) }]
       });
       const hooks = {
         PreToolUse: [tool('.*')],
@@ -2624,6 +2747,13 @@ export class HiveManager {
         PreCompact: [tool('.*')],
         PostCompact: [tool('.*')]
       };
+      if (remote) {
+        await remote.write([
+          { path: `${DEVICE_SHIM_DIR}/grok-hook.cjs`, content: GROK_HOOK_SHIM },
+          { path: '.grok/hooks/munder-hive.json', content: JSON.stringify({ hooks }, null, 2) }
+        ]);
+        return;
+      }
       const hookDir = join(homedir(), '.grok', 'hooks');
       mkdirSync(hookDir, { recursive: true });
       writeFileSync(
@@ -3028,6 +3158,7 @@ function renderCommandsMd(): string {
     'Reference of the Claude Code commands available to you. Two kinds:',
     '- **slash** commands act ONLY on your own session. The one way to run one on another agent is the god-only \`command\` act (see PROTOCOL.md), when the operator has enabled it.',
     '- **cli** commands run in your shell (Bash) and can target the fleet, spawn, or query.',
+    '- To `/compact` ANOTHER agent (or yourself, unattended), write `compact-requests/<id>.json` = `{"agent": "<id>", "description": "<optional focus>"}` in the hive root; it runs when that agent is idle. Details in PROTOCOL.md.',
     '',
     'To MONITOR the other agents in this hive, read `fleet.json` in the hive root (live per-agent tokens, cost, status, last tool, breaker level, inbox backlog, and `running` — set while a tool call such as a test suite is open, which means busy, not stalled) plus `registry.json` — `claude agents` does NOT list your hive siblings. Use `claude -p "..." --output-format json` for a one-off headless query.',
     ''
@@ -3055,7 +3186,9 @@ only thing that moves messages between agents.
 - \`identity.md\`  — who you are (read-only; the harness writes it).
 - \`memory.md\`    — your long-term memory. Read at the start of a task; append to it as you learn.
 - \`inbox/\`       — messages addressed to you. Read them at the start of a task.
-- \`inbox/.done/\` — move a message here once you've handled it.
+- \`inbox/.done/\` — move a message here once you've handled it. If the work outlasts
+  your turn (a queued test run, a long build), reply to the sender at once with what
+  you are waiting on, and keep the message in \`inbox/\` until it is done.
 - \`outbox/\`      — drop messages here to send them. The harness delivers them.
 
 **Never write into another agent's folder.** Write to your own \`outbox/\`; the
@@ -3163,7 +3296,8 @@ the hive root:
   "tokenCap": 0,
   "slack": { "channel": "C…", "thread_ts": "…" },
   "character": "meredith",
-  "accent": "coral"
+  "accent": "coral",
+  "device": "my-lap"
 }
 \`\`\`
 
@@ -3172,6 +3306,13 @@ The harness polls that directory, spawns \`worker-<id>\`, and moves the request 
 defaults to true, giving the worker its own git worktree. \`slack\` routes its failures back to a
 thread. This is the ONLY spawn route you can complete on your own: a hire manifest under
 \`research/hires/\` needs the human to confirm it in the UI.
+
+\`device\` (optional) runs the worker on another machine from Settings → Devices instead of this
+laptop. \`"auto"\` picks the least-loaded machine, this laptop included, when the worker starts:
+use it for heavy work (type-checks, suites, builds). Claude Code, Codex, Antigravity, Grok, Qwen, Crush and custom engines run on a device.
+An unknown or offline device fails the request into \`spawn-requests/.failed/\` with the reason.
+A device worker's worktree is kept on the device after it finishes: integrate its branch and remove
+the worktree, or ask the human.
 
 \`character\` and \`accent\` set how the worker looks on the office floor, and both are optional.
 Naming a worker after a cast member already gets you that avatar, so you only need \`character\` when
@@ -3182,6 +3323,20 @@ OFF by default, because every worker you start spends tokens nobody approved. Wh
 request is NOT failed or deleted, it waits in \`spawn-requests/\` and runs if the operator turns it on.
 If a request of yours has sat there without moving, that is why, and it is a decision to raise with the
 human rather than retry. Route work to an agent already on the floor first either way.
+
+## Compacting an agent (orchestrator)
+Slash commands act only on your own session. To \`/compact\` any agent, yourself included, write ONE
+JSON file into \`compact-requests/<id>.json\` in the hive root:
+
+\`\`\`json
+{ "agent": "<agent id> (required)", "description": "focus text passed to /compact (optional)" }
+\`\`\`
+
+The harness polls that directory like \`spawn-requests/\`, types the compact command the next time the
+agent is idle (never mid-tool-call), and moves the request to \`compact-requests/.done/\` once the
+agent's session has compacted, or to \`compact-requests/.failed/\` with a \`reason\`: unknown agent,
+archived, no live session, or a timeout after 60 minutes. The operator can also turn on
+auto-compaction above a context threshold; those requests appear here as \`auto-<agent>-<ts>.json\`.
 
 ## Semantic memory (optional — when \`mempalace\` is installed)
 When \`MEMPALACE_PALACE_PATH\` is set in your environment, the hive shares a
@@ -3204,10 +3359,52 @@ const GENERATED_HIVE_DOCS = [
 // A minimal pipe: read the hook payload on stdin, tag it with this agent's id,
 // forward it to the hive's UDS, and relay the response back to `claude`. All the
 // real logic lives in the main process (HookServer). Never blocks a stop on error.
-const HOOK_SHIM = `#!/usr/bin/env node
+//
+// Devices (docs/superpowers/specs/2026-10-29-devices-design.md): an agent on
+// another machine runs a copy of this from its own disk (REMOTE_HOOK_COMMAND in
+// deviceCommands.ts) and reaches the floor over a forwarded loopback TCP port,
+// HIVE_HOOK_PORT, because remote Unix-socket forwards are broken under Tailscale
+// SSH. In that port mode only, a floor that stays unreachable for
+// HIVE_OFFLINE_PAUSE_MIN minutes stops the agent's turn: the floor cannot pause,
+// steer or halt it while cut off, and this bounds that.
+export const HOOK_SHIM = `#!/usr/bin/env node
 'use strict';
 const net = require('net');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const isStatus = process.argv.includes('--status');
+const port = Number(process.env.HIVE_HOOK_PORT) || 0;
+const target = port ? { host: '127.0.0.1', port: port } : process.env.HIVE_SOCK;
+// Port mode: the first failed connection writes its time here, a success
+// deletes the file. On the device's own disk: /run/user can vanish on a device
+// with no desktop login while tmux keeps running.
+const cacheDir = path.join(os.homedir(), '.cache', 'munder-difflin');
+const tag = 'md-' + String(process.env.AGENT_ID || 'agent').replace(/[^A-Za-z0-9._-]/g, '-');
+const unreachableFile = path.join(cacheDir, tag + '.unreachable');
+const pausedFile = path.join(cacheDir, tag + '.paused');
+function reachable() {
+  if (port) { try { fs.rmSync(unreachableFile, { force: true }); } catch (_) {} }
+}
+function cutOff() {
+  if (!port || isStatus) process.exit(0);
+  try {
+    fs.mkdirSync(cacheDir, { recursive: true });
+    // 'wx' creates the record atomically: hooks run in parallel, and a plain
+    // write would let a sibling read the empty file as 0 (instant pause). A
+    // record that is empty or corrupt anyway counts as starting now.
+    try { fs.writeFileSync(unreachableFile, String(Date.now()), { flag: 'wx' }); } catch (_) {}
+    let since = Number(fs.readFileSync(unreachableFile, 'utf8'));
+    if (!Number.isFinite(since) || since <= 0) { since = Date.now(); fs.writeFileSync(unreachableFile, String(since)); }
+    const pauseMin = Number(process.env.HIVE_OFFLINE_PAUSE_MIN || 0);
+    if (pauseMin > 0 && Date.now() - since > pauseMin * 60000) {
+      fs.writeFileSync(pausedFile, String(Date.now()));
+      const mins = Math.floor((Date.now() - since) / 60000);
+      process.stdout.write(JSON.stringify({ continue: false, stopReason: 'Munder Difflin floor unreachable for ' + mins + ' min; paused until the link is back.' }));
+    }
+  } catch (_) {}
+  process.exit(0);
+}
 let data = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (d) => { data += d; });
@@ -3215,13 +3412,13 @@ process.stdin.on('end', () => {
   let payload = {};
   try { payload = JSON.parse(data || '{}'); } catch (_) {}
   if (!payload.agent_id) payload.agent_id = process.env.AGENT_ID || null;
-  const sock = process.env.HIVE_SOCK;
   if (isStatus) {
     // Status-line mode: Claude Code pipes the session status JSON (incl.
     // context_window.total_input_tokens / .context_window_size) after every
     // response. Print the in-terminal gauge IMMEDIATELY (the TUI is waiting),
     // then forward the payload to the harness fire-and-forget so the agent
     // card's context gauge updates push-based, with the EXACT window size.
+    // Port mode reaches the floor the same way, but never pauses.
     payload.hook_event_name = 'Status';
     const cw = payload.context_window || {};
     const used = cw.total_input_tokens, size = cw.context_window_size;
@@ -3229,9 +3426,9 @@ process.stdin.on('end', () => {
       const pct = Math.round((used / size) * 100);
       process.stdout.write('ctx ' + Math.round(used / 1000) + 'k/' + Math.round(size / 1000) + 'k (' + pct + '%)');
     }
-    if (sock) {
+    if (target) {
       try {
-        const c = net.createConnection(sock, () => { c.end(JSON.stringify(payload) + '\\n'); });
+        const c = net.createConnection(target, () => { c.end(JSON.stringify(payload) + '\\n'); });
         c.on('error', () => {});
         c.on('close', () => process.exit(0));
       } catch (_) { process.exit(0); }
@@ -3241,17 +3438,23 @@ process.stdin.on('end', () => {
     setTimeout(() => process.exit(0), 1500).unref();
     return;
   }
-  if (!sock) { process.exit(0); }
+  if (!target) { process.exit(0); }
   let resp = '';
   const done = (code) => { if (resp) process.stdout.write(resp); process.exit(code); };
-  const c = net.createConnection(sock, () => c.write(JSON.stringify(payload) + '\\n'));
+  const c = net.createConnection(target, () => { c.write(JSON.stringify(payload) + '\\n'); });
   c.setEncoding('utf8');
   c.on('data', (d) => { resp += d; });
-  c.on('end', () => done(0));
-  c.on('error', () => process.exit(0));
+  // Only a reply proves the floor is there. In port mode the connect lands on
+  // the sshd/tailscaled forward listener, which stays open for hours after the
+  // laptop sleeps; the HookServer always answers at least '{}', so an empty
+  // close is the forward failing to reach it.
+  c.on('end', () => { if (resp) { reachable(); done(0); } else cutOff(); });
+  c.on('error', cutOff);
+  // A forward whose far end is gone can accept and then hang. In port mode
+  // that is as unreachable as a refused connection.
   // PermissionRequest is held for god's answer (up to 5 min server-side): 320 s
   // sits between that hold and the 330 s hook timeout in hookSettings.
-  setTimeout(() => process.exit(0), payload.hook_event_name === 'PermissionRequest' ? 320000 : 5000).unref();
+  setTimeout(() => (port ? cutOff() : process.exit(0)), payload.hook_event_name === 'PermissionRequest' ? 320000 : 5000).unref();
 });
 `;
 
@@ -3277,7 +3480,7 @@ let data = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (d) => { data += d; });
 process.stdin.on('end', () => {
-  const sock = process.env.HIVE_SOCK;
+  const sock = Number(process.env.HIVE_HOOK_PORT) ? { host: '127.0.0.1', port: Number(process.env.HIVE_HOOK_PORT) } : process.env.HIVE_SOCK;
   if (!agentId || !sock) { process.exit(0); } // not a hive worker → ignore
   let agy = {};
   try { agy = JSON.parse(data || '{}'); } catch (_) {}
@@ -3649,7 +3852,7 @@ let data = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (d) => { data += d; });
 process.stdin.on('end', () => {
-  const sock = process.env.HIVE_SOCK;
+  const sock = Number(process.env.HIVE_HOOK_PORT) ? { host: '127.0.0.1', port: Number(process.env.HIVE_HOOK_PORT) } : process.env.HIVE_SOCK;
   if (!agentId || !sock) { process.exit(0); }
   let gemini = {};
   try { gemini = JSON.parse(data || '{}'); } catch (_) {}
@@ -3706,7 +3909,7 @@ let data = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (d) => { data += d; });
 process.stdin.on('end', () => {
-  const sock = process.env.HIVE_SOCK;
+  const sock = Number(process.env.HIVE_HOOK_PORT) ? { host: '127.0.0.1', port: Number(process.env.HIVE_HOOK_PORT) } : process.env.HIVE_SOCK;
   if (!agentId || !sock) { process.exit(0); }
   let grok = {};
   try { grok = JSON.parse(data || '{}'); } catch (_) {}

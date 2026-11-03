@@ -244,6 +244,7 @@ button.cth-ws-sidebar-section-title[aria-current='page'] { color: var(--cth-ink-
 .cth-ws-sidebar-agent[data-status='needs-you'] .cth-ws-sidebar-agent-live,
 .cth-ws-sidebar-agent[data-status='looping'] .cth-ws-sidebar-agent-live { color: var(--cth-ink-700); }
 .cth-ws-sidebar-orch-tag { flex-shrink: 0; font-size: 12px; color: var(--cth-ink-500); }
+.cth-ws-sidebar-orch-tag[data-offline] { color: var(--cth-coral); }
 .cth-ws-sidebar-agent-spacer { flex: 1 1 0; min-width: 0; }
 
 /* The chips at the row's end. */

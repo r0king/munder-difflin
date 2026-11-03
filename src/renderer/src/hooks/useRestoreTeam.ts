@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { useStore, type Agent } from '@/store/store';
+import { effectiveDevice } from '@/store/devices';
 import { buildSpawnCommand, inferAgentProvider, tokenizeCommand, type HarnessConfig } from '@/store/config';
 import { roleForHiveSpawn } from '@shared/agentRole';
 
@@ -122,7 +123,8 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
           let cwd = a.cwd;
           let worktreeGone = false;
           if (a.worktreePath) {
-            if (await window.cth.gitIsRepo(a.worktreePath)) {
+            // A device's worktree is on the device; main checks the folder there.
+            if (effectiveDevice(a.device, a.lastDevice) || await window.cth.gitIsRepo(a.worktreePath)) {
               cwd = a.worktreePath;
             } else {
               worktreeGone = true;
@@ -147,12 +149,15 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
             // agent id is preserved across restart, so its registry entry,
             // memory.md and inbox reattach by id. No-op without a recorded session.
             resume: true,
-            hive: { id: a.id, name: a.name, provider, cwd, role: roleForHiveSpawn(a) }
+            hive: { id: a.id, name: a.name, provider, cwd, role: roleForHiveSpawn(a), device: a.device ?? '' }
           });
           if (res.ok) {
             restored++;
             return {
                 ...a,
+                // Where it runs now: Auto picks again when its last device is
+                // down or there is no session to continue.
+                ...(res.device !== undefined ? { lastDevice: res.device } : {}),
                 provider,
                 ptyId,
                 archived: false,

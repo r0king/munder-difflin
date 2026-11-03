@@ -346,6 +346,10 @@ export class HookServer {
    *  handle(). */
   private serve(conn: Socket): void {
     let pending = Buffer.alloc(0);
+    let rejected = false;
+    // Still answer '{}' (a no-op hook reply): a device shim in port mode reads
+    // a reply-less close as "floor unreachable" and starts its pause clock.
+    // Bytes that keep arriving after the reply are dropped, not buffered.
     const rejectOversizedFrame = (bytes: number): void => {
       this.hive.appendLog({
         kind: 'hook-frame-rejected',
@@ -353,9 +357,12 @@ export class HookServer {
         bytes,
         limit: MAX_HOOK_FRAME_BYTES,
       });
-      conn.destroy();
+      rejected = true;
+      pending = Buffer.alloc(0);
+      conn.end('{}');
     };
     conn.on('data', (chunk) => {
+      if (rejected) return;
       pending = Buffer.concat([pending, chunk]);
       const nl = pending.indexOf(0x0a);
       if (nl === -1) {

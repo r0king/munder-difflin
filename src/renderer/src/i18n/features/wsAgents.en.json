@@ -192,6 +192,8 @@
     "restarting": "Restarting…",
     "appliedContinued": "{{name}} restarted and is continuing the conversation.",
     "appliedFresh": "{{name}} restarted with a fresh session.",
+    "move": "Move and restart",
+    "moved": "{{name}} now runs on {{device}}.",
     "role": "Role",
     "rolePlaceholder": "What this agent is for",
     "roleHint": "Saved when you leave the field. The orchestrator reads it when routing work.",

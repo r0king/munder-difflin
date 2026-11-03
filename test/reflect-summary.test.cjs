@@ -119,3 +119,33 @@ test('malformed legacy JSON and garbage remain fail-closed', () => {
     assert.equal(parseSummary(output), null, output);
   }
 });
+
+test('skips the LLM call when the kept recent sections alone fail the shrink gate', async () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { MemoryReflector } = loadTs('src/main/reflect.ts');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'reflect-'));
+  try {
+    const dir = path.join(home, 'hive', 'agents', 'stanley');
+    fs.mkdirSync(dir, { recursive: true });
+    // 13 sections: one small evictable, twelve big kept (live shape of 2026-10-28).
+    const sections = [`## old\n${'x'.repeat(200)}`];
+    for (let i = 0; i < 12; i++) sections.push(`## s${i}\n${'y'.repeat(7000)}`);
+    fs.writeFileSync(path.join(dir, 'memory.md'), `# Memory\n\n${sections.join('\n\n')}\n`);
+    const log = [];
+    const r = new MemoryReflector(
+      () => home,
+      () => '/nonexistent/claude', // reached only if the guard fails → summarize-failed
+      () => ({}),
+      () => ({ enabled: true, intervalMs: 60_000, byteTriggerPct: 50, sectionTrigger: 50, recentKeep: 12, minBytes: 16_384 }),
+      (e) => log.push(e)
+    );
+    const [res] = await r.reflectNow('stanley');
+    assert.equal(res.reason, 'recent-too-large');
+    assert.equal(log[0].reason, 'recent-too-large');
+    assert.equal(fs.existsSync(path.join(home, 'hive', 'backups')), false);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});

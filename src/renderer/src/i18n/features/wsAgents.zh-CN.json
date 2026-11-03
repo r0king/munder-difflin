@@ -192,6 +192,8 @@
     "restarting": "正在重启…",
     "appliedContinued": "{{name}} 已重启，正在继续对话。",
     "appliedFresh": "{{name}} 已重启，开始了全新的会话。",
+    "move": "移动并重启",
+    "moved": "{{name}} 现在运行在 {{device}} 上。",
     "role": "角色",
     "rolePlaceholder": "这个智能体是做什么的",
     "roleHint": "离开输入框时保存。编排者分派工作时会读取它。",

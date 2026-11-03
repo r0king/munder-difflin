@@ -211,7 +211,8 @@
       "autonomyBudgets": "Autonomy & Budgets",
       "connections": "Connections",
       "voice": "Voice",
-      "memoryKnowledge": "Memory & Knowledge"
+      "memoryKnowledge": "Memory & Knowledge",
+      "devices": "Devices"
     },
     "changeHome": {
       "newHome": "New home folder",
@@ -1405,5 +1406,65 @@
     "viewSource": "view source",
     "loading": "loading image…",
     "decodeFailed": "could not decode this image — the file may be corrupt or misnamed"
+  },
+  "devices": {
+    "title": "Devices",
+    "intro": "Other Linux machines that run agents for this floor, over Tailscale SSH. Each one needs the same folder layout as this laptop.",
+    "state": {
+      "online": "online",
+      "connecting": "connecting",
+      "offline": "offline"
+    },
+    "fieldId": "Name",
+    "fieldHost": "Host (Tailscale IP or name)",
+    "fieldUser": "User (optional)",
+    "add": "Add device",
+    "remove": "Remove",
+    "inUse": "Agents still run here",
+    "check": "Check",
+    "checking": "Checking…",
+    "fix": "Fix:",
+    "errId": "Use 1–32 letters, digits, - or _, not \"local\", and a name not already used.",
+    "errHost": "Enter the device's Tailscale IP or name.",
+    "errUser": "Use a Linux user name: letters, digits, _, . or -, starting with a letter or _.",
+    "errOffline": "{{device}} is not online. Moving now would stop this agent and leave it unable to start, so it was not moved.",
+    "none": "No devices yet.",
+    "items": {
+      "login": "SSH login",
+      "claude": "claude found and logged in",
+      "node": "node",
+      "tmux": "tmux",
+      "sshfs": "sshfs",
+      "mount": "Hive mounted",
+      "folder": "Folder {{path}}",
+      "base": "Base folder {{path}}",
+      "wslSystemd": "systemd on in WSL",
+      "wslFuse": "/dev/fuse in WSL",
+      "wslIdle": "Windows keeps WSL running",
+      "wslSleep": "Windows never sleeps",
+      "engine": "{{name}} found"
+    },
+    "runsOn": "Runs on",
+    "thisLaptop": "This laptop",
+    "runsOnHint": "Its folder must exist on {{device}}; heavy work runs there.",
+    "restartsHint": "Changing it restarts the agent there; its conversation is copied over.",
+    "offlineReconnecting": "offline · reconnecting",
+    "conversationStayed": "conversation stayed on {{device}} ({{reason}}); started fresh",
+    "stayedReason": {
+      "offline": "offline",
+      "missing": "not found",
+      "failed": "copy failed"
+    },
+    "auto": "Auto (least loaded)",
+    "autoHint": "Picks this laptop or a checked device with the most free memory at each fresh start. It never moves while running.",
+    "godWarning": "While {{device}} is offline the floor has no god: mail to it waits, and it pauses after the offline limit like any agent.",
+    "reminder": "Check by hand:",
+    "usageUnavailable": "usage not available on a device"
+  },
+  "remoteFloor": {
+    "toggle": "Control page: the floor on your phone",
+    "hint": "Served on this laptop’s Tailscale address only. Only your Tailscale login gets in.",
+    "address": "Open {{url}}",
+    "waiting": "Waiting for Tailscale…"
   }
 }
