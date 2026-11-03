@@ -78,6 +78,9 @@ export interface HarnessConfig {
   /** May the orchestrator ("Michael") spin up agents on its own? Default FALSE,
    *  so an absent value reads as off. Mirrors src/main/config.ts. */
   orchestratorMaySpawn?: boolean;
+  /** May the orchestrator command workers and answer their permission prompts?
+   *  Default FALSE. Mirrors src/main/config.ts. */
+  orchestratorMayControlAgents?: boolean;
   defaultCommand: string;
   /** Default model for newly spawned agents (e.g. 'claude-sonnet-4-6[1m]'); unset = CLI default. */
   defaultModel?: string;

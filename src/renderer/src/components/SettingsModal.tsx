@@ -297,6 +297,12 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
     setOrchSpawnOn(next);
     stage({ orchestratorMaySpawn: next } as Partial<HarnessConfig>);
   };
+  const [orchControlOn, setOrchControlOn] = useState<boolean>(cfgX.orchestratorMayControlAgents === true);
+  const toggleOrchControl = async () => {
+    const next = !orchControlOn;
+    setOrchControlOn(next);
+    stage({ orchestratorMayControlAgents: next } as Partial<HarnessConfig>);
+  };
   const [defaultModelSel, setDefaultModelSel] = useState<string>(cfgX.defaultModel ?? 'claude-fable-5');
   const saveDefaultModel = (id: string): void => {
     setDefaultModelSel(id);
@@ -1290,6 +1296,26 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                           </div>
                           <PixelButton variant={orchSpawnOn ? 'primary' : 'secondary'} size="sm" onClick={toggleOrchSpawn}>
                             {orchSpawnOn ? `me and ${godName}` : 'only me'}
+                          </PixelButton>
+                        </div>
+                      </div>
+
+                      <div style={{ height: 1, background: 'var(--cth-ink-300)', margin: '12px 0' }} />
+
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-900)' }}>
+                              Who can command agents
+                            </span>
+                            <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
+                              {orchControlOn
+                                ? `${godName} can type commands into workers and answer their permission prompts. Anything a worker accepts only from you, he can supply.`
+                                : `Only you. ${godName} cannot type into a worker's terminal or answer its prompts.`}
+                            </span>
+                          </div>
+                          <PixelButton variant={orchControlOn ? 'primary' : 'secondary'} size="sm" onClick={toggleOrchControl}>
+                            {orchControlOn ? `me and ${godName}` : 'only me'}
                           </PixelButton>
                         </div>
                       </div>

@@ -31,8 +31,12 @@ user draft it could land on.)
 ```
 composer / Slack ingress ─┐
 inbox nudge (effect #3) ──┼──▶ enqueueMessage(agentId, text) ──▶ MD queue ──▶ drain (#4) ──▶ PTY
-scheduled /compact (#6) ──┘
+scheduled /compact (#6) ──┤
+god `command` act ────────┘   (raw: the handoff listener enqueues the body verbatim)
 ```
+
+A god `command` (opt-in `orchestratorMayControlAgents`) takes the same path, so it waits
+for the same idle prompt and the same delivery pause as every other message.
 
 This is load-bearing. When the inbox nudge wrote straight into the terminal, it was
 a second writer with its own idea of when the prompt was free — and its text landed

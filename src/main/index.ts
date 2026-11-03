@@ -356,7 +356,9 @@ const hookServer = new HookServer(
     workerWake.noteHook(agentId, event, message);
     floorActivity.note(agentId, event, message);
     if (event === 'PostCompact' && agentId) compactRequests.noteCompacted(agentId);
-  }
+  },
+  // God's live terminal: permission prompts are only held when someone can read them.
+  () => { const reg = hive.registry(); return !!ptyForAgent(reg.godId ?? 'god'); }
 );
 // god (or the auto threshold below) drops HIVE_ROOT/compact-requests/<id>.json;
 // polled on the spawn-requests tick. See compactRequests.ts.
@@ -385,6 +387,7 @@ const compactRequests = new CompactRequests(
     }
   }
 );
+hive.setPermissionAnswerer((requestId, agentId, decision) => hookServer.answerPermission(requestId, agentId, decision));
 const memory = new MemoryManager(
   () => readConfig().harnessHome,
   () => { const c = readConfig(); return { enabled: c.semanticMemory !== false, model: c.embeddingModel ?? 'minilm' }; }
@@ -3705,6 +3708,7 @@ ipcMain.handle('config:update', (_evt, patch: Partial<HarnessConfig>) => {
   // config per tick so it gates immediately; this is for the PROMPT, which is
   // built per spawn, so flipping the toggle reaches god the next time he starts.
   if (typeof patch?.orchestratorMaySpawn === 'boolean') hive.setOrchestratorMaySpawn(patch.orchestratorMaySpawn);
+  if (typeof patch?.orchestratorMayControlAgents === 'boolean') hive.setOrchestratorMayControlAgents(patch.orchestratorMayControlAgents);
   if (!hiveWasEnabled && hive.enabled()) {
     console.log('[hive] harnessHome configured — bootstrapping hive services');
     try { bootstrapHiveServices(); } catch (e) { console.error('[hive] bootstrap after onboarding:', e); }
@@ -5723,6 +5727,7 @@ function bootstrapHiveServices(): void {
   hive.setOrchestratorMaySpawn(readConfig().orchestratorMaySpawn === true);
   syncRemoteFloor(readConfig());
   hive.setDeviceIds((readConfig().devices ?? []).map((d) => d.id));
+  hive.setOrchestratorMayControlAgents(readConfig().orchestratorMayControlAgents === true);
   // An app-start marker in the event log. log.jsonl had twelve event kinds and
   // none of them meant "the app restarted", so a relaunch, and more importantly a
   // switch between a packaged build and a local one, was invisible to every agent

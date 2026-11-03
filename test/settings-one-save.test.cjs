@@ -36,7 +36,7 @@ test('the one writer is saveAll, and it sends a single merged patch', () => {
 
 test('toggles stage their change instead of writing it', () => {
   // The specific toggles that used to persist the instant you clicked them.
-  for (const key of ['strongKeepalive', 'autoMode', 'orchestratorMaySpawn',
+  for (const key of ['strongKeepalive', 'autoMode', 'orchestratorMaySpawn', 'orchestratorMayControlAgents',
                      'semanticMemory', 'autoUpdate', 'telemetryEnabled']) {
     const re = new RegExp(`stage\\(\\{ ${key}:`);
     assert.match(MODAL, re, `${key} is not staged`);

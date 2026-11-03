@@ -620,6 +620,12 @@ export function useHive(config: HarnessConfig | null): void {
       const { agents, enqueueMessage, messageQueues } = useStore.getState();
       const target = agents.find((a) => a.id === msg.to);
       if (target?.ptyId) {
+        if (msg.raw) {
+          // God command: slash commands must arrive verbatim, no work-order wrapper.
+          seenTerminalHandoffs.current.add(msg.id);
+          enqueueMessage(target.id, msg.body);
+          return;
+        }
         const marker = `Message: ${msg.id}`;
         if ((messageQueues[target.id] ?? []).some((queued) => queued.text.includes(marker))) return;
         seenTerminalHandoffs.current.add(msg.id);

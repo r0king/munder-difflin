@@ -216,7 +216,12 @@
     "maySpawnOn": "You and {{godName}}",
     "maySpawnOff": "Only you",
     "maySpawnHintOn": "{{godName}} can hire on his own. Every agent he starts spends tokens you did not approve.",
-    "maySpawnHintOff": "{{godName}} can still ask, and his request waits in the queue instead of failing."
+    "maySpawnHintOff": "{{godName}} can still ask, and his request waits in the queue instead of failing.",
+    "mayControl": "Who can command agents",
+    "mayControlOn": "You and {{godName}}",
+    "mayControlOff": "Only you",
+    "mayControlHintOn": "{{godName}} can type commands into workers and answer their permission prompts. Anything a worker accepts only from you, he can supply.",
+    "mayControlHintOff": "{{godName}} cannot type into a worker's terminal or answer its prompts."
   },
   "time": {
     "today": "Today",
