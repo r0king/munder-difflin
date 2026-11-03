@@ -20,6 +20,7 @@ import type { ControlRegistry } from './control';
 import type { CircuitBreaker } from './breaker';
 import { estimateCostUsd } from './pricing';
 import { validateHookEvent } from '../shared/hookEvents';
+import { activityLabel, busyFor, isIdleNotice, trackTool, type ToolInFlight } from '../shared/toolActivity';
 
 /** Maximum JSON payload bytes in one newline-delimited hook frame. */
 const MAX_HOOK_FRAME_BYTES = 256 * 1024;
@@ -128,6 +129,8 @@ export class HookServer {
    *  get_agent_detail / list_agents) can report "how full is each agent's context"
    *  without depending on a renderer round-trip. */
   private contextById = new Map<string, { tokens: number; limit: number; ts: number }>();
+  /** Open tool calls per agent: the busy signal for quiet-PTY checks (toolActivity.ts). */
+  private toolsInFlight = new Map<string, ToolInFlight>();
   /** The goal last delivered to each agent's current session. Goals are durable
    *  roster state, so repeating an unchanged multi-kilobyte briefing on every
    *  prompt only bloats the transcript. One entry per agent is sufficient: an
@@ -457,6 +460,12 @@ export class HookServer {
     return this.contextById.get(agentId);
   }
 
+  /** The agent's open tool call (a test suite, a hooked commit), if any. A busy
+   *  agent's PTY can be silent for minutes, so quiet-PTY checks consult this. */
+  busyFor(agentId: string): ToolInFlight | undefined {
+    return busyFor(this.toolsInFlight, agentId, Date.now());
+  }
+
   private handle(p: HookPayload): unknown {
     const agentId = p.agent_id ?? undefined;
     const event = p.hook_event_name ?? 'Unknown';
@@ -493,6 +502,12 @@ export class HookServer {
         });
       }
       return {};
+    }
+
+    // Busy signal. PreToolUse opens a call further down, after the HALT and HITL
+    // gates, so a stopped or denied call never counts; any other event may close one.
+    if (agentId && event !== 'PreToolUse') {
+      trackTool(this.toolsInFlight, agentId, event, '', Date.now(), isIdleNotice(event, p.notification_type, p.message));
     }
 
     // 7C.3 — a graceful operator HALT overrides everything (incl. the inbox
@@ -584,7 +599,8 @@ export class HookServer {
       const d = this.control.toolDecision(agentId, p.tool_name ?? '');
       if (d.deny) {
         this.emitControl(agentId, p.tool_name, d.reason);
-        this.emit(agentId, event, p);
+        // blocked = denied: the renderer must not count it as a running call.
+        this.emit(agentId, event, p, true);
         return {
           hookSpecificOutput: {
             hookEventName: 'PreToolUse',
@@ -593,6 +609,10 @@ export class HookServer {
           }
         };
       }
+    }
+
+    if (event === 'PreToolUse' && agentId) {
+      trackTool(this.toolsInFlight, agentId, event, activityLabel(p.tool_name, p.tool_input), Date.now());
     }
 
     // 7C.2 — mid-run steering: inject queued operator guidance as context on the
@@ -695,6 +715,7 @@ export class HookServer {
       agentId,
       event,
       tool: p.tool_name,
+      activity: event === 'PreToolUse' ? activityLabel(p.tool_name, p.tool_input) : undefined,
       notificationType: p.notification_type,
       source: p.source,
       message: p.message,

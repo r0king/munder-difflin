@@ -99,6 +99,7 @@ test('a lookup that fails reads as "not installed" and clears the in-flight slot
 
 test('refreshAsync arms the mine loop after a late install, once', async (t) => {
   const { memory, state } = manager(t);
+  memory.binCache = null; // not installed yet: keep start()'s sync lookup off a real mempalace on PATH
   memory.start();
   assert.equal(memory.mineTimer, null, 'nothing to start before the install');
   assert.equal((await memory.refreshAsync()).available, false);

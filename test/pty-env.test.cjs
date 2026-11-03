@@ -109,3 +109,11 @@ test('locale: UTF-8 defaults on darwin, the user\'s exported locale wins, win32 
   assert.ok(!('LANG' in win));
   assert.ok(!('LC_CTYPE' in win));
 });
+
+test('the app\'s NODE_ENV never reaches an agent; a per-agent value still wins', () => {
+  // electron-vite preview sets NODE_ENV=production in-process; an agent's own
+  // Vite dev server then bundled React's production runtime (blank page).
+  const env = buildPtyEnv({ HOME: '/h', NODE_ENV: 'production' }, '/bin', undefined, 'linux');
+  assert.ok(!('NODE_ENV' in env));
+  assert.equal(buildPtyEnv({ NODE_ENV: 'production' }, '/bin', { NODE_ENV: 'test' }, 'linux').NODE_ENV, 'test');
+});

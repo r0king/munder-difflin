@@ -138,7 +138,8 @@ export function runHiddenClaude(prompt: string, opts: HiddenClaudeOptions): Prom
         rows: 50,
         cwd: opts.cwd,
         env: {
-          ...process.env,
+          // Minus NODE_ENV: the app's build mode, not the session's (see ptyEnv.ts).
+          ...Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== 'NODE_ENV')),
           PATH: userShellPath(),
           ...(opts.env ?? {}),
         } as Record<string, string>,

@@ -18,7 +18,8 @@ import { DEFAULT_CONTEXT_TRIGGER, type ContextRule } from '../../../shared/trigg
 import type { AgentProvider } from '../../../shared/agentProvider';
 import { bridgeOf, providerPreset } from '../../../shared/agentProvider';
 import { isDurableRole, preferredAgentRole, roleForHiveSpawn } from '../../../shared/agentRole';
-import { inboxNudgeText } from '../../../shared/hiveNudge';
+import { busyFor, busyText, isIdleNotice, trackTool, type ToolInFlight } from '../../../shared/toolActivity';
+import { inboxNudgeText, GOD_INBOX_BATCH_MS, wakesGodNow } from '../../../shared/hiveNudge';
 import { resolveGodName } from '../../../shared/godIdentity';
 import { acquireTerminal, resetTerminal, isTerminalAutomationSafe } from '@/components/terminalPool';
 import { canDeliverToAgent, deliverWithAcknowledgement, checkPrecondition } from './queueDelivery';
@@ -301,6 +302,8 @@ export function useHive(config: HarnessConfig | null): void {
   // negligible next to a stalled agent. Evicting ids that have left the inbox would
   // bound it exactly; deliberately not done here to keep this fix minimal.
   const nudged = useRef<Record<string, Set<string>>>({});
+  // When god's current inbox batch window opened (null = no un-nudged mail).
+  const godBatchSince = useRef<number | null>(null);
   // Per-agent context size at the last auto-/compact queued. See the latch note
   // in the context-trigger effect: an idle agent's token count is frozen, so
   // without this the pressure gate re-fires on the identical number every cycle.
@@ -354,6 +357,9 @@ export function useHive(config: HarnessConfig | null): void {
   // 'stopped' the avatar is pinned to 'looping' and hook events must NOT flip it
   // back to 'working' (the flicker the spec calls out); only a genuine Stop clears it.
   const breakerLevel = useRef<Record<string, string>>({});
+  // Open tool calls per agent (toolActivity.ts): the 2e fallback below must not
+  // read a long, silent test run as idle.
+  const toolsInFlight = useRef(new Map<string, ToolInFlight>());
 
   // 0) Heal roster `description` from hive `role` when the floor caption was
   //    overwritten by a status string ("on standby") after hire.
@@ -488,6 +494,11 @@ export function useHive(config: HarnessConfig | null): void {
       // regardless of in-flight tool/prompt/compact events.
       const blevel = breakerLevel.current[e.agentId];
       const breakerArmed = blevel === 'constrained' || blevel === 'stopped';
+      // A blocked PreToolUse was denied by the HITL gate: nothing is running.
+      if (!(e.event === 'PreToolUse' && e.blocked)) {
+        trackTool(toolsInFlight.current, e.agentId, e.event, e.activity ?? `using ${e.tool}`, Date.now(),
+          isIdleNotice(e.event, e.notificationType, e.message));
+      }
       // Hook events are the authoritative status source for real agents (the
       // pty-stream parser only refines the on-floor action/station).
       if (e.event === 'PreCompact') {
@@ -497,7 +508,7 @@ export function useHive(config: HarnessConfig | null): void {
         if (!breakerArmed) updateAgent(e.agentId, { status: 'working', action: 'resumed', carrying: undefined });
       } else if (e.event === 'PreToolUse' && e.tool) {
         const m = stationForTool(e.tool);
-        if (!breakerArmed) updateAgent(e.agentId, { status: 'working', currentStation: m.station, carrying: m.carry, action: `using ${e.tool}` });
+        if (!breakerArmed) updateAgent(e.agentId, { status: 'working', currentStation: m.station, carrying: m.carry, action: e.activity ?? `using ${e.tool}` });
         useStore.getState().bumpToolCount(e.agentId); // usage proxy for the command center
       } else if (e.event === 'PostToolUse' || e.event === 'UserPromptSubmit') {
         // A turn is in progress (prompt submitted / tool just finished) — keep
@@ -669,7 +680,20 @@ export function useHive(config: HarnessConfig | null): void {
       const now = Date.now();
       const { agents, updateAgent } = useStore.getState();
       for (const a of agents) {
-        if (!a.ptyId || a.status !== 'working') continue;
+        if (!a.ptyId) continue;
+        // A tool call is open (a test suite, a hooked commit): busy however
+        // silent the PTY is. Re-assert over an idle flip (usePtyParser's 4s
+        // drift) and keep the elapsed time on the label. Other states (looping,
+        // waiting on a permission, compacting) are left alone.
+        const busy = busyFor(toolsInFlight.current, a.id, now);
+        if (busy) {
+          const action = busyText(busy, now);
+          if ((a.status === 'idle' || a.status === 'working') && (a.status !== 'working' || a.action !== action)) {
+            updateAgent(a.id, { status: 'working', action });
+          }
+          continue;
+        }
+        if (a.status !== 'working') continue;
         // Never fight the breaker pin (a constrained/stopped agent stays 'looping')
         // or a still-booting agent (its boot sequence is mid-type).
         const bl = breakerLevel.current[a.id];
@@ -717,6 +741,15 @@ export function useHive(config: HarnessConfig | null): void {
           // on the floor when the agent is god.
           const seen = nudged.current[a.id] ?? (nudged.current[a.id] = new Set());
           const fresh = inbox.filter((m) => m.id && !seen.has(m.id));
+          // God's replies land in the human's terminal, so hold god's fresh mail
+          // for GOD_INBOX_BATCH_MS and wake god once for the whole burst. `seen`
+          // only grows on enqueue, so `fresh` keeps accumulating the held ids.
+          if (a.id === GOD_ID) {
+            if (!fresh.length) { godBatchSince.current = null; continue; }
+            const since = (godBatchSince.current ??= Date.now());
+            if (Date.now() - since < GOD_INBOX_BATCH_MS && !fresh.some(wakesGodNow)) continue;
+            godBatchSince.current = null;
+          }
           if (fresh.length) {
             // Name the ids: the nudge is queued now and typed whenever the agent
             // next goes idle, so it can arrive long after the agent drained and
@@ -727,7 +760,7 @@ export function useHive(config: HarnessConfig | null): void {
             // inbox as the authority rather than at the list.
             useStore.getState().enqueueMessage(
               a.id,
-              inboxNudgeText(fresh.map((m) => m.id)),
+              inboxNudgeText(fresh.map((m) => m.id), a.id === GOD_ID),
               { precondition: 'inbox-nonempty' }
             );
             for (const m of fresh) seen.add(m.id);

@@ -22,9 +22,26 @@ const NUDGE_HEAD = 'You have new hive inbox message(s)';
  * has a nudge suppressed by the one-pending rule below still finds its mail by
  * reading the directory, so the text must never invite it to stop at the ids.
  */
-export function inboxNudgeText(ids: string[]): string {
+export function inboxNudgeText(ids: string[], god = false): string {
   const named = ids.length ? ` — at least: ${ids.join(', ')}` : '';
-  return `${NUDGE_HEAD}${named}. Read your inbox, act on what is pending there, and move handled ones to inbox/.done/. Your inbox directory is authoritative: work everything still pending in it, and if a named id is already in inbox/.done/ you handled it on an earlier turn and can ignore that one. Act autonomously; only message god if you genuinely need a decision.`;
+  // God's turns print in the human's terminal, so tell god this one came from
+  // the harness, not from them, and a one-liner is enough.
+  const tail = god
+    ? 'This is an inbox-only wake (batched, not typed by the human): reply in one line unless something needs their decision.'
+    : 'Act autonomously; only message god if you genuinely need a decision.';
+  return `${NUDGE_HEAD}${named}. Read your inbox, act on what is pending there, and move handled ones to inbox/.done/. Your inbox directory is authoritative: work everything still pending in it, and if a named id is already in inbox/.done/ you handled it on an earlier turn and can ignore that one. ${tail}`;
+}
+
+/**
+ * How long god's inbox wake holds fresh mail before nudging, so a burst of
+ * status mail (hash updates, review closed, ...) lands as ONE turn instead of
+ * one turn per message. Workers are not batched.
+ */
+export const GOD_INBOX_BATCH_MS = 3 * 60_000;
+
+/** Mail that skips god's batch window: flagged `urgent`, or a question. */
+export function wakesGodNow(m: { act?: string; urgent?: unknown }): boolean {
+  return m.urgent === true || m.act === 'query' || m.act === 'question';
 }
 
 /**

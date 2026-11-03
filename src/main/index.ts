@@ -66,6 +66,7 @@ import { buildWorkerLaunch } from './workerLaunch';
 import { ControlRegistry } from './control';
 import { WorkerWakeWatchdog, WORKER_WAKE_REPORT_MS, activityEvidenceAt, type WorkerWakeFacts } from './workerWake';
 import { inboxNudgeText } from '../shared/hiveNudge';
+import { busyText } from '../shared/toolActivity';
 import { resolveGodName } from '../shared/godIdentity';
 import { fetchHireManifest, readHireManifestFiles } from './hire';
 import { parseHireDeepLink, type HireManifest } from '../shared/hire';
@@ -1065,6 +1066,8 @@ function isFloorQuiet(thresholdMs: number): boolean {
     }
   }
   for (const t of ptyManager.list()) times.push(t.lastOutputAt);
+  // An open tool call (a test suite) is activity, however silent its PTY.
+  if (Object.keys(hive.registry().agents).some((id) => hookServer.busyFor(id))) return false;
   if (times.length === 0) return false; // nothing to judge → don't fire
   return Date.now() - Math.max(...times) > thresholdMs;
 }
@@ -1161,6 +1164,11 @@ function buildHeartbeatDigest(quietMs: number, actionable = 0): string {
   const boardHead = hive.board().split('\n').slice(0, 10).join('\n').trim();
   const log = hive.logTail(8).map((e) => { try { return JSON.stringify(e); } catch { return ''; } }).filter(Boolean).join('\n');
   const withInbox = active.filter(([id]) => hive.inbox(id).length > 0).map(([, a]) => a.name);
+  const now = Date.now();
+  const busy = active.flatMap(([id, a]) => {
+    const b = hookServer.busyFor(id);
+    return b ? [`${a.name} (${busyText(b, now)})`] : [];
+  });
   // When real agent/human mail is waiting, lead with an explicit call-to-action
   // instead of the "quiet" line — this beat fired BECAUSE of unread actionable
   // inbox, not because the floor went quiet, and god must read it now.
@@ -1171,6 +1179,7 @@ function buildHeartbeatDigest(quietMs: number, actionable = 0): string {
     header,
     `Active agents (${active.length}): ${names}.`,
     withInbox.length ? `Undrained inbox: ${withInbox.join(', ')}.` : 'No undrained inboxes.',
+    ...(busy.length ? [`Mid tool call (busy, not stalled): ${busy.join(', ')}.`] : []),
     '',
     'Board (head):',
     boardHead || '(empty)',
@@ -1331,6 +1340,7 @@ function writeFleetSnapshot(): void {
         // fall back to the session figure rather than publishing a cold $0.
         const lifetime = costTotals.usdFor(id);
         const sessionUsd = u ? Number(u.usd.toFixed(4)) : 0;
+        const busy = hookServer.busyFor(id);
         return {
           id,
           name: a.name,
@@ -1343,6 +1353,9 @@ function writeFleetSnapshot(): void {
           sessionUsd,
           lastTool: spans.length ? spans[spans.length - 1].tool : null,
           lastActiveSecAgo: u ? Math.round((now - u.ts) / 1000) : null,
+          // Set while a tool call is open ("running tests 4m"): lastActiveSecAgo
+          // only moves on model traffic, so it grows through a long test run.
+          running: busy ? busyText(busy, now) : null,
           inboxBacklog: hive.inboxBacklog(id),
           onHold: !!a.onHold
         };
@@ -5036,7 +5049,8 @@ async function ephemeralWorkerTick(): Promise<void> {
       }
       const idleMs = ptyManager.idleFor(workerId);
       if (idleMs === undefined) continue; // PTY already gone; teardownPty cleans up
-      if (idleMs > idleTimeoutMs) {
+      // A silent PTY mid tool call (a 25-min test suite) is working, not idle.
+      if (idleMs > idleTimeoutMs && !hookServer.busyFor(workerId)) {
         rec.releasing = true;
         console.warn(`[worker] reaping idle ${workerId} (${Math.round(idleMs / 60000)}min idle)`);
         informGod(

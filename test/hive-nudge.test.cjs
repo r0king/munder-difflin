@@ -21,7 +21,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const loadTs = require('./load-ts.cjs');
 
-const { inboxNudgeText, isInboxNudge } = loadTs('src/shared/hiveNudge.ts');
+const { inboxNudgeText, isInboxNudge, wakesGodNow } = loadTs('src/shared/hiveNudge.ts');
 
 // — the queue's one-pending-nudge invariant depends entirely on this predicate —
 
@@ -67,4 +67,21 @@ test('a nudge with no ids is still a well-formed nudge', () => {
   const text = inboxNudgeText([]);
   assert.equal(isInboxNudge(text), true);
   assert.doesNotMatch(text, /at least:/);
+});
+
+// — god's batched wake —
+
+test("god's nudge is still a nudge and says it is an inbox-only wake", () => {
+  const text = inboxNudgeText(['msg-1'], true);
+  assert.equal(isInboxNudge(text), true);
+  assert.match(text, /inbox-only wake/);
+  assert.doesNotMatch(text, /only message god/);
+});
+
+test('only urgent mail or a question skips the batch window', () => {
+  assert.equal(wakesGodNow({ act: 'inform', urgent: true }), true);
+  assert.equal(wakesGodNow({ act: 'query' }), true);
+  assert.equal(wakesGodNow({ act: 'question' }), true);
+  assert.equal(wakesGodNow({ act: 'inform' }), false);
+  assert.equal(wakesGodNow({ act: 'done', urgent: 'yes' }), false);
 });
