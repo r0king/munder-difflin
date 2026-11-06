@@ -45,6 +45,7 @@ import { selectBroadcastTargets } from '../shared/broadcast';
 import { preferredAgentRole } from '../shared/agentRole';
 import { mergeTaskLedger } from '../shared/taskLedger';
 import { expandTilde } from './fs';
+import { refreshMineIgnoresOnce } from './hiveMineIgnore';
 import { resolveGodName } from '../shared/godIdentity';
 
 /** The subset of HarnessConfig the hive consumes for the default-MCP merge.
@@ -475,6 +476,10 @@ export class HiveManager {
     return this._runtime;
   }
 
+  /** Whether config.disableHiveGitCommits is on: no commits and no new repository. Mirrored like the spawn gate below. */
+  private _gitCommitsDisabled = false;
+  setGitCommitsDisabled(on: boolean): void { this._gitCommitsDisabled = on; }
+
   /** Whether config.orchestratorMaySpawn is on, mirrored here so the prompt
    *  builder can decide whether to tell god the spawn queue is available. Set at
    *  bootstrap and on every config write; hive.ts deliberately does not import
@@ -752,7 +757,8 @@ export class HiveManager {
     // …and the PATH-visible `node` fallback for the agent's OWN subprocesses.
     this.writeRuntimeShims();
 
-    if (!existsSync(join(root, '.git'))) {
+    refreshMineIgnoresOnce(this, root, ensureMineIgnore);
+    if (!this._gitCommitsDisabled && !existsSync(join(root, '.git'))) {
       this.git(['init', '-q'], root);
       this.commit('hive: init');
     }
@@ -3123,6 +3129,7 @@ export class HiveManager {
 
   /** Commit all hive changes. No-op if there is nothing staged. */
   commit(message: string): void {
+    if (this._gitCommitsDisabled) return;
     const root = this.root();
     if (!root || !existsSync(join(root, '.git'))) return;
     this.untrackCostLedger(root);

@@ -271,6 +271,9 @@ export interface HarnessConfig {
   /** Agent ids whose automatic inbox/queue delivery is paused. Pending messages
    *  stay durable until the operator explicitly resumes delivery. */
   autoDeliveryPausedAgents?: string[];
+  /** Stop committing the hive folder to git on every state change, and stop creating a repository
+   *  for a new one. An existing repository is left as it is. Off by default. */
+  disableHiveGitCommits?: boolean;
   /** Passed to every spawned agent as `--max-turns <n>` when set; unset = no cap
    *  (Claude Code's default). A coarse runaway guard independent of the breaker. */
   maxTurns?: number;
