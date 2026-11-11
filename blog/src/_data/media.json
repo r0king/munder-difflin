@@ -3275,6 +3275,261 @@
     },
     "inline": {}
   },
+  "agent-tools-today-2026-11-03": {
+    "title": "Agent Tools Today, 3 Nov 2026: Astra Edits Weights, Claude Code 2.1.317, Momentic Mo",
+    "category": "news",
+    "hero": {
+      "file": "assets/media/agent-tools-today/hero.png",
+      "alt": "Hand drawn sketch: a front page with five numbered lines, a clock, and a yellow character reading it out",
+      "prompt": "Series hero for the Agent Tools Today daily brief, drawn in code (media-src/topic-tiles.html?t=news). Reused by every brief.",
+      "status": "ready"
+    },
+    "inline": {},
+    "youtube": []
+  },
+  "t3-code-alternatives": {
+    "title": "T3 Code Alternatives: 6 Picks by Why You Are Leaving (Nov 2026)",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/t3-code-alternatives/hero.png",
+      "alt": "Title card on white. A pill reading Alternatives, the title T3 Code alternatives, the line 6 picks by why you are leaving and a Checked 3 Nov 2026 line. Six small tiles named Claude Code desktop, Munder Difflin, Codex app, Orca, Conductor and OpenCode desktop slide in under a grey tile labelled T3 Code.",
+      "prompt": "Title card: the hero scene in assets/media/t3-code-alternatives/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "agent-tools-today-2026-11-04": {
+    "title": "Agent Tools Today, 4 Nov 2026: Postman Plugins, Astra Critique, Claude Code 2.1.318",
+    "category": "news",
+    "hero": {
+      "file": "assets/media/agent-tools-today/hero.png",
+      "alt": "Hand drawn sketch: a front page with five numbered lines, a clock, and a yellow character reading it out",
+      "prompt": "Series hero for the Agent Tools Today daily brief, drawn in code (media-src/topic-tiles.html?t=news). Reused by every brief.",
+      "status": "ready"
+    },
+    "inline": {},
+    "youtube": []
+  },
+  "agent-desktop-alternatives": {
+    "title": "agent-desktop Alternatives: 6 Picks by Why You Are Leaving (Nov 2026)",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/agent-desktop-alternatives/hero.png",
+      "alt": "Title card on white. A pill reading Alternatives, the title agent-desktop alternatives, the line 6 picks by why you are leaving and a Checked 4 Nov 2026 line. Six small tiles named Claude Code computer use, Munder Difflin, Codex computer use, Playwright MCP, Browser Use and Cua slide in under a grey tile labelled agent-desktop.",
+      "prompt": "Title card: the hero scene in assets/media/agent-desktop-alternatives/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "worktrunk-alternatives": {
+    "title": "Worktrunk Alternatives: 6 Picks for Parallel AI Agents (Nov 2026)",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/worktrunk-alternatives/hero.png",
+      "alt": "Title card on white. A pill reading Alternatives, the title Worktrunk alternatives, the line 6 picks by why you are leaving and a Checked 4 Nov 2026 line. Six small tiles named Plain git, Munder Difflin, Claude Squad, Orca, Emdash and Conductor slide in under a grey tile labelled Worktrunk.",
+      "prompt": "Title card: the hero scene in assets/media/worktrunk-alternatives/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "antigravity-alternatives": {
+    "title": "Antigravity Alternatives: 6 Picks by Why You Are Leaving (Nov 2026)",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/antigravity-alternatives/hero.png",
+      "alt": "Title card on white. A pill reading Alternatives, the title Antigravity alternatives, the line 6 picks by why you are leaving and a Checked 4 Nov 2026 line. Six small tiles named Claude Code, Munder Difflin, Codex, Cursor, Cline and Zed slide in under a grey tile labelled Antigravity.",
+      "prompt": "Title card: the hero scene in assets/media/antigravity-alternatives/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "agent-tools-today-2026-11-05": {
+    "title": "Agent Tools Today, 5 Nov 2026: Conductor Joins Meta, OpenAI to Buy Pierre, Gemini Training",
+    "category": "news",
+    "hero": {
+      "file": "assets/media/agent-tools-today/hero.png",
+      "alt": "Hand drawn sketch: a front page with five numbered lines, a clock, and a yellow character reading it out",
+      "prompt": "Series hero for the Agent Tools Today daily brief, drawn in code (media-src/topic-tiles.html?t=news). Reused by every brief.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "roo-code-alternatives": {
+    "title": "Roo Code Alternatives: 6 Picks Now That Roo Code Is Shut Down (Nov 2026)",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/roo-code-alternatives/hero.png",
+      "alt": "Title card on white. A pill reading Alternatives, the title Roo Code alternatives, the line 6 picks now that Roo Code is shut down and a Checked 4 Nov 2026 line. Six small tiles named ZooCode, Munder Difflin, Cline, Kilo Code, Roomote and Claude Code slide in under a grey tile labelled Roo Code.",
+      "prompt": "Title card: the hero scene in assets/media/roo-code-alternatives/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "gemini-cli-alternatives": {
+    "title": "Gemini CLI Alternatives: 6 Picks Now the Free Tier Has Moved (Nov 2026)",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/gemini-cli-alternatives/hero.png",
+      "alt": "Title card on white. A pill reading Alternatives, the title Gemini CLI alternatives, the line 6 picks now the free tier has moved and a Checked 4 Nov 2026 line. Six small tiles named Antigravity CLI, Munder Difflin, Claude Code, Codex CLI, OpenCode and Qwen Code slide in under a grey tile labelled Gemini CLI.",
+      "prompt": "Title card: the hero scene in assets/media/gemini-cli-alternatives/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "agent-tools-today-2026-11-06": {
+    "title": "Agent Tools Today, 6 Nov 2026: Claude Code Email Report, GPT-6 Astra on Safety Work, Crush Subagents",
+    "category": "news",
+    "hero": {
+      "file": "assets/media/agent-tools-today/hero.png",
+      "alt": "Hand drawn sketch: a front page with five numbered lines, a clock, and a yellow character reading it out",
+      "prompt": "Series hero for the Agent Tools Today daily brief, drawn in code (media-src/topic-tiles.html?t=news). Reused by every brief.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "conductor-alternatives": {
+    "title": "Conductor Alternatives: 6 Picks Now That Conductor Is Joining Meta (Nov 2026)",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/conductor-alternatives/hero.png",
+      "alt": "Title card on white. A pill reading Alternatives, the title Conductor alternatives, the line 6 picks now that Conductor is joining Meta and a Checked 6 Nov 2026 line. Six small tiles named Orca, Munder Difflin, Emdash, T3 Code, Worktrunk and Claude Code slide in under a grey tile labelled Conductor.",
+      "prompt": "Title card: the hero scene in assets/media/conductor-alternatives/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "windsurf-alternatives": {
+    "title": "Windsurf Alternatives: 6 Picks Now That Windsurf Is Devin Desktop (Nov 2026)",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/windsurf-alternatives/hero.png",
+      "alt": "Title card on white. A pill reading Alternatives, the title Windsurf alternatives, the line 6 picks now that Windsurf is Devin Desktop and a Checked 6 Nov 2026 line. Six small tiles named Cursor, Munder Difflin, Zed, GitHub Copilot, Cline and Claude Code slide in under a grey tile labelled Windsurf.",
+      "prompt": "Title card: the hero scene in assets/media/windsurf-alternatives/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "orchestrator-inc-vs-munder-difflin": {
+    "title": "Orchestrator.inc vs Munder Difflin: An Honest Comparison (Nov 2026)",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/orchestrator-inc-vs-munder-difflin/hero.png",
+      "alt": "Title card on white. A pill reading Versus, the title Orchestrator.inc vs Munder Difflin, the line An honest comparison and a Checked 6 Nov 2026 line. Two tiles slide in side by side, one labelled Orchestrator.inc and one labelled Munder Difflin.",
+      "prompt": "Title card: the hero scene in assets/media/orchestrator-inc-vs-munder-difflin/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "emdash-alternatives": {
+    "title": "Emdash Alternatives: 6 Tools for Parallel Coding Agents (Nov 2026)",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/emdash-alternatives/hero.png",
+      "alt": "Title card on white. A pill reading Alternatives, the title Emdash alternatives, the line 6 tools for parallel coding agents and a Checked 6 Nov 2026 line. Six small tiles named Orca, Munder Difflin, Orchestrator.inc, T3 Code, Worktrunk and Claude Code slide in under a grey tile labelled Emdash.",
+      "prompt": "Title card: the hero scene in assets/media/emdash-alternatives/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "agent-tools-today-2026-11-07": {
+    "title": "Agent Tools Today, 7 Nov 2026: Claude Code MCP Tasks, OpenCode Shared MCP, Cloudflare Audit Skill",
+    "category": "news",
+    "hero": {
+      "file": "assets/media/agent-tools-today/hero.png",
+      "alt": "Hand drawn sketch: a front page with five numbered lines, a clock, and a yellow character reading it out",
+      "prompt": "Series hero for the Agent Tools Today daily brief, drawn in code (media-src/topic-tiles.html?t=news). Reused by every brief.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "agent-tools-today-2026-11-08": {
+    "title": "Agent Tools Today, 8 Nov 2026: Orca Chat Forks, Qwen Code 0.27.0, Anthropic on Agent Memory",
+    "category": "news",
+    "hero": {
+      "file": "assets/media/agent-tools-today/hero.png",
+      "alt": "Hand drawn sketch: a front page with five numbered lines, a clock, and a yellow character reading it out",
+      "prompt": "Series hero for the Agent Tools Today daily brief, drawn in code (media-src/topic-tiles.html?t=news). Reused by every brief.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "paradev-alternatives": {
+    "title": "Paradev Alternatives: 6 Tools for Running Coding Agents in Parallel (Nov 2026)",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/paradev-alternatives/hero.png",
+      "alt": "Title card on white. A pill reading Alternatives, the title Paradev alternatives, the line 6 tools for running coding agents in parallel and a Checked 7 Nov 2026 line. Six small tiles named Orca, Munder Difflin, Orchestrator.inc, Emdash Classic, T3 Code and Claude Code slide in under a grey tile labelled Paradev.",
+      "prompt": "Title card: the hero scene in assets/media/paradev-alternatives/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "perplexity-teammates-vs-munder-difflin": {
+    "title": "Perplexity Teammates vs Munder Difflin: Hosted Agents or Your Own Computer (Nov 2026)",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/perplexity-teammates-vs-munder-difflin/hero.png",
+      "alt": "Title card on white. A pill reading Compared, the title Perplexity Teammates vs Munder Difflin, the line Hosted agents or your own computer and a Checked 7 Nov 2026 line. Two tiles named Perplexity Teammates and Munder Difflin slide in side by side.",
+      "prompt": "Title card: the hero scene in assets/media/perplexity-teammates-vs-munder-difflin/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "agent-tools-today-2026-11-09": {
+    "title": "Agent Tools Today, 9 Nov 2026: Orca Git Graph, Goodbye Claude for Pi, Goldman Pulls Claude Code",
+    "category": "news",
+    "hero": {
+      "file": "assets/media/agent-tools-today/hero.png",
+      "alt": "Hand drawn sketch: a front page with five numbered lines, a clock, and a yellow character reading it out",
+      "prompt": "Series hero for the Agent Tools Today daily brief, drawn in code (media-src/topic-tiles.html?t=news). Reused by every brief.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "paperclip-alternatives": {
+    "title": "Paperclip Alternatives: 6 Tools for Running a Team of AI Agents (Nov 2026)",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/paperclip-alternatives/hero.png",
+      "alt": "Title card on white. A pill reading Alternatives, the title Paperclip alternatives, the line 6 tools for running a team of AI agents and a Checked 9 Nov 2026 line. Six small tiles named AionUi, Munder Difflin, LobeHub, Orchestrator.inc, Omnigent and Herdr slide in under a grey tile labelled Paperclip.",
+      "prompt": "Title card: the hero scene in assets/media/paperclip-alternatives/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "claude-code-privacy-and-secrets": {
+    "title": "Claude Code Privacy: Your Email Address, Saved Rules and Secrets",
+    "category": "guides",
+    "hero": {
+      "file": "assets/media/claude-code-privacy-and-secrets/hero.png",
+      "alt": "Title card on white. A pill reading Guide, the title Claude Code privacy, the line Your email address, saved rules and secrets and a Checked 9 Nov 2026 line. Three small cards reading 2.1.317, settings.local.json and Read(./.env) slide in on the right.",
+      "prompt": "Title card: the hero scene in assets/media/claude-code-privacy-and-secrets/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "aionui-alternatives": {
+    "title": "AionUi Alternatives: 5 Apps for Running Teams of AI Agents (Nov 2026)",
+    "category": "comparisons",
+    "hero": {
+      "file": "assets/media/aionui-alternatives/hero.png",
+      "alt": "Title card on white. A pill reading Alternatives, the title AionUi alternatives, the line 5 apps for running teams of AI agents and a Checked 9 Nov 2026 line. Five small tiles named Orca, Munder Difflin, OpenWork, Claude Cowork and Paperclip slide in under a grey tile labelled AionUi.",
+      "prompt": "Title card: the hero scene in assets/media/aionui-alternatives/motion.js, shot at 1600 by 900.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
+  "agent-tools-today-2026-11-10": {
+    "title": "Agent Tools Today, 10 Nov 2026: Claude Fable 5.2, an Opus 5.5 Nerf Thread, Orca's Phone Agents Tab",
+    "category": "news",
+    "hero": {
+      "file": "assets/media/agent-tools-today/hero.png",
+      "alt": "Hand drawn sketch: a front page with five numbered lines, a clock, and a yellow character reading it out",
+      "prompt": "Series hero for the Agent Tools Today daily brief, drawn in code (media-src/topic-tiles.html?t=news). Reused by every brief.",
+      "status": "ready"
+    },
+    "inline": {}
+  },
   "the-hook-shim-pattern": {
     "title": "The Hook Shim Pattern: Wiring Agent Hooks to a Live Process",
     "category": "internals",
