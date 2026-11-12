@@ -10,7 +10,7 @@ import { bridgeOf, isClaudeProvider, type AgentProvider } from './agentProvider'
 export interface DeviceConfig {
   /** 'my-lap'; also the label on agent cards and part of the ControlPath. */
   id: string;
-  /** Tailscale IP or name ('100.65.189.1'). */
+  /** IP or name ssh reaches it by: Tailscale ('100.65.189.1') or any network ('192.168.1.6'). */
   host: string;
   /** Login name on the device. Default: this laptop's username. */
   user?: string;
@@ -56,7 +56,8 @@ export const DEFAULT_OFFLINE_PAUSE_MIN = 10;
 // both are held to plain name characters.
 const ID_RE = /^[A-Za-z0-9_-]{1,32}$/;
 const HOST_RE = /^[A-Za-z0-9][A-Za-z0-9.:-]{0,252}$/;
-const USER_RE = /^[A-Za-z_][A-Za-z0-9_.-]{0,31}$/;
+// Linux allows a user name to start with a digit ('123ro'); only '-' is the danger.
+const USER_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,31}$/;
 
 /** '' and 'local' both mean this laptop; anything else is a device id. */
 export function normalizeDeviceId(device: unknown): string | undefined {

@@ -1415,14 +1415,14 @@
   },
   "devices": {
     "title": "设备",
-    "intro": "通过 Tailscale SSH 为此楼层运行智能体的其他 Linux 机器。每台设备都需要与这台笔记本相同的文件夹结构。",
+    "intro": "通过 SSH（Tailscale 或这台笔记本能访问的任何网络）为此楼层运行智能体的其他 Linux 机器。每台设备都需要与这台笔记本相同的文件夹结构，并使用密钥登录：运行一次 ssh-copy-id user@host。",
     "state": {
       "online": "在线",
       "connecting": "连接中",
       "offline": "离线"
     },
     "fieldId": "名称",
-    "fieldHost": "主机（Tailscale IP 或名称）",
+    "fieldHost": "主机（IP 或名称）",
     "fieldUser": "用户（可选）",
     "add": "添加设备",
     "remove": "移除",
@@ -1431,8 +1431,8 @@
     "checking": "检查中…",
     "fix": "修复：",
     "errId": "请使用 1–32 个字母、数字、- 或 _，不能是 \"local\"，且不能与已有名称重复。",
-    "errHost": "请输入设备的 Tailscale IP 或名称。",
-    "errUser": "请使用 Linux 用户名：字母、数字、_、. 或 -，以字母或 _ 开头。",
+    "errHost": "请输入设备的 IP 或名称。",
+    "errUser": "请使用 Linux 用户名：字母、数字、_、. 或 -，不能以 - 开头。",
     "errOffline": "{{device}} 不在线。现在迁移会停止此智能体且无法重新启动，因此未迁移。",
     "none": "还没有设备。",
     "items": {

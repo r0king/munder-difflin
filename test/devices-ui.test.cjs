@@ -87,5 +87,7 @@ test('Settings → Devices validates the user and shows a failed save', () => {
 
 test('restart and restore carry the agent\'s device to main', () => {
   assert.match(src('src/renderer/src/workspace/agents/restartAgent.ts'), /device: a\.device \?\? ''/);
-  assert.match(src('src/renderer/src/hooks/useRestoreTeam.ts'), /device: a\.device \?\? ''/);
+  // Restore team and Reopen share one recipe (respawn-agent.test.cjs runs it).
+  assert.match(src('src/renderer/src/hooks/useRestoreTeam.ts'), /respawnAgent\(a, /);
+  assert.match(src('src/renderer/src/hooks/respawnAgent.ts'), /device: agent\.device \?\? ''/);
 });

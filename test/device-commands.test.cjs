@@ -410,3 +410,13 @@ test("claude in ~/.local/bin is found: every device command and launch.sh put it
   assert.ok(pathLine > 0, 'launch.sh sets PATH');
   assert.ok(pathLine < script.findIndex((l) => l.startsWith('exec ')), 'before it execs claude');
 });
+
+test('a plain-SSH device that refuses the login points at ssh-copy-id', () => {
+  const d = { id: 'lan-box', host: '192.168.1.6', user: '123ro' };
+  assert.equal(dc.sshTarget(d, 'royal'), '123ro@192.168.1.6', 'a user name may start with a digit');
+  assert.equal(
+    dc.masterExitReason('123ro@192.168.1.6: Permission denied (publickey,password).\n', 'lan-box', 'ignored', '123ro@192.168.1.6'),
+    "123ro@192.168.1.6 refused the login: the app's ssh never types a password. Run once in a terminal: ssh-copy-id 123ro@192.168.1.6   # then run Check"
+  );
+  assert.throws(() => dc.sshTarget({ ...d, user: '-oProxyCommand=x' }, 'royal'), /not a valid user/);
+});

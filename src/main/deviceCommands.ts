@@ -95,6 +95,9 @@ export function masterExitReason(stderr: string, deviceId: string, fallback?: st
   if (port) {
     return `Port ${port[1]} on ${deviceId} is still held by a dropped connection. The app restarts Tailscale there by itself when the md-tailscaled sudo rule is set up; otherwise run on ${deviceId}: sudo systemctl restart tailscaled`;
   }
+  if (/Permission denied \(/.test(stderr)) {
+    return `${target} refused the login: the app's ssh never types a password. Run once in a terminal: ssh-copy-id ${target}   # then run Check`;
+  }
   if (fallback) return fallback;
   const last = stderr.split('\n').map((l) => l.trim()).filter(Boolean).pop();
   return last ? `${deviceId}: ${last}` : `Lost the connection to ${deviceId}.`;
@@ -418,7 +421,7 @@ export function checkCommands(
   mounts?: string
 ): Array<{ item: DeviceCheckItem['id']; path?: string; cmd: string; fix: string }> {
   return [
-    { item: 'login', cmd: 'true', fix: 'sudo tailscale up --ssh   # on the device; and give it "action": "accept" in the Tailscale SSH policy' },
+    { item: 'login', cmd: 'true', fix: 'ssh-copy-id <user>@<host>   # on this laptop, so ssh logs in with a key (Tailscale SSH instead: sudo tailscale up --ssh on the device)' },
     { item: 'claude', cmd: 'command -v claude >/dev/null && test -s "$HOME/.claude/.credentials.json"', fix: 'curl -fsSL https://claude.ai/install.sh | bash && claude   # then /login, on the device' },
     { item: 'node', cmd: 'command -v node >/dev/null', fix: 'sudo pacman -S --needed nodejs   # Debian/Ubuntu: sudo apt install nodejs' },
     { item: 'tmux', cmd: 'command -v tmux >/dev/null', fix: 'sudo pacman -S --needed tmux   # Debian/Ubuntu: sudo apt install tmux' },

@@ -413,7 +413,7 @@ export async function checkDevice(
 ): Promise<DeviceCheckItem[]> {
   if (link?.state === 'offline') await link.reconnect();
   if (!link || link.state !== 'online') {
-    return [{ id: 'login', ok: false, fix: link?.error ?? 'Not connected yet. Check the host, and that Tailscale SSH is on for this device.' }];
+    return [{ id: 'login', ok: false, fix: link?.error ?? 'Not connected yet. Check the host, and that `ssh <user>@<host>` logs in from this laptop without a password.' }];
   }
   const out: DeviceCheckItem[] = [];
   for (const c of checkCommands(hiveRoot, folders, link.mountsFile)) {

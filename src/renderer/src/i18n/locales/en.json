@@ -1415,14 +1415,14 @@
   },
   "devices": {
     "title": "Devices",
-    "intro": "Other Linux machines that run agents for this floor, over Tailscale SSH. Each one needs the same folder layout as this laptop.",
+    "intro": "Other Linux machines that run agents for this floor, over SSH (Tailscale or any network this laptop reaches). Each one needs the same folder layout as this laptop, and key login: run ssh-copy-id user@host once.",
     "state": {
       "online": "online",
       "connecting": "connecting",
       "offline": "offline"
     },
     "fieldId": "Name",
-    "fieldHost": "Host (Tailscale IP or name)",
+    "fieldHost": "Host (IP or name)",
     "fieldUser": "User (optional)",
     "add": "Add device",
     "remove": "Remove",
@@ -1431,8 +1431,8 @@
     "checking": "Checking…",
     "fix": "Fix:",
     "errId": "Use 1–32 letters, digits, - or _, not \"local\", and a name not already used.",
-    "errHost": "Enter the device's Tailscale IP or name.",
-    "errUser": "Use a Linux user name: letters, digits, _, . or -, starting with a letter or _.",
+    "errHost": "Enter the device's IP or name.",
+    "errUser": "Use a Linux user name: letters, digits, _, . or -, not starting with -.",
     "errOffline": "{{device}} is not online. Moving now would stop this agent and leave it unable to start, so it was not moved.",
     "none": "No devices yet.",
     "items": {
