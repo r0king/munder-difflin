@@ -74,7 +74,7 @@ function makeServer(overrides = {}) {
 
 /** Drive route() with a POST body and wait for the JSON response. */
 async function post(server, url, payload, headers = {}) {
-  const req = mockReq({ url, method: 'POST', headers: { cookie: 'md_webui=sekrit', ...headers } });
+  const req = mockReq({ url, method: 'POST', headers: { cookie: 'md_webui=sekrit', 'x-md-webui': '1', ...headers } });
   const res = mockRes();
   server.route(req, res);
   req.emit('data', Buffer.from(JSON.stringify(payload)));
@@ -177,6 +177,32 @@ test('start() refuses a non-loopback bind without a token', async () => {
   const res = await server.start();
   assert.equal(res.ok, false);
   assert.match(res.error, /token/);
+});
+
+test('loopback is no exception: no token, no start, and no request gets through', async () => {
+  // A web page in this machine's browser can POST to 127.0.0.1, and Tailscale
+  // Serve hands every tailnet request to this port from 127.0.0.1.
+  const server = makeServer({ token: null, host: '127.0.0.1' });
+  assert.equal((await server.start()).ok, false);
+  const res = mockRes();
+  server.route(mockReq({ url: '/' }), res);
+  assert.equal(res.statusCode, 401);
+});
+
+test('a call without the X-MD-WebUI header never reaches a handler, cookie or not', async () => {
+  resetIpcCaptureForTests();
+  const ipc = fakeIpcMain();
+  installIpcCapture(ipc);
+  let called = 0;
+  ipc.handle('pty:spawn', () => { called++; return { ok: true }; });
+  ipc.on('sync:ping', (e) => { called++; e.returnValue = 'pong'; });
+  const server = makeServer();
+  for (const url of ['/__webui/invoke', '/__webui/sendSync']) {
+    const res = await post(server, url, { channel: url.endsWith('invoke') ? 'pty:spawn' : 'sync:ping', args: [] }, { 'x-md-webui': undefined });
+    assert.equal(res.statusCode, 403, url);
+  }
+  assert.equal(called, 0, 'a cross-site form post must not run anything');
+  resetIpcCaptureForTests();
 });
 
 test('auth: 401 without token, ?token= exchanges for a cookie via 302', () => {

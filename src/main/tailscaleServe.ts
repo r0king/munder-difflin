@@ -27,11 +27,11 @@ export function buildServeOnArgv(port: number): string[] {
   return ['serve', '--bg', String(port)];
 }
 
-/** The argv list tried, in order, to unpublish. `serve reset` clears every
- *  serve entry (fine: this app owns the only one it creates); the targeted
- *  `--https=443 off` form is the fallback for CLIs where reset is unavailable. */
+/** The argv list tried, in order, to unpublish: only the https:443 entry
+ *  `serve --bg <port>` created. Never `serve reset`, which would also wipe
+ *  serve entries this app did not make. */
 export function buildServeOffArgvList(): string[][] {
-  return [['serve', 'reset'], ['serve', '--https=443', 'off']];
+  return [['serve', '--https=443', 'off']];
 }
 
 export interface TailscaleServeStatus {

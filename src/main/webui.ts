@@ -25,10 +25,10 @@
  *
  * OFF by default; when enabled, LOOPBACK-ONLY by default. Enabled via config
  * (`webUi.enabled`) or env (`MD_WEBUI=1`); reaching it from other devices is a
- * second explicit opt-in (`webUi.host: "0.0.0.0"` / MD_WEBUI_HOST). Any bind
- * beyond loopback REQUIRES a bearer token (auto-generated and persisted if
+ * second explicit opt-in (`webUi.host: "0.0.0.0"` / MD_WEBUI_HOST). EVERY bind,
+ * loopback included, REQUIRES a bearer token (auto-generated and persisted if
  * unset) — every request must carry it (first visit via `?token=…`, exchanged
- * for an HttpOnly cookie).
+ * for an HttpOnly cookie), and calls also carry an X-MD-WebUI header.
  *
  * NO Electron value imports here (types only): the module stays loadable under
  * plain Node so test/webui.test.cjs can exercise routing/auth/serialization.
@@ -209,7 +209,8 @@ export function resolveWebUiRuntimeConfig(
 export interface WebUiServerOptions {
   host: string;
   port: number;
-  /** Shared secret; null = no auth (loopback only — start() enforces this). */
+  /** Shared secret every request must carry. Required on every bind: start()
+   *  refuses without one (index.ts generates and persists it). */
   token: string | null;
   /** Absolute path to the built renderer (out/renderer). */
   rendererDir: string;
@@ -264,14 +265,11 @@ export class WebUiServer {
   constructor(private readonly opts: WebUiServerOptions) {}
 
   start(): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
-    const { host, port, token, loopback } = {
-      ...this.opts,
-      loopback: ['127.0.0.1', '::1', 'localhost'].includes(this.opts.host)
-    };
-    if (!token && !loopback) {
+    const { host, port, token } = this.opts;
+    if (!token) {
       return Promise.resolve({
         ok: false as const,
-        error: `refusing to bind ${host} without a token — set webUi.token (or MD_WEBUI_TOKEN)`
+        error: `refusing to start without a token — set webUi.token (or MD_WEBUI_TOKEN)`
       });
     }
     return new Promise((resolvePromise) => {
@@ -344,15 +342,13 @@ export class WebUiServer {
 
   private tokenMatches(candidate: string | null | undefined): boolean {
     const expected = this.opts.token;
-    if (!expected) return true; // loopback, no token configured
-    if (!candidate) return false;
+    if (!expected || !candidate) return false;
     const a = Buffer.from(candidate);
     const b = Buffer.from(expected);
     return a.length === b.length && timingSafeEqual(a, b);
   }
 
   private authorized(req: IncomingMessage, url: URL): boolean {
-    if (!this.opts.token) return true;
     if (this.tokenMatches(url.searchParams.get('token'))) return true;
     const auth = req.headers.authorization;
     if (auth?.startsWith('Bearer ') && this.tokenMatches(auth.slice(7))) return true;
@@ -396,6 +392,13 @@ export class WebUiServer {
       return;
     }
 
+    // Calls carry a custom header, which a page on another origin can only send
+    // after a CORS preflight this server never answers: a cross-site form or
+    // fetch cannot reach a handler, whatever cookies the browser attaches.
+    if ((path === '/__webui/invoke' || path === '/__webui/sendSync') && req.headers['x-md-webui'] !== '1') {
+      this.json(res, 403, { ok: false, error: 'missing X-MD-WebUI header' });
+      return;
+    }
     if (path === '/__webui/events') { this.handleSse(req, res); return; }
     if (path === '/__webui/invoke' && req.method === 'POST') { void this.handleInvoke(req, res); return; }
     if (path === '/__webui/sendSync' && req.method === 'POST') { void this.handleSendSync(req, res); return; }

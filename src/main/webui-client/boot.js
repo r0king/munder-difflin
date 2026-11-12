@@ -73,7 +73,7 @@
   function invoke(channel, args) {
     return fetch('/__webui/invoke', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-MD-WebUI': '1' },
       body: JSON.stringify({ channel: channel, args: encodeWire(args) })
     }).then(function (r) { return r.json(); }).then(function (j) {
       if (!j.ok) throw new Error(j.error || 'invoke failed: ' + channel);
@@ -125,6 +125,7 @@
       var xhr = new XMLHttpRequest();
       xhr.open('POST', '/__webui/sendSync', false);
       xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.setRequestHeader('X-MD-WebUI', '1');
       xhr.send(JSON.stringify({ channel: channel, args: encodeWire(args) }));
       if (xhr.status !== 200) throw new Error('sendSync failed: ' + channel);
       var j = JSON.parse(xhr.responseText);

@@ -6044,10 +6044,11 @@ async function startWebUiServer(): Promise<{ ok: boolean; url?: string; error?: 
     rc = resolveWebUiRuntimeConfig(readConfig().webUi, process.env);
   }
   let token = rc.token;
-  if (!token && !rc.loopback) {
-    // Non-loopback bind with no secret: generate one and persist it, so the
-    // login URL printed below stays stable across restarts. Same posture as the
-    // webhook endpoint secrets — never a default-open network surface.
+  if (!token) {
+    // No secret yet: generate one and persist it, so the login URL printed
+    // below stays stable across restarts. Loopback too: any web page open in
+    // this machine's browser can POST to 127.0.0.1, and Tailscale Serve hands
+    // every tailnet request to this port from 127.0.0.1.
     token = randomBytes(16).toString('hex');
     writeConfig({ webUi: { ...(readConfig().webUi ?? {}), token } });
   }
@@ -6091,10 +6092,17 @@ async function maybeStartWebUi(): Promise<void> {
 // plain-HTTP LAN segment. The CLI runner is injectable for tests.
 const tailscaleRunner = makeNodeRunner('tailscale');
 
+/** The serve URL with the login token, so Settings hands out a link that opens. */
+function webUiLoginUrl(url: string | null | undefined): string | undefined {
+  const token = resolveWebUiRuntimeConfig(readConfig().webUi, process.env).token;
+  return url ? (token ? `${url}/?token=${token}` : url) : undefined;
+}
+
 ipcMain.handle('tailscale:status', async () => {
   const status = await readTailscaleStatus(tailscaleRunner);
   return {
     ...status,
+    url: webUiLoginUrl(status.url) ?? null,
     appRunning: !!webUiServer,
     loopbackPort: webUiPort || resolveWebUiRuntimeConfig(readConfig().webUi, process.env).port
   };
@@ -6106,7 +6114,7 @@ ipcMain.handle('tailscale:serveOn', async () => {
   if (!started.ok) return { ok: false, error: `web ui: ${started.error ?? 'failed to start'}` };
   const res = await enableServe(webUiPort, tailscaleRunner);
   if (res.ok) console.log(`[tailscale] serving the office at ${res.url ?? '(url unknown)'}`);
-  return res;
+  return res.ok ? { ...res, url: webUiLoginUrl(res.url) } : res;
 });
 
 ipcMain.handle('tailscale:serveOff', async () => disableServe(tailscaleRunner));

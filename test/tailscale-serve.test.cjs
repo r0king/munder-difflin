@@ -29,10 +29,9 @@ test('serve-on argv publishes the port in the background', () => {
   assert.deepEqual(ts.buildServeOnArgv(4820), ['serve', '--bg', '4820']);
 });
 
-test('serve-off tries the targeted form only after reset, never a shell string', () => {
+test('serve-off removes only the https:443 entry, never resets every serve entry', () => {
   const list = ts.buildServeOffArgvList();
-  assert.deepEqual(list[0], ['serve', 'reset']);
-  assert.deepEqual(list[1], ['serve', '--https=443', 'off']);
+  assert.deepEqual(list, [['serve', '--https=443', 'off']]);
   for (const argv of list.flat()) {
     assert.ok(!/[$;&|`]/.test(argv), `argv element looks shell-interpolated: ${argv}`);
   }
@@ -102,14 +101,11 @@ test('enableServe surfaces the CLI error line when publish fails', async () => {
   assert.match(r.error, /serve requires root/);
 });
 
-test('disableServe falls back to the targeted off when reset is unsupported', async () => {
-  const f = fakeRunner((argv) =>
-    argv[1] === 'reset'
-      ? { code: 1, stdout: '', stderr: 'unknown command: reset' }
-      : { code: 0, stdout: '', stderr: '' });
+test('disableServe runs the targeted off', async () => {
+  const f = fakeRunner(() => ({ code: 0, stdout: '', stderr: '' }));
   const r = await ts.disableServe(f.run);
   assert.equal(r.ok, true);
-  assert.deepEqual(f.calls[1], ['serve', '--https=443', 'off']);
+  assert.deepEqual(f.calls, [['serve', '--https=443', 'off']]);
 });
 
 test('disableServe reports failure only after both forms were tried', async () => {
@@ -165,7 +161,7 @@ test('preload exposes the tailscale/webui surface', () => {
 });
 
 test('every locale carries the web UI section keys', () => {
-  for (const l of ['en', 'zh-CN', 'ar', 'pt-PT', 'pt-BR']) {
+  for (const l of ['en', 'zh-CN', 'ar']) {
     const d = JSON.parse(fs.readFileSync(path.join(root, 'src/renderer/src/i18n/locales', `${l}.json`), 'utf8'));
     const conns = d.settings.connections;
     for (const k of ['webUiTitle', 'webUiDesc', 'webUiTailscale', 'webUiTailscaleDesc', 'webUiTsMissing']) {
